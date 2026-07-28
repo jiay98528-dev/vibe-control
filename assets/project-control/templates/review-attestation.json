@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "3.2",
+  "reviewId": "REVIEW-001",
+  "taskId": "TASK-001",
+  "candidateId": "replace-with-candidate-id",
+  "candidateCommit": "replace-with-40-char-commit",
+  "checkpointSetSha256": "replace-with-64-char-sha256",
+  "keyObjectives": {"path": ".vibe-control/key-objectives-lock.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "positioning": {"path": ".vibe-control/project-positioning.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "resolvedRuleSet": {"path": ".vibe-control/resolved-rule-set.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "auditor": {"actorId": "auditor", "sessionId": "independent-session"},
+  "evidenceIds": ["EVIDENCE-001"],
+  "evidenceRefs": [{"path": ".vibe-control/evidence/EVIDENCE-001.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true}],
+  "checkpointResults": [{"checkpointId": "CP-001", "expectedStatus": "PASS", "observedStatus": "PASS", "evidenceIds": ["EVIDENCE-001"], "deviationFindingId": null}],
+  "findings": [],
+  "transcript": {"path": ".vibe-control/reviews/transcript.txt", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "result": "PASS",
+  "reviewedAt": "replace-with-iso-time"
+}

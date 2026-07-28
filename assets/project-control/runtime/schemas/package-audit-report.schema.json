@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportType", "reportId", "version", "candidateCommit", "candidateTree", "packageManifestSha256", "runtimeManifestSha256", "assuranceMatrixSha256", "auditor", "implementer", "auditedAt", "result", "findingCounts", "validatedControlIds", "evidenceManifestBlob", "evidenceManifestSha256"],
+  "properties": {
+    "schemaVersion": {"const": "3.2"},
+    "reportType": {"const": "vibe-control-package-audit"},
+    "reportId": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "candidateCommit": {"$ref": "#/$defs/oid"},
+    "candidateTree": {"$ref": "#/$defs/oid"},
+    "packageManifestSha256": {"$ref": "#/$defs/sha256"},
+    "runtimeManifestSha256": {"$ref": "#/$defs/sha256"},
+    "assuranceMatrixSha256": {"$ref": "#/$defs/sha256"},
+    "auditor": {"$ref": "#/$defs/actor"},
+    "implementer": {"$ref": "#/$defs/actor"},
+    "auditedAt": {"type": "string", "format": "date-time"},
+    "result": {"const": "PASS"},
+    "findingCounts": {"$ref": "#/$defs/findingCounts"},
+    "validatedControlIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "evidenceManifestBlob": {"$ref": "#/$defs/oid"},
+    "evidenceManifestSha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "actor": {"type": "object", "additionalProperties": false, "required": ["actorId", "sessionId"], "properties": {"actorId": {"type": "string", "minLength": 1}, "sessionId": {"type": "string", "minLength": 1}}},
+    "findingCounts": {"type": "object", "additionalProperties": false, "required": ["P0", "P1", "P2", "P3"], "properties": {"P0": {"type": "integer", "minimum": 0}, "P1": {"type": "integer", "minimum": 0}, "P2": {"type": "integer", "minimum": 0}, "P3": {"type": "integer", "minimum": 0}}}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "3.2",
+  "projectId": "vibe-control-self-032",
+  "keyObjectives": {
+    "document": "KEY_OBJECTIVES.md",
+    "documentId": "KOD-VIBE-CONTROL",
+    "revision": 2,
+    "status": "CONFIRMED",
+    "sourceDocuments": ["references/0.3.3-requirements.md"],
+    "objectiveIds": ["KO-001", "KO-002", "KO-003", "KO-004", "KO-005"],
+    "failureModeIds": ["KF-001", "KF-002", "KF-003", "KF-004", "KF-005"],
+    "nonGoalIds": ["NG-001", "NG-002", "NG-003", "NG-004", "NG-005"],
+    "confirmation": {
+      "actorId": "product-owner",
+      "summary": "Confirmed KEY_OBJECTIVES.md revision 2 for vibe-control 0.3.3 checkpoint-contract development; objectives remain unchanged and the approved 0.3.3 requirements become the stable source.",
+      "summarySha256": "9f843b546bc14935088d451ae4c0adb70dd46d3628c9580c6b23efab0dca0de4",
+      "record": "references/0.3.3-objectives-confirmation.json"
+    }
+  }
+}

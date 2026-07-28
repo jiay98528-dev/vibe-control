@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "runtimeFamily", "discoverySource", "localExecution", "evidenceCapabilities", "doesNotProve", "requiredCaseCapabilities", "provesCaseCapabilities", "environmentLimits", "degradationLimits", "canApprove"],
+  "properties": {
+    "id": {"enum": ["generic-command", "browser-runtime", "godot-runtime"]},
+    "version": {"type": "string", "minLength": 1},
+    "runtimeFamily": {"type": "string", "minLength": 1},
+    "discoverySource": {"type": "string", "minLength": 1},
+    "localExecution": {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"enum": ["command", "playwright", "godot"]}}},
+    "evidenceCapabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "doesNotProve": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "requiredCaseCapabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "provesCaseCapabilities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "environmentLimits": {"type": "array", "items": {"type": "string"}},
+    "degradationLimits": {"type": "array", "items": {"type": "string"}},
+    "canApprove": {"const": false}
+  }
+}

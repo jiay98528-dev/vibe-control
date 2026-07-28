@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "3.0",
+  "recordedAt": "2026-07-26T16:58:29+08:00",
+  "status": "PASS",
+  "scope": "conservative discovery/routing and source non-mutation only",
+  "projects": [
+    {
+      "projectId": "goro-study_Github",
+      "sourceHead": "d84c8024f4aff799c773cac5431850e7265d56cd",
+      "sourceStatusEntryCount": 0,
+      "sourceUnchanged": true,
+      "cloneDetachedHead": "d84c8024f4aff799c773cac5431850e7265d56cd",
+      "cloneCleanAfterResolve": true,
+      "releaseIntentInferred": false,
+      "canonicalSha256": "a863cdac648664a76254e039c5b1b8abe8de1167a157f0fc2df103f9430cca62",
+      "profiles": ["game", "ui-desktop"],
+      "signals": [{"signal": "Godot", "paths": ["project.godot"], "adapter": "godot-runtime"}],
+      "adapters": ["generic-command", "godot-runtime"],
+      "investigations": [],
+      "blockers": [],
+      "conflicts": []
+    },
+    {
+      "projectId": "Game_HumenFire",
+      "sourceHead": "1f9df9c458eb6bc5502da8e65d9b1db89c7453ce",
+      "sourceStatusEntryCount": 0,
+      "sourceUnchanged": true,
+      "cloneDetachedHead": "1f9df9c458eb6bc5502da8e65d9b1db89c7453ce",
+      "cloneCleanAfterResolve": true,
+      "releaseIntentInferred": false,
+      "canonicalSha256": "f92fe697cd11adec6fe8ee208a55cd6458858634f362026ec122f15efa1fef1f",
+      "profiles": ["game", "ui-desktop"],
+      "signals": [
+        {"signal": "Browser", "paths": ["playwright.config.ts"], "adapter": "browser-runtime"},
+        {"signal": "Capacitor", "paths": ["capacitor.config.json"], "adapter": null}
+      ],
+      "adapters": ["browser-runtime", "generic-command"],
+      "investigations": ["PROJECT-SIGNAL-CAPACITOR"],
+      "blockers": [],
+      "conflicts": []
+    },
+    {
+      "projectId": "Pulse",
+      "sourceHead": "81c152634dd734bd39d7f002bd1caf6e25815b75",
+      "sourceStatusEntryCount": 99,
+      "sourceUnchanged": true,
+      "cloneDetachedHead": "81c152634dd734bd39d7f002bd1caf6e25815b75",
+      "cloneCleanAfterResolve": true,
+      "releaseIntentInferred": false,
+      "canonicalSha256": "7fe61d9543a2e5682b5f364772793c164e762966f6b796e6d8430472bc521e4d",
+      "profiles": ["backend-api", "ui-desktop"],
+      "signals": [{"signal": "Tauri", "paths": ["src-tauri/tauri.conf.json"], "adapter": null}],
+      "adapters": ["browser-runtime", "generic-command"],
+      "investigations": ["PROJECT-SIGNAL-TAURI"],
+      "blockers": [],
+      "conflicts": [],
+      "note": "The committed-HEAD clone intentionally excludes 99 pre-existing working-tree entries."
+    }
+  ],
+  "claim": "This diagnostic PASS is not project bootstrap, acceptance, or release evidence."
+}

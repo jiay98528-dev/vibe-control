@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "lockId", "projectId", "packageMode", "packageBinding", "skill", "runtime", "keyObjectives", "caseCatalog", "authorityFiles", "ruleInputs", "positioning", "resolvedRuleSet", "ruleCompiler", "profileDirectory", "adapterDirectory", "skillBindings", "releaseIntent", "trustedKeys", "lockedAt"],
+  "properties": {
+    "schemaVersion": {"const": "3.2"}, "lockId": {"type": "string"}, "projectId": {"type": "string"},
+    "packageMode": {"enum": ["DEVELOPMENT", "SEALED"]},
+    "packageBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "commit", "tree", "packageManifest", "runtimeManifest", "assuranceMatrix"],
+      "properties": {
+        "version": {"type": "string"}, "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "packageManifest": {"$ref": "#/$defs/ref"}, "runtimeManifest": {"$ref": "#/$defs/ref"}, "assuranceMatrix": {"$ref": "#/$defs/ref"}
+      }
+    },
+    "skill": {"$ref": "#/$defs/ref"}, "runtime": {"$ref": "#/$defs/ref"}, "packageAuditReceipt": {"$ref": "#/$defs/ref"},
+    "keyObjectives": {"$ref": "#/$defs/ref"}, "caseCatalog": {"$ref": "#/$defs/ref"}, "authorityFiles": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "ruleInputs": {"$ref": "#/$defs/ref"}, "positioning": {"$ref": "#/$defs/ref"}, "resolvedRuleSet": {"$ref": "#/$defs/ref"}, "ruleCompiler": {"$ref": "#/$defs/ref"},
+    "profileDirectory": {"$ref": "#/$defs/ref"}, "adapterDirectory": {"$ref": "#/$defs/ref"}, "skillBindings": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "releaseIntent": {"enum": ["LOCAL_EXPERIMENT", "PRIVATE_OPERATION", "EXTERNAL_RELEASE"]}, "trustedKeys": {"type": "object"}, "lockedAt": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [{"if": {"properties": {"packageMode": {"const": "SEALED"}}}, "then": {"required": ["packageAuditReceipt"]}}],
+  "$defs": {"ref": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "tracked"], "properties": {"path": {"type": "string"}, "bytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "tracked": {"const": true}}}}
+}

@@ -1,0 +1,11 @@
+# Runtime and integrity-bound artifacts are hashed byte-for-byte.  Keep their
+# checkout representation stable on Windows even when core.autocrlf is true.
+*.py text eol=lf
+*.json text eol=lf
+*.txt -text
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+VERSION text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf

@@ -1,0 +1,251 @@
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import subprocess
+import sys
+import tempfile
+import os
+from pathlib import Path
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+SOURCE_SKILL_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _released_test_package() -> tuple[tempfile.TemporaryDirectory, Path]:
+    """Create a real, locally tagged package so project tests never bypass the package gate."""
+    import test_package_release_audit as package_fixture
+
+    temp, root = package_fixture.package_copy()
+    package_fixture.seal(root)
+    report = package_fixture.package_report(root, expect=0)
+    if report.get("formalClaimsAllowed") is not True:
+        temp.cleanup()
+        raise AssertionError(f"synthetic package release seal failed: {report}")
+    return temp, root
+
+
+_TEST_PACKAGE_TEMP, SKILL_ROOT = _released_test_package()
+WRAPPER = SKILL_ROOT / "scripts" / "vibe_control.py"
+
+
+COMMAND_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_TEST_COMMAND_TIMEOUT", "120"))
+
+
+def run(*args: str, cwd: Path | None = None, expect: int | None = 0) -> subprocess.CompletedProcess[str]:
+    try:
+        value = subprocess.run(
+            list(args),
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise AssertionError(
+            f"ASSURANCE-COMMAND-TIMEOUT after {COMMAND_TIMEOUT_SECONDS}s: {' '.join(args)}"
+        ) from exc
+    if expect is not None and value.returncode != expect:
+        raise AssertionError(f"exit {value.returncode}, expected {expect}\nstdout={value.stdout}\nstderr={value.stderr}")
+    return value
+
+
+def git(root: Path, *args: str) -> str:
+    return run("git", "-C", str(root), *args).stdout.strip()
+
+
+def commit(root: Path, message: str) -> str:
+    git(root, "add", "-A"); git(root, "commit", "-m", message); return git(root, "rev-parse", "HEAD")
+
+
+def write(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def load(path: Path): return json.loads(path.read_text(encoding="utf-8-sig"))
+def sha(path: Path) -> str: return hashlib.sha256(path.read_bytes()).hexdigest()
+def ref(root: Path, path: Path) -> dict: return {"path":path.relative_to(root).as_posix(),"bytes":path.stat().st_size,"sha256":sha(path),"tracked":True}
+def runtime(root: Path) -> Path: return root / ".vibe-control" / "runtime" / "0.3.4" / "control.py"
+def main_evidence_path(root: Path) -> Path: return next(path for path in (root/".vibe-control"/"evidence").glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json")))
+
+
+def adapter_binding(adapter_id: str = "generic-command") -> dict:
+    catalog = load(SKILL_ROOT / "assets" / "project-control" / "runtime" / "rules" / "v1" / "adapters.json")
+    descriptor = next(item for item in catalog["adapters"] if item["id"] == adapter_id)
+    return {"id": adapter_id, "version": descriptor["version"], "sha256": hashlib.sha256(json.dumps(descriptor, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+
+
+def source_id(prefix: str, statement: str) -> str:
+    normalized = " ".join(statement.strip().split())
+    return f"{prefix}-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:12]}"
+
+
+def positioning_axes(release_intent: str) -> dict:
+    gate = "owner acceptance"
+    signal = "CASE-001 passes"
+    return {"primaryExperience":"SERVICE","capabilityDomains":["BACKEND_API"],"deliveryObjective":"VERTICAL_SLICE","releaseIntent":release_intent,"runtimeTargets":["python-local"],"targetEnvironments":[{"id":"test","operatingSystem":"Windows","deviceClass":"desktop","architecture":"x86_64"}],"distributionChannels":[],"humanQualityGates":[{"id":source_id("HG",gate),"statement":gate}],"nonGoals":[],"firstVerticalSlice":{"outcome":"fixture command succeeds","included":["one command"],"excluded":["deployment"],"successSignals":[{"id":source_id("SIG",signal),"statement":signal}]}}
+
+
+def task_contract(*, risk: str, task_ceiling: str) -> dict:
+    signal_id = source_id("SIG", "CASE-001 passes")
+    gate_id = source_id("HG", "owner acceptance")
+    automated_claim = "DEVELOPMENT_CHECKED" if task_ceiling == "DEVELOPMENT_CHECKED" else "VERIFIED"
+    checkpoints = [{"id":"CP-001","sourceRefs":[signal_id],"objectiveRefs":["KO-001"],"statement":"CASE-001 returns the locked success marker","type":"AUTOMATED","requiredForClaim":automated_claim,"caseIds":["CASE-001"],"assertions":[{"id":"ASRT-001","statement":"CASE-001 exits successfully and prints OK","caseIds":["CASE-001"]}],"expected":{"status":"PASS","minExecuted":1,"maxFailed":0,"maxSkipped":0,"artifacts":"AS_DECLARED"},"notProven":[]}]
+    if task_ceiling in {"ACCEPTED", "RELEASE_READY"}:
+        checkpoints.append({"id":"CP-002","sourceRefs":[gate_id],"objectiveRefs":["KO-001"],"statement":"owner accepts the fixture outcome","type":"HUMAN","requiredForClaim":"ACCEPTED","caseIds":[],"assertions":[],"expected":{"status":"PASS","minExecuted":1,"maxFailed":0,"maxSkipped":0,"artifacts":"AS_DECLARED"},"notProven":["automatic product judgment"]})
+    policy={"mode":"CONFORMANCE_PLUS_BOUNDED_EXPLORATION","maxExploratoryFindings":3,"stopCondition":"ALL_REQUIRED_CHECKPOINTS_REPORTED"}
+    payload={"acceptanceCheckpoints":checkpoints,"auditPolicy":policy}
+    checkpoint_hash=hashlib.sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    return {"schemaVersion":"3.2","taskId":"TASK-001","goal":"prove fixture","objectiveRefs":["KO-001","KF-001"],"allowedPaths":["fixture.py"],"forbiddenPaths":["forbidden.txt","secrets/**"],"requiredCaseIds":["CASE-001"],"risk":risk,"maxClaimLevel":task_ceiling,"authorityRefs":["PROJECT_BRIEF.md"],"nonGoals":[],"humanDecisionPoints":["release"],"acceptanceCheckpoints":checkpoints,"checkpointConfirmation":{"actorId":"owner","summary":"fixture checkpoints confirmed","checkpointSetSha256":checkpoint_hash,"record":"CHECKPOINT_CONFIRMATION.json","confirmedAt":"2026-07-25T00:00:00+08:00"},"auditPolicy":policy}
+
+
+def objective_spec() -> dict:
+    summary = "fixture objectives confirmed"
+    return {
+        "document": "KEY_OBJECTIVES.md", "documentId": "FIXTURE-OBJECTIVES", "revision": 1, "status": "CONFIRMED",
+        "sourceDocuments": ["PROJECT_BRIEF.md"], "objectiveIds": ["KO-001"], "failureModeIds": ["KF-001"], "nonGoalIds": ["NG-001"],
+        "confirmation": {"actorId": "owner", "summary": summary, "summarySha256": hashlib.sha256(summary.encode()).hexdigest(), "record": "OBJECTIVES_CONFIRMATION.json"},
+    }
+
+
+def write_objective_files(root: Path) -> None:
+    (root / "KEY_OBJECTIVES.md").write_text("# Fixture objectives\n\n- `KO-001`: prove the fixture outcome\n- `KF-001`: prevent false evidence\n- `NG-001`: no deployment\n", encoding="utf-8", newline="\n")
+    write(root / "OBJECTIVES_CONFIRMATION.json", {"actorId": "owner", "decision": "CONFIRM"})
+
+
+def valid_bootstrap_spec(*, project_id: str = "fixture", release_intent: str = "PRIVATE_OPERATION", trusted_keys: list[dict] | None = None) -> dict:
+    """Return a minimal but complete Schema 3.2 bootstrap input for mutation tests."""
+    positioning = positioning_axes(release_intent)
+    summary_hash = hashlib.sha256(json.dumps(positioning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return {"schemaVersion":"3.2","projectId":project_id,**positioning,"confirmation":{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":objective_spec(),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["PROJECT_BRIEF.md"],"trustedKeys":trusted_keys or [],"cases":[{"id":"CASE-001","command":[sys.executable,"fixture.py"],"observation":"runtime-observed","maxClaimLevel":"RELEASE_READY" if release_intent == "EXTERNAL_RELEASE" else "ACCEPTED","oracle":{"exitCode":0,"stdoutContainsAll":[],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":adapter_binding()}]}
+
+
+def package_formal_enabled() -> bool:
+    result = run(sys.executable, str(SKILL_ROOT / "scripts" / "validate_package_release.py"), "--skill-root", str(SKILL_ROOT), expect=None)
+    report = json.loads(result.stdout)
+    return result.returncode == 0 and report.get("formalClaimsAllowed") is True
+
+
+def command(root: Path, *args: str, expect: int | None = 0):
+    result = run(sys.executable, str(runtime(root)), *args, "--project", str(root), expect=expect)
+    return result, json.loads(result.stdout)
+
+
+def public_b64(private: Ed25519PrivateKey) -> str:
+    raw = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    return base64.b64encode(raw).decode()
+
+
+def canonical(value) -> bytes:
+    payload = {k:v for k,v in value.items() if k != "signature"} if isinstance(value, dict) else value
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+
+
+def sign(value: dict, private: Ed25519PrivateKey) -> dict:
+    value = json.loads(json.dumps(value)); value["signature"] = {"algorithm":"Ed25519","value":base64.b64encode(private.sign(canonical(value))).decode()}; return value
+
+
+def bootstrap_raw(spec: dict):
+    """Create the smallest clean Git project and run bootstrap without assuming success."""
+    temp = tempfile.TemporaryDirectory(prefix="vibe-control-bootstrap-")
+    base = Path(temp.name); root = base / "project"; root.mkdir()
+    git(root, "init"); git(root, "config", "user.email", "fixture@example.invalid"); git(root, "config", "user.name", "Fixture")
+    (root / "PROJECT_BRIEF.md").write_text("# Fixture\n", encoding="utf-8")
+    write_objective_files(root)
+    confirmation = spec.get("confirmation") if isinstance(spec, dict) else None
+    if isinstance(confirmation, dict) and isinstance(confirmation.get("record"), str):
+        write(root / confirmation["record"], {"actorId": confirmation.get("actorId", "owner"), "decision": "CONFIRM"})
+    commit(root, "initial authority")
+    spec_path = base / "bootstrap.json"; write(spec_path, spec)
+    result = run(sys.executable, str(WRAPPER), "bootstrap", "--project", str(root), "--spec", str(spec_path), expect=None)
+    return temp, root, result
+
+
+def setup_project(*, risk: str = "R2", task_ceiling: str | None = None, case_ceiling: str | None = None, observation: str = "runtime-observed", command_script: str = "fixture.py", ignored_runner_case: bool = False, release_intent: str = "PRIVATE_OPERATION", include_keys: bool = True):
+    intent_caps = {"LOCAL_EXPERIMENT":"VERIFIED", "PRIVATE_OPERATION":"ACCEPTED", "EXTERNAL_RELEASE":"RELEASE_READY"}
+    task_ceiling = task_ceiling or intent_caps[release_intent]
+    case_ceiling = case_ceiling or task_ceiling
+    temp = tempfile.TemporaryDirectory(prefix="vibe-control-v3-"); base = Path(temp.name); root = base / "project"; root.mkdir()
+    git(root, "init"); git(root, "config", "user.email", "fixture@example.invalid"); git(root, "config", "user.name", "Fixture")
+    (root / "PROJECT_BRIEF.md").write_text("# Fixture\n", encoding="utf-8")
+    (root / "POSITIONING_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
+    (root / "CHECKPOINT_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
+    write_objective_files(root)
+    if ignored_runner_case: (root / ".gitignore").write_text("ignored_runner.py\n", encoding="utf-8")
+    commit(root, "initial authority")
+    keys = {name:Ed25519PrivateKey.generate() for name in ("executor","auditor","release-auditor","owner")} if include_keys else {}
+    positioning = positioning_axes(release_intent)
+    summary_hash = hashlib.sha256(json.dumps(positioning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    spec = {"schemaVersion":"3.2","projectId":"fixture",**positioning,"confirmation":{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":objective_spec(),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["PROJECT_BRIEF.md"],"trustedKeys":[{"keyId":f"{name}-key","actorId":name,"role":name,"publicKey":public_b64(key)} for name,key in keys.items()],"cases":[{"id":"CASE-001","command":[sys.executable,command_script],"observation":observation,"maxClaimLevel":case_ceiling,"oracle":{"exitCode":0,"stdoutContainsAll":["OK"],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":adapter_binding()}]}
+    spec_path = base / "bootstrap.json"; write(spec_path, spec)
+    result = run(sys.executable, str(WRAPPER), "bootstrap", "--project", str(root), "--spec", str(spec_path), expect=2); assert json.loads(result.stdout)["status"] == "BLOCKED"; commit(root, "bootstrap v3")
+    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.4"
+    contract = task_contract(risk=risk, task_ceiling=task_ceiling)
+    contract_path = control / "tasks" / "TASK-001.json"; write(contract_path, contract); commit(root, "add task contract")
+    command(root, "lock-task", "--contract", str(contract_path)); commit(root, "lock task")
+    (root / "fixture.py").write_text("print('OK')\n", encoding="utf-8"); commit(root, "implement fixture")
+    command(root, "freeze", "--actor", "implementer", "--session", "impl-1"); commit(root, "freeze candidate")
+    return temp, root, keys
+
+
+def execute_and_verify(root: Path):
+    command(root, "execute", "--actor", "executor", "--session", "exec-1"); commit(root, "record evidence")
+    result, report = command(root, "validate", expect=2); assert report["state"]["derived"]["phase"] == "VERIFIED"; commit(root, "derive verified state")
+    _, report = command(root, "validate", expect=2); assert report["state"]["declared"]["phase"] == "VERIFIED" and report["formal"]["eligible"] is False and "HC-RISK-REVIEW-GATE" in report["formal"]["blockers"]; return report
+
+
+def advance_audit(root: Path, keys: dict, *, same_actor: bool = False, open_high: bool = False, result: str = "PASS", review_id: str = "REVIEW-001"):
+    evidence_path = main_evidence_path(root)
+    evidence = load(evidence_path)
+    transcript = root/".vibe-control"/"reviews"/f"audit-transcript-{review_id}.txt"; transcript.parent.mkdir(parents=True, exist_ok=True); transcript.write_text("independent audit\n", encoding="utf-8"); commit(root, "add audit transcript")
+    candidate = load(next((root/".vibe-control"/"candidates").glob("*.json")))
+    actor = "executor" if same_actor else "auditor"; session = "exec-1" if same_actor else "audit-1"
+    finding = {"id":"F-1","severity":"P1","status":"OPEN","classification":"CURRENT_GOAL_DEFECT","objectiveRefs":["KO-001"],"checkpointRefs":["CP-001"],"coreControlRefs":[],"affectedClaims":["VERIFIED","ACCEPTED","RELEASE_READY"],"reproduction":"fixture mutation","evidenceRefs":[ref(root,evidence_path)],"minimumFix":"fix fixture","addedGovernanceCost":"one regression"}
+    review = {"schemaVersion":"3.2","reviewId":review_id,"taskId":"TASK-001","candidateId":candidate["candidateId"],"candidateCommit":candidate["commit"],"checkpointSetSha256":candidate["checkpointSetSha256"],"keyObjectives":candidate["keyObjectives"],"positioning":candidate["positioning"],"resolvedRuleSet":candidate["resolvedRuleSet"],"auditor":{"actorId":actor,"sessionId":session},"evidenceIds":[evidence["evidenceId"]],"evidenceRefs":[ref(root,evidence_path)],"checkpointResults":[{"checkpointId":"CP-001","expectedStatus":"PASS","observedStatus":"PASS","evidenceIds":[evidence["evidenceId"]],"deviationFindingId":None}],"findings":[finding] if open_high else [],"transcript":ref(root,transcript),"result":result,"reviewedAt":"2026-07-25T01:00:00+08:00"}
+    if "auditor" in keys:
+        review.update({"keyId":"auditor-key"}); review=sign(review,keys["auditor"])
+    path=Path(root.parent)/"review.json"; write(path,review); result,report=command(root,"audit","--review",str(path),expect=None); return result,report
+
+
+def advance_accept(root: Path, keys: dict, *, expired: bool = False):
+    candidate=load(next((root/".vibe-control"/"candidates").glob("*.json")))
+    contract=load(root/".vibe-control"/"tasks"/"TASK-001.json")
+    human_decisions=[{"checkpointId":item["id"],"decision":"PASS"} for item in contract["acceptanceCheckpoints"] if item["type"]=="HUMAN"]
+    decision={"schemaVersion":"3.2","decisionId":"DECISION-001","taskId":"TASK-001","candidateId":candidate["candidateId"],"candidateCommit":candidate["commit"],"checkpointSetSha256":candidate["checkpointSetSha256"],"checkpointDecisions":human_decisions,"positioning":candidate["positioning"],"resolvedRuleSet":candidate["resolvedRuleSet"],"scope":candidate["changedPaths"],"owner":{"actorId":"owner"},"decision":"APPROVE","decidedAt":"2026-07-25T02:00:00+08:00","expiresAt":"2020-01-01T00:00:00+00:00" if expired else None}
+    if "owner" in keys:
+        decision.update({"keyId":"owner-key"}); decision=sign(decision,keys["owner"])
+    path=Path(root.parent)/"decision.json"; write(path,decision); return command(root,"accept","--decision",str(path),expect=None)
+
+
+def install_release_chain(root: Path, keys: dict, *, report_result: str = "PASS", report_findings: list | None = None, use_review_auditor: bool = False):
+    """Record a candidate-bound external audit and owner-signed receipt after audit/accept."""
+    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.4"
+    candidate_path = next((control/"candidates").glob("*.json")); candidate = load(candidate_path)
+    review_path = next((control/"reviews").glob("*.json")); decision_path = next((control/"decisions").glob("*.json"))
+    evidence_paths = sorted(path for path in (control/"evidence").glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json")))
+    transcript = control / "external-audits" / "release-audit-transcript.txt"; transcript.parent.mkdir(parents=True, exist_ok=True); transcript.write_text("independent external release audit\n", encoding="utf-8"); commit(root, "add external release audit transcript")
+    release_actor = "auditor" if use_review_auditor else "release-auditor"; release_key_id = "auditor-key" if use_review_auditor else "release-auditor-key"; release_key = keys["auditor"] if use_review_auditor else keys["release-auditor"]
+    report = {
+        "schemaVersion":"3.2", "reportId":"RELEASE-AUDIT-001", "taskId":"TASK-001", "candidateId":candidate["candidateId"], "candidateCommit":candidate["commit"], "candidateTree":candidate["tree"],
+        "candidate":ref(root,candidate_path), "keyObjectives":candidate["keyObjectives"], "positioning":candidate["positioning"], "resolvedRuleSet":candidate["resolvedRuleSet"], "review":ref(root,review_path), "evidenceRefs":[ref(root,path) for path in evidence_paths],
+        "auditor":{"actorId":release_actor,"sessionId":"release-audit-1"}, "findings":report_findings or [], "transcript":ref(root,transcript), "result":report_result,
+        "packageManifestSha256":sha(control/"governance"/"package-manifest.json"), "runtimeManifestSha256":sha(runtime_root/"runtime-manifest.json"), "assuranceMatrixSha256":sha(control/"governance"/"controller-assurance-matrix.json"),
+        "auditedAt":"2026-07-25T03:00:00+08:00", "keyId":release_key_id
+    }
+    report_path = control / "external-audits" / "RELEASE-AUDIT-001.json"; write(report_path, sign(report, release_key)); commit(root, "record signed external release audit")
+    receipt = {
+        "schemaVersion":"3.2", "version":"0.3.4", "taskId":"TASK-001", "candidateId":candidate["candidateId"], "candidateCommit":candidate["commit"], "candidateTree":candidate["tree"],
+        "candidate":ref(root,candidate_path), "positioning":candidate["positioning"], "resolvedRuleSet":candidate["resolvedRuleSet"], "decision":ref(root,decision_path), "auditReport":ref(root,report_path),
+        "packageManifestSha256":sha(control/"governance"/"package-manifest.json"), "runtimeManifestSha256":sha(runtime_root/"runtime-manifest.json"), "assuranceMatrixSha256":sha(control/"governance"/"controller-assurance-matrix.json"),
+        "enableFormalClaims":True, "owner":{"actorId":"owner"}, "keyId":"owner-key", "signedAt":"2026-07-25T04:00:00+08:00"
+    }
+    receipt_path = runtime_root / "release-receipt.json"; write(receipt_path, sign(receipt, keys["owner"])); commit(root, "record candidate-bound release receipt")
+    return report_path, receipt_path
+
+
+def failing_ids(report: dict) -> set[str]: return {x["id"] for x in report.get("integrity",{}).get("checks",[]) if x["status"] != "PASS"}

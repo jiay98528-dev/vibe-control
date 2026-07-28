@@ -1,0 +1,471 @@
+{
+  "schemaVersion": "1.0",
+  "matrixId": "vibe-control-controller-assurance-2026-07-25",
+  "sourceAudit": {
+    "date": "2026-07-25",
+    "reportSha256": "6384f445c72f100df5a2e6cec364f8cd261485c30ae5eae4cd966cd892a9faaf",
+    "conclusion": "DIAGNOSTIC"
+  },
+  "candidateAudits": [
+    {
+      "candidateCommit": "e44151339b357be065ed98c81585b9c19d3f6b76",
+      "packageManifestSha256": "c3d0e6ac786f91480fbae8c4a61ef6993c3309427392ba1705ec1ad07764ff63",
+      "reportSha256": "6ef5b9d502765ea34976c7574da7a6a86f0bb67f403dd432b95b2bbf189245b8",
+      "conclusion": "FAIL",
+      "findingIds": ["F-EXT-001", "F-EXT-002"]
+    },
+    {
+      "candidateCommit": "3226f96ab190952a8d25dcce892498f2aa60aff1",
+      "packageManifestSha256": "447f9473dc104c319a7cc7d51e4f079a1db843217b10b54fb9f73effdfcfa32c",
+      "reportSha256": "dc6a3e6afd76882b4fde928669fe6cd2d167fdbc10a1b78cb651be50244eb6ad",
+      "conclusion": "FAIL",
+      "findingIds": ["F-EXT-003", "F-EXT-004", "F-EXT-005"]
+    },
+    {
+      "candidateCommit": "dc629a303c49d6e59bf5a1922e5d48788dc6690d",
+      "packageManifestSha256": "b1c37525af0f51abe6c574fab71b1df319f4d104346f7783b398c95cf9dc71ed",
+      "reportSha256": "48f8d5ffbc34bdde8374850126905135823053130b943cf56b283739bff73457",
+      "conclusion": "DIAGNOSTIC",
+      "findingIds": ["F-EXT-006", "F-EXT-007", "F-EXT-008"]
+    },
+    {
+      "candidateCommit": "15d7d9480b067b4d2882eed7928899e5a34a618e",
+      "packageManifestSha256": "5ce110d37c7fd01b2f4ae343ea66fc5b6a31bd73a2c9873d66bfa11a392fc592",
+      "reportSha256": "d211f3230e909fc2009c8b72923ef819961f2555c7da01a0e22efa656a62b7b9",
+      "conclusion": "DIAGNOSTIC",
+      "findingIds": ["F-REL-001", "F-REL-002"]
+    },
+    {
+      "candidateCommit": "7e792ba47faa61a08837000acfab918bf7bcfa6d",
+      "packageManifestSha256": "dd48e8d1e9b8df6cec4cf32abbcd5fb2a4c143f1e4a9d5916fe2dbef4b48b46c",
+      "reportSha256": "1559c2c551ec4bb0d3045afce33abcbb64465d07559756f278cecced3710f855",
+      "conclusion": "DIAGNOSTIC",
+      "technicalValidation": "PASS",
+      "findingCounts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0},
+      "findingIds": []
+    },
+    {
+      "candidateCommit": "620b489b94c6135215f18295ae5b7c5ca3d45bdc",
+      "packageManifestSha256": "0c9fee7dd89eea62072296eb3a87e6ca94b90eb30254d684be1de8cbaa7be2c",
+      "reportSha256": "fc7f27891e9a0c23cd7d2fb699d4da7b1b6e031d7e08ba23373e585d5ec25c64",
+      "conclusion": "FAIL",
+      "findingCounts": {"P0": 0, "P1": 1, "P2": 0, "P3": 0},
+      "findingIds": ["VC-ACT-RC5-001"]
+    },
+    {
+      "candidateCommit": "b0e6d78cde3030c7f37c5fcea8a43b6337222645",
+      "packageManifestSha256": "1d2c76004ddcb03b6bfda9a96ee8f4f0c9421af448180fad1b6936095f3999ef",
+      "reportSha256": "2e9f56559b22fbe9b6853b1dd18340aae37809eb11c20dfb762bf1ec52d7565c",
+      "conclusion": "FAIL",
+      "findingCounts": {"P0": 0, "P1": 1, "P2": 0, "P3": 0},
+      "findingIds": ["VC-ACT-RC6-001"]
+    },
+    {
+      "candidateCommit": "129a45faf79468d463bc1429b99335b6368a4c1c",
+      "packageManifestSha256": "59b7ecce65807481c726402e43d613463621309cbe959dc895c4449b6d3db858",
+      "reportSha256": "2542b99b4997294da8470418a35217771abd0cc57775506663ec228d3195ceab",
+      "conclusion": "DIAGNOSTIC",
+      "technicalValidation": "PASS_WITH_SCOPE_LIMIT",
+      "mainReviewDisposition": "REJECTED_FOR_ACTIVATION",
+      "findingCounts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0},
+      "mainReviewFindingIds": ["VC-ACT-RC7-001"],
+      "findingIds": []
+    },
+    {
+      "candidateCommit": "c6d327495cdc59372fa34e4a856855f456aabcb7",
+      "packageManifestSha256": "9c5adce70473c95a48d25f258d4953bc96d33430f7da32f00397a5e677c9aaa5",
+      "reportSha256": "743c8abc70c12f843bcf455712db14e3e81bc9b1536062f225d0df8cd64849e8",
+      "conclusion": "DIAGNOSTIC",
+      "technicalValidation": "PASS_WITH_OBSERVABILITY_GAP",
+      "mainReviewDisposition": "REJECTED_FOR_ACTIVATION",
+      "findingCounts": {"P0": 0, "P1": 0, "P2": 1, "P3": 0},
+      "findingIds": ["VC-ACT-RC8-001"]
+    },
+    {
+      "candidateCommit": "4ea9e25faa9237edbb7107d12234e4310af440aa",
+      "packageManifestSha256": "88f4c5250cc96889064ad0c7cb2e7c21e1dbfcccfaeecc5ce521659b40e14a15",
+      "reportSha256": "46208eb4a6d50eb321749d7fa76fa338896928c2d61c72601f0de63e1b9ea8e7",
+      "conclusion": "FAIL",
+      "findingCounts": {"P0": 0, "P1": 1, "P2": 0, "P3": 0},
+      "findingIds": ["VC-ACT-RC9-001"]
+    },
+    {
+      "candidateCommit": "5b2bfce5f119af8490f880a7a7f140e61c5a36f3",
+      "packageManifestSha256": "8d17b6d2a8ac08532aa0aedaa3b8cc990bcf81c3edb4896bf16c4d53d4e76bbc",
+      "reportSha256": "9e5dbca65358a6ac1d94680bf663e1f49175279372fe7ceadfc3d686ab9f0124",
+      "conclusion": "DIAGNOSTIC",
+      "technicalValidation": "PASS",
+      "authorizationScope": "AUDIT_BINDING_AND_POSTURE_FLIP_ONLY",
+      "findingCounts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0},
+      "findingIds": []
+    },
+    {
+      "candidateCommit": "20fed3221f01eab0ba437b1d6b56c3a7cff492c9",
+      "candidateTree": "e8873aeac44c96c1515fd3779476da8ca050355c",
+      "packageManifestSha256": "f5a27b627dfe1808ba46cf8dd17603639b4c9b053bdc34fdb4493cb61a38aaf0",
+      "runtimeManifestSha256": "82908d624aa475f0434e983d2b8202b10d63c3ae9ae6c186a22190fbec1763f8",
+      "assuranceMatrixSha256": "8be0b4b5975c5ee82049a3d78cbaa5f3398b0b5eedf7baa0cfbda387d5a90d61",
+      "reportSha256": "ec561cd1f547bed786ea13e4164877ddee9c12fca4db440a08064218be86ea38",
+      "summarySha256": "41cd26103a413678b6344277e104e6d05594d4c839e6cd44dc156c6c854ad26d",
+      "evidenceManifestSha256": "822e76e10287797754973fac7c25e574052ed949d91cc2a4335d3ae537ebf2db",
+      "evidenceArchive": "D:/VibeCoding/VibeControlArchive/audits/vibe-control-0.3.3-20fed322-20260728",
+      "auditType": "INDEPENDENT_CONTROL_VALIDATION",
+      "conclusion": "DIAGNOSTIC",
+      "technicalValidation": "PASS",
+      "authorizationScope": "CTRL-CONFIRMED-025_026_027_INDEPENDENT_VALIDATION_ONLY",
+      "validatedControlIds": ["CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027"],
+      "semanticContractClosure": {"required": 68, "passed": 68, "failed": 0},
+      "executionCounters": {"total": 331, "passed": 331, "failed": 0, "skipped": 0, "timedOut": 0},
+      "negativeCases": 45,
+      "findingCounts": {"P0": 0, "P1": 0, "P2": 0, "P3": 0},
+      "findingIds": [],
+      "formalGateReady": false,
+      "releaseTagAuthorized": false,
+      "auditTagAuthorized": false,
+      "installPublishSealAuthorized": false,
+      "provenanceLimitations": [
+        "auditor actor and session were not machine-recorded in the source report",
+        "the audit binds the implementation candidate, not this later audit-accounting metadata commit"
+      ]
+    }
+  ],
+  "candidateAuditsAreHistorical": true,
+  "subject": {
+    "skill": "vibe-control",
+    "guidanceVersion": "0.3.4",
+    "runtimeVersion": "0.3.4"
+  },
+  "formalClaimsAllowed": false,
+  "requirements": [
+    {
+      "id": "CTRL-ASSURE-001",
+      "findingIds": ["F-01"],
+      "externalFindingIds": ["F-EXT-002", "F-EXT-005", "VC-V020-BB-001"],
+      "severity": "P0",
+      "statement": "R2/R3 high stages require candidate-bound independent review and a human decision; only an external R3 RELEASE_READY task additionally requires the signed release chain.",
+      "expectedFailure": "BLOCKED with a stable missing-prerequisite check ID",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": true,
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/crypto.py"],
+      "regressionTests": ["test_release_ready_without_review_or_decision_is_blocked", "test_r2_attestations_do_not_require_keys", "test_private_r3_does_not_require_keys_or_receipt", "test_r3_unsigned_review_and_decision_rejected", "test_signed_failed_review_cannot_advance_or_qualify", "test_formal_activation_paths", "private_managed_decision_case_alias_path"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-ASSURE-002",
+      "findingIds": ["F-02"],
+      "severity": "P1",
+      "statement": "Claim level cannot exceed the minimum of phase, task, required-case and project release-intent ceilings.",
+      "expectedFailure": "FAIL with HC-CLAIM-TASK-CEILING or equivalent stable ID",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": true,
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py"],
+      "regressionTests": ["test_task_claim_ceiling_is_enforced", "test_release_intent_paths_are_enforced", "test_local_experiment_caps_and_blocks_release"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-ASSURE-003",
+      "findingIds": ["F-03"],
+      "severity": "P1",
+      "statement": "Every governed JSON object is validated against its pinned Draft 2020-12 schema and all parse failures use stable JSON.",
+      "expectedFailure": "FAIL exit 3 with structured JSON and schema/error check ID",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": true,
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/schema.py", "assets/project-control/runtime/vibe_runtime/cli.py", "assets/project-control/runtime/schemas/execution-evidence.schema.json"],
+      "regressionTests": ["test_schema_is_executed", "test_bad_top_level_returns_stable_json"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-ASSURE-004",
+      "findingIds": ["F-04"],
+      "severity": "P1",
+      "statement": "State, task, contract and candidate identities and hashes close over the same task and candidate.",
+      "expectedFailure": "FAIL with a stable identity-closure check ID",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": true,
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/task-lock.schema.json", "assets/project-control/runtime/schemas/candidate-manifest.schema.json"],
+      "regressionTests": ["test_candidate_task_identity_closes", "test_candidate_manifest_diff_recomputed"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-ASSURE-005",
+      "findingIds": ["F-05"],
+      "severity": "P1",
+      "statement": "Freeze rejects forbidden and out-of-envelope paths computed from the real Git diff.",
+      "expectedFailure": "FAIL before candidate creation with a stable path-envelope check ID",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": true,
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py"],
+      "regressionTests": ["test_freeze_rejects_forbidden_diff", "test_candidate_manifest_diff_recomputed"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-ASSURE-006",
+      "findingIds": ["F-06"],
+      "severity": "P1",
+      "statement": "Each required case is covered only by candidate-bound runtime-observed or blackbox-observed execution provenance.",
+      "expectedFailure": "FAIL with a stable ineligible-observation or per-case provenance check ID",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": true,
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/execution-evidence.schema.json", "assets/project-control/runtime/schemas/external-evidence-attestation.schema.json"],
+      "regressionTests": ["test_declared_observation_cannot_cover_required_case", "test_r3_controller_local_execution_is_eligible"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-ASSURE-007",
+      "findingIds": ["F-07"],
+      "severity": "P1",
+      "statement": "FAILED/BLOCKED health cannot be claim-eligible and phase history is continuous, monotonic and ends at current phase.",
+      "expectedFailure": "FAIL or BLOCKED with stable health/history check IDs",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": true,
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/stage-state.schema.json"],
+      "regressionTests": ["test_failed_health_is_not_eligible", "test_phase_history_closes"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-ASSURE-008",
+      "findingIds": ["F-08"],
+      "severity": "P2",
+      "statement": "Documented workflow routes are distinguished from CLI commands and all CLI errors use stable JSON.",
+      "expectedFailure": "Unsupported routes are not presented as CLI; invalid CLI input returns structured JSON exit 3",
+      "implementationStatus": "IMPLEMENTED",
+      "failClosedRequired": false,
+      "implementationRefs": ["assets/project-control/runtime/control.py", "assets/project-control/runtime/vibe_runtime/cli.py", "SKILL.md"],
+      "regressionTests": ["test_cli_error_surface_is_stable", "test_missing_dependencies_emit_stable_json", "test_external_contract_path_returns_stable_path_safety"],
+      "independentValidation": "PASS"
+    }
+  ],
+  "confirmedControls": [
+    {
+      "id": "CTRL-CONFIRMED-001",
+      "statement": "Manifest and referenced-file hash drift is detected.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/control.py", "assets/project-control/runtime/vibe_runtime/controller.py"],
+      "regressionTests": ["test_authority_hash_drift", "test_runtime_bundle_excludes_bytecode_cache"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-002",
+      "statement": "Post-candidate product drift invalidates and a dirty worktree blocks.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/control.py"],
+      "regressionTests": ["test_product_change_invalidates_candidate"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-003",
+      "statement": "Zero execution, skip and counter non-conservation are rejected.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/control.py"],
+      "regressionTests": ["test_skip_rejected", "test_zero_rejected", "test_counter_conservation_rejected"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-004",
+      "findingIds": ["F-EXT-004"],
+      "statement": "On an external R3 RELEASE_READY path, a release receipt is candidate-specific and content-binds the accepted decision plus a signed, managed external audit report; that report binds the accepted review and exact evidence files.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/release-receipt.schema.json", "assets/project-control/runtime/schemas/external-release-audit.schema.json"],
+      "regressionTests": ["test_receipt_binding_drift", "test_receipt_cannot_replay_for_new_candidate"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-005",
+      "findingIds": ["F-EXT-003", "F-REL-001"],
+      "statement": "Hash-protected text artifacts use LF checkout rules and an exact candidate is materialized as the first worktree checkout. A legacy-first checkout is never trusted from Git cleanliness alone and must either pass the byte-level manifest check or fail closed.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": [".gitattributes", "SKILL.md", "references/controller-assurance.md", "scripts/build_manifest.py", "scripts/test_crlf_checkout.py"],
+      "regressionTests": ["test_crlf_checkout"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-006",
+      "findingIds": ["F-EXT-006", "F-EXT-007"],
+      "statement": "On an external R3 RELEASE_READY path, executor, review auditor, release-auditor and owner roles have distinct actor identities and public keys; the external release audit is signed by the dedicated release-auditor role.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/project-governance-lock.schema.json"],
+      "regressionTests": ["test_cross_role_key_reuse_rejected_at_bootstrap", "test_release_auditor_cannot_reuse_review_auditor_role"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-007",
+      "findingIds": ["F-EXT-008"],
+      "statement": "Local runtime-observed cases execute from a temporary detached worktree at the frozen candidate commit, so caller-worktree ignored or untracked runners cannot supply evidence.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py"],
+      "regressionTests": ["test_ignored_runner_is_not_executed_from_project_worktree"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-008",
+      "statement": "Bootstrap requires an explicit project release intent, stores it in the governance lock, applies distinct LOCAL_EXPERIMENT, PRIVATE_OPERATION and EXTERNAL_RELEASE claim paths, and never treats Skill installation or tagging as a project release.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["SKILL.md", "references/bootstrap.md", "assets/project-control/templates/bootstrap-spec.json", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/project-governance-lock.schema.json"],
+      "regressionTests": ["test_bootstrap_requires_explicit_release_intent", "test_release_intent_paths_are_enforced", "test_local_experiment_caps_and_blocks_release", "test_private_r3_does_not_require_keys_or_receipt"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-009",
+      "findingIds": ["F-REL-002"],
+      "statement": "The adversarial assurance suite runs each case in a bounded child process, emits flushed JSONL progress, reports stable timeout/protocol failures, and finishes with conserved nonzero counters.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["scripts/test_assurance_regressions.py", "scripts/test_assurance_harness.py", "scripts/test_v2_support.py", "references/controller-assurance.md"],
+      "regressionTests": ["test_assurance_runner_protocol"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-010",
+      "findingIds": ["VC-ACT-RC5-001", "VC-ACT-RC6-001", "VC-ACT-RC7-001", "VC-ACT-RC8-001", "VC-ACT-RC9-001"],
+      "statement": "A formalClaimsAllowed declaration is effective only when every required assurance control ID is present, every requirement and confirmed control is implemented, every applicable independent validation is closed, package maturity is derived from the canonical static validator, and runtime consumes that maturity with stable structural diagnostics; the builder must still create a diagnostic manifest for invalid JSON, top-level types and section shapes so runtime can bind and explain the actual malformed input.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "scripts/validate_assurance_matrix.py", "scripts/build_manifest.py"],
+      "regressionTests": ["test_assurance_matrix_fail_closed", "test_assurance_required_ids_consistent", "test_confirmed_control_implementation_fail_closed", "test_structural_invalidity_blocks_manifest_readiness", "test_formal_activation_paths"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-011",
+      "findingIds": ["VC-V021-AUD-001"],
+      "statement": "Package-level formal readiness is granted only by a dedicated release validator that binds the current clean HEAD/tree, annotated release tag, annotated audit-bundle tree tag, freshly recomputed package/runtime inventories, matrix hash, candidate-bound execution evidence, independent auditor identity, PASS result, no admitted blocking findings and the fixed assurance-control universe. The matrix and package manifest cannot self-grant readiness, and any post-audit runtime, Schema, test, documentation or manifest change invalidates the seal.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/package_release.py", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/package-audit-evidence-manifest.schema.json", "assets/project-control/runtime/schemas/package-audit-report.schema.json", "assets/project-control/runtime/schemas/package-audit-receipt.schema.json", "scripts/validate_package_release.py", "scripts/build_manifest.py", "scripts/validate_assurance_matrix.py"],
+      "regressionTests": ["test_valid_package_release_seal", "test_post_audit_runtime_change_invalidates", "test_post_audit_test_change_invalidates", "test_stale_runtime_manifest_cannot_be_resealed", "test_stale_package_manifest_cannot_be_resealed", "test_audit_evidence_closure_negative_mutations", "test_package_release_negative_mutations", "test_assurance_required_ids_consistent"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-012",
+      "statement": "Schema 3.2 project positioning separates primary experience, capability domains, delivery objective, release intent, environments and channels, and requires a tracked user-confirmed canonical summary with content-derived success-signal and human-gate identities.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/positioning_control.py", "assets/project-control/runtime/schemas/project-positioning.schema.json"],
+      "regressionTests": ["test_resolve_rules_is_read_only_and_requires_confirmation", "test_repository_discovery_never_infers_release_intent"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-013",
+      "statement": "The six-layer rule compiler is byte-deterministic, deduplicates identical IDs, fails on semantic ID conflicts, and permits overlays to add but never remove or weaken constraints.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/project_rules.py", "assets/project-control/runtime/rules/v1/core.json"],
+      "regressionTests": ["test_compilation_is_byte_deterministic", "test_identical_id_deduplicates_but_conflicting_id_fails", "test_overlay_remove_replace_and_lower_are_rejected"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-014",
+      "statement": "All applicable profiles compose with AND semantics and their complete rule/capability set is controller-derived rather than task-declared.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/project_rules.py", "assets/project-control/runtime/rules/v1/profiles.json"],
+      "regressionTests": ["test_profiles_are_derived_and_composed_with_and", "test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-015",
+      "statement": "Every applicable rule and required capability must be mapped by the task's fixed cases, and positioning/rule bindings propagate through task, candidate, evidence, review and decision.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/positioning_control.py"],
+      "regressionTests": ["test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules", "test_reposition_invalidates_downstream"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-016",
+      "statement": "Generic, Browser and Godot adapters are versioned and content-bound, expose machine-enforced proof/non-proof capability boundaries, reject case self-declaration beyond those boundaries, and cannot extrapolate Browser fallback evidence to native shells or target hardware.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/rules/v1/adapters.json", "assets/project-control/runtime/vibe_runtime/controller.py"],
+      "regressionTests": ["test_versioned_adapter_descriptors_have_explicit_proof_limits", "test_browser_evidence_cannot_prove_native_shell_or_target_hardware", "test_godot_descriptor_binds_runtime_and_limits_headless_proof", "test_generic_command_cannot_self_declare_ui_runtime_proof"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-017",
+      "statement": "Required Skills are content-addressed and blocking when missing or drifted; advisory Skills only warn; all Skills have canApprove=false and constrained write permissions; installation always requires current user approval and fresh resolution.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/project_rules.py", "assets/project-control/runtime/schemas/skill-binding.schema.json", "SKILL.md"],
+      "regressionTests": ["test_required_skill_is_content_addressed_and_cannot_approve", "test_required_drift_blocks_and_requests_user_approved_install", "test_unaddressed_advisory_skill_warns_without_blocking"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-018",
+      "statement": "Older control planes remain pinned until an approved recoverable migration; Schema 3.1 to 3.2 conversion archives all legacy objects, invalidates downstream facts, and returns to DRAFT/DIAGNOSTIC, while repositioning preserves the same invalidation rule.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/migration-plan.schema.json"],
+      "regressionTests": ["test_schema2_control_plane_returns_reinstall_required_without_writes", "test_reposition_invalidates_downstream"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-019",
+      "statement": "Rule resolution and reposition planning are read-only previews, bootstrap recompiles rather than trusts caller output, and three detached-clone forward tests preserve discovered facts without inferring user intent or mutating source projects.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "scripts/test_v3_controller.py", "references/forward-test-0.3.0.md"],
+      "regressionTests": ["test_resolve_rules_is_read_only_and_requires_confirmation", "test_bootstrap_recompiles_rules", "test_forward_projects_are_not_modified"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-020",
+      "statement": "Every integrity-bound transcript is stored with LF bytes and marked against checkout conversion, including dogfood transcripts under Windows core.autocrlf=true first-candidate materialization; any legacy materialization that cannot recover remains manifest-blocked.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": [".gitattributes", "scripts/test_crlf_checkout.py"],
+      "regressionTests": ["test_crlf_checkout"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-021",
+      "statement": "Package formal readiness recomputes and compares every runtime and package manifest inventory entry before it consumes any release receipt or audit seal.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/package_release.py", "scripts/build_manifest.py"],
+      "regressionTests": ["test_stale_runtime_manifest_cannot_be_resealed", "test_stale_package_manifest_cannot_be_resealed"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-022",
+      "statement": "A package audit seal binds a reachable Git tree containing the report, a candidate-bound execution manifest, non-empty per-case transcripts, at least one content-bound artifact per case, non-zero conserved counters, zero skip and complete fixed-control coverage.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/package_release.py", "assets/project-control/runtime/schemas/package-audit-evidence-manifest.schema.json", "assets/project-control/runtime/schemas/package-audit-report.schema.json", "assets/project-control/runtime/schemas/package-audit-receipt.schema.json"],
+      "regressionTests": ["test_valid_package_release_seal", "test_audit_evidence_closure_negative_mutations"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-023",
+      "statement": "A tracked project-root KEY_OBJECTIVES.md is confirmed after requirements and before task planning; it fixes goals, non-goals, trust/threat boundaries and governance budget. Its lock, sources, IDs and hashes propagate through task and candidate identity; direct blockers require an objective, affected claim and evidence, safety overrides require a KF reference, ordinary workers cannot modify the document, and any approved revision invalidates downstream facts.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["KEY_OBJECTIVES.md", "references/key-objectives.md", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/key-objectives-lock.schema.json", "assets/project-control/runtime/schemas/task-contract.schema.json", "assets/project-control/runtime/schemas/review-attestation.schema.json"],
+      "regressionTests": ["test_key_objective_schema_and_reference_closure", "test_task_unknown_objective_fails", "test_missing_and_untracked_objectives_fail_closed", "test_objective_drift_and_worker_or_reviewer_write_fail_closed", "test_revise_objectives_invalidates_downstream", "test_finding_admission_respects_classification", "test_review_schema_requires_bound_direct_blockers"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-024",
+      "statement": "Audit materialization uses the candidate branch or tag as the first checkout, checks a conservative Windows path budget without changing global Git settings, aggregates independently checkable missing release/audit tags, and distinguishes development installation from formal sealing.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["SKILL.md", "references/controller-assurance.md", "scripts/check_audit_path.py", "assets/project-control/runtime/vibe_runtime/package_release.py"],
+      "regressionTests": ["test_checkout_protocol_is_consistent", "test_audit_path_budget_blocks_long_root_and_accepts_short_root", "test_missing_release_and_audit_tags_are_aggregated", "test_development_package_never_grants_high_claims"],
+      "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-025",
+      "statement": "Schema 3.2 binds content-derived success signals and human gates to a user-confirmed task checkpoint set; each required case, assertion, expected result and claim ceiling closes before candidate freeze, and the checkpoint hash propagates through candidate, evidence, review, decision and handoff.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/checkpoint_control.py", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/task-contract.schema.json"],
+      "regressionTests": ["test_checkpoint_contract_regressions", "test_checkpoint_oracle_and_identity_regressions"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-026",
+      "statement": "Audit findings are admitted only within current task/checkpoint, fixed minimum-core or locked KF safety scope; affected claims form an upward closure, ordinary exploration is capped at three findings per candidate, an over-budget review creates a candidate-bound audit closure, and conformance review stops after every required checkpoint is reported.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/checkpoint_control.py", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/review-attestation.schema.json", "assets/project-control/runtime/schemas/audit-closure.schema.json"],
+      "regressionTests": ["test_finding_task_and_claim_scope", "test_bounded_exploration_and_stop_closure"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-027",
+      "statement": "Schema 3.1 to 3.2 migration has a read-only deterministic-ID plan, a content-bound confirmed spec, a recoverable byte-hashed legacy archive, atomic replacement, complete downstream invalidation and no evidence inheritance.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/migration-plan.schema.json", "assets/project-control/runtime/schemas/migration-spec.schema.json"],
+      "regressionTests": ["test_schema32_migration_plan_and_apply", "test_schema32_migration_fail_closed_mutations"],
+      "independentValidation": "PASS"
+    },
+    {
+      "id": "CTRL-CONFIRMED-028",
+      "statement": "Multi-agent orchestration is selected from actually callable host capabilities: Codex thread tools map to CODEX_THREADS, non-Codex hosts with child-agent tools explicitly downgrade to SUBAGENTS, and hosts with neither use SERIAL. Every backend preserves one responsible control-plane writer, bounded task packets, write isolation, fresh-auditor limits and evidence semantics, while the Skill imposes no fixed numeric worker or child-agent cap.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["SKILL.md", "references/multi-session-routing.md", "references/model-routing.md", "references/task-control.md", "assets/project-control/templates/model-routing.json"],
+      "regressionTests": ["test_orchestration_compatibility_layer_is_capability_driven_and_unbounded"],
+      "independentValidation": "NOT_REQUIRED"
+    }
+  ]
+}

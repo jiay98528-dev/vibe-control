@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "assessmentId": "ASSESSMENT-001",
+  "milestone": "bootstrap",
+  "observedAt": "replace-with-iso-time",
+  "risk": {"level": "R1", "score": 0, "confidence": "low", "factors": []},
+  "hardChecks": [],
+  "warnings": [],
+  "investigations": [],
+  "humanDecisions": [],
+  "nextAction": "replace-with-one-permitted-action"
+}

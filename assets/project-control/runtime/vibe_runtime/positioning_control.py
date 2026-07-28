@@ -1,0 +1,120 @@
+"""Controller-side Project Positioning and rule-closure helpers for Schema 3.2."""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from .common import ControlError, canonical_bytes, check, load_json, sha256_bytes, verify_ref
+from .project_rules import compile_positioning
+from .schema import validate_object
+
+
+def positioning_summary(value: dict[str, Any]) -> dict[str, Any]:
+    """Return only the axes the user is authorizing, in canonical form."""
+    return {
+        "primaryExperience": value["primaryExperience"],
+        "capabilityDomains": sorted(value["capabilityDomains"]),
+        "deliveryObjective": value["deliveryObjective"],
+        "releaseIntent": value["releaseIntent"],
+        "runtimeTargets": sorted(value["runtimeTargets"]),
+        "targetEnvironments": sorted(value["targetEnvironments"], key=lambda item: canonical_bytes(item)),
+        "distributionChannels": sorted(value["distributionChannels"]),
+        "humanQualityGates": sorted(value["humanQualityGates"], key=lambda item: canonical_bytes(item)),
+        "nonGoals": sorted(value["nonGoals"]),
+        "firstVerticalSlice": value["firstVerticalSlice"],
+    }
+
+
+def verify_positioning(root: Path, positioning: dict[str, Any]) -> list[dict[str, Any]]:
+    validate_object("project-positioning", positioning)
+    summary_hash = sha256_bytes(canonical_bytes(positioning_summary(positioning)))
+    confirmation = positioning["confirmation"]
+    checks = [check(
+        "HC-POSITIONING-SCHEMA", "PASS", "project positioning satisfies Schema 3.2"
+    )]
+    ref_result = verify_ref(root, confirmation["record"], "HC-POSITIONING-CONFIRMED")
+    confirmed = ref_result["status"] == "PASS" and confirmation["summarySha256"] == summary_hash
+    checks.append(check(
+        "HC-POSITIONING-CONFIRMED", "PASS" if confirmed else (ref_result["status"] if ref_result["status"] != "PASS" else "FAIL"),
+        "user confirmation binds the canonical positioning summary" if confirmed else "positioning confirmation record or summary hash does not bind the selected axes",
+        expectedSummarySha256=summary_hash,
+        actualSummarySha256=confirmation.get("summarySha256"),
+    ))
+    return checks
+
+
+def compile_for_project(spec: dict[str, Any], project_root: Path, runtime_root: Path) -> dict[str, Any]:
+    """Always recompile from the source spec; never consume a caller-supplied result."""
+    return compile_positioning(spec, project_root, runtime_root)
+
+
+def compiler_checks(compiled: dict[str, Any]) -> list[dict[str, Any]]:
+    conflicts = compiled.get("conflicts", [])
+    weakening = [item for item in conflicts if item.get("id") == "OVERLAY-NON-WEAKENING"]
+    other_conflicts = [item for item in conflicts if item.get("id") != "OVERLAY-NON-WEAKENING"]
+    blockers = compiled.get("blockers", [])
+    skill_blockers = [item for item in blockers if str(item.get("id", "")).startswith("SKILL-")]
+    adapter_blockers = [item for item in blockers if item not in skill_blockers]
+    install_requests = compiled.get("installRequests", [])
+    return [
+        check("HC-RULESET-NON-WEAKENING", "FAIL" if weakening else "PASS", "overlay attempted to weaken or remove a rule" if weakening else "project overlay only adds constraints", issues=weakening),
+        check("HC-RULESET-CONFLICT", "FAIL" if other_conflicts else "PASS", "rule IDs or sources conflict" if other_conflicts else "rule IDs have one canonical meaning", issues=other_conflicts),
+        check("HC-ADAPTER-CAPABILITY", "BLOCKED" if adapter_blockers else "PASS", "rule or adapter catalog is incomplete" if adapter_blockers else "adapter descriptors expose explicit proof limits", issues=adapter_blockers),
+        check("HC-SKILL-BINDING", "BLOCKED" if skill_blockers else "PASS", "required Skill binding is missing or drifted" if skill_blockers else "required Skill bindings are content-addressed; advisory gaps do not grant proof", issues=skill_blockers),
+        check("VC-SKILL-INSTALL-APPROVAL", "BLOCKED" if install_requests else "PASS", "required Skill installation needs explicit user approval and a fresh resolution" if install_requests else "no unapproved required Skill installation is pending", requests=install_requests),
+    ]
+
+
+def coverage_check(compiled: dict[str, Any], cases: list[dict[str, Any]]) -> dict[str, Any]:
+    rule_ids = {item["id"] for item in compiled["canonical"]["layers"]}
+    covered_ids = {rule_id for case in cases for rule_id in case.get("satisfiesRuleIds", [])}
+    required_capabilities = {
+        capability
+        for item in compiled["canonical"]["layers"]
+        for capability in item["rule"].get("caseCapabilities", [])
+    }
+    covered_capabilities = {capability for case in cases for capability in case.get("capabilities", [])}
+    missing_rules = sorted(rule_ids - covered_ids)
+    missing_capabilities = sorted(required_capabilities - covered_capabilities)
+    descriptors = {item.get("id"): item for item in compiled["canonical"].get("runtimeAdapters", [])}
+    unsupported_capabilities = []
+    for case in cases:
+        adapter = case.get("adapter", {})
+        adapter_id = adapter.get("id") if isinstance(adapter, dict) else adapter
+        descriptor = descriptors.get(adapter_id)
+        allowed = set(descriptor.get("provesCaseCapabilities", [])) if descriptor else set()
+        unsupported = sorted(
+            capability for capability in case.get("capabilities", [])
+            if capability not in allowed and not capability.startswith("skill-binding:")
+        )
+        if unsupported:
+            unsupported_capabilities.append({"caseId": case.get("id"), "adapterId": adapter_id, "capabilities": unsupported})
+    return check(
+        "HC-RULE-CASE-COVERAGE", "PASS" if not missing_rules and not missing_capabilities and not unsupported_capabilities else "FAIL",
+        "fixed cases cover every applicable rule within their adapter proof boundaries" if not missing_rules and not missing_capabilities and not unsupported_capabilities else "applicable rules are uncovered or cases claim capabilities outside their adapter proof boundary",
+        missingRuleIds=missing_rules, missingCapabilities=missing_capabilities, unsupportedCapabilities=unsupported_capabilities,
+    )
+
+
+def load_and_compare_rules(root: Path, rule_ref: dict[str, Any], spec: dict[str, Any], runtime_root: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    ref_result = verify_ref(root, rule_ref, "HC-RULESET-BINDING")
+    if ref_result["status"] != "PASS":
+        return {}, [ref_result]
+    recorded = load_json(root / rule_ref["path"])
+    validate_object("resolved-rule-set", recorded)
+    compiled = compile_for_project(spec, root, runtime_root)
+    matches = recorded.get("canonicalSha256") == compiled.get("canonicalSha256")
+    return compiled, [ref_result, check(
+        "HC-RULESET-BINDING", "PASS" if matches else "INVALIDATED",
+        "resolved rule set equals a fresh deterministic compilation" if matches else "positioning, profile, adapter, Skill, overlay or rule catalog drifted",
+        recordedSha256=recorded.get("canonicalSha256"), actualSha256=compiled.get("canonicalSha256"),
+    )]
+
+
+def fail_on_compile_issues(checks: list[dict[str, Any]]) -> None:
+    priorities = {"FAIL": 3, "INVALIDATED": 3, "BLOCKED": 2, "PASS": 0}
+    failed = [item for item in checks if item["status"] != "PASS"]
+    if not failed:
+        return
+    worst = max(failed, key=lambda item: priorities[item["status"]])
+    raise ControlError(worst["id"], worst["message"], status=worst["status"], details=worst.get("details"))

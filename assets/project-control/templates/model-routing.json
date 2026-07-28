@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "configuredAt": "replace-with-iso-time",
+  "refreshAfter": "replace-with-iso-time-plus-90-days",
+  "availableModels": [],
+  "coordination": {
+    "requestedBackend": "AUTO",
+    "resolvedBackend": null,
+    "observedCapabilities": [],
+    "workerCountPolicy": "NO_SKILL_FIXED_LIMIT"
+  },
+  "taskTiers": {
+    "mechanical": null,
+    "bounded": null,
+    "crossModule": null,
+    "highRisk": null
+  },
+  "projectOverrides": {
+    "forbiddenModels": [],
+    "maximumReasoningByModel": {}
+  },
+  "sources": []
+}

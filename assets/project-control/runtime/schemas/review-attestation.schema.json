@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "reviewId", "taskId", "candidateId", "candidateCommit", "checkpointSetSha256", "keyObjectives", "positioning", "resolvedRuleSet", "auditor", "evidenceIds", "evidenceRefs", "checkpointResults", "findings", "transcript", "result", "reviewedAt"],
+  "properties": {
+    "schemaVersion": {"const": "3.2"}, "reviewId": {"type": "string"}, "taskId": {"type": "string"}, "candidateId": {"type": "string"},
+    "candidateCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "checkpointSetSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "keyObjectives": {"$ref": "#/$defs/ref"}, "positioning": {"$ref": "#/$defs/ref"}, "resolvedRuleSet": {"$ref": "#/$defs/ref"},
+    "auditor": {"type": "object", "additionalProperties": false, "required": ["actorId", "sessionId"], "properties": {"actorId": {"type": "string", "minLength": 1}, "sessionId": {"type": "string", "minLength": 1}}},
+    "evidenceIds": {"type": "array", "items": {"type": "string"}}, "evidenceRefs": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "checkpointResults": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["checkpointId", "expectedStatus", "observedStatus", "evidenceIds", "deviationFindingId"], "properties": {"checkpointId": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"}, "expectedStatus": {"const": "PASS"}, "observedStatus": {"enum": ["PASS", "FAIL", "BLOCKED"]}, "evidenceIds": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "deviationFindingId": {"type": ["string", "null"]}}}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "transcript": {"$ref": "#/$defs/ref"}, "result": {"enum": ["PASS", "FAIL"]}, "reviewedAt": {"type": "string", "format": "date-time"},
+    "keyId": {"type": "string"}, "signature": {"type": "object"}
+  },
+  "$defs": {
+    "ref": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "tracked"], "properties": {"path": {"type": "string"}, "bytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "tracked": {"const": true}}},
+    "finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "severity", "status", "classification", "objectiveRefs", "checkpointRefs", "coreControlRefs", "affectedClaims", "reproduction", "evidenceRefs", "minimumFix", "addedGovernanceCost"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1}, "severity": {"enum": ["P0", "P1", "P2", "P3"]}, "status": {"enum": ["OPEN", "CLOSED"]},
+        "classification": {"enum": ["CURRENT_GOAL_DEFECT", "MINIMUM_CORE_VIOLATION", "SAFETY_OVERRIDE", "HUMAN_DECISION", "PROCESS_WARNING", "INVESTIGATION", "FUTURE_PROPOSAL", "OUT_OF_SCOPE"]},
+        "objectiveRefs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^K[OF]-[A-Z0-9][A-Z0-9._-]*$"}},
+        "checkpointRefs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"}},
+        "coreControlRefs": {"type": "array", "uniqueItems": true, "items": {"enum": ["RULE-CORE-OBSERVABLE-CANDIDATE", "RULE-CORE-FAILURE-CONSERVATION"]}},
+        "affectedClaims": {"type": "array", "uniqueItems": true, "items": {"enum": ["DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY"]}},
+        "reproduction": {"type": "string", "minLength": 1}, "evidenceRefs": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+        "minimumFix": {"type": "string", "minLength": 1}, "addedGovernanceCost": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {"if": {"properties": {"classification": {"enum": ["CURRENT_GOAL_DEFECT", "MINIMUM_CORE_VIOLATION", "SAFETY_OVERRIDE"]}}}, "then": {"properties": {"affectedClaims": {"minItems": 1}, "evidenceRefs": {"minItems": 1}}}},
+        {"if": {"properties": {"classification": {"const": "CURRENT_GOAL_DEFECT"}}}, "then": {"properties": {"objectiveRefs": {"minItems": 1}, "checkpointRefs": {"minItems": 1}}}},
+        {"if": {"properties": {"classification": {"const": "MINIMUM_CORE_VIOLATION"}}}, "then": {"properties": {"coreControlRefs": {"minItems": 1}}}},
+        {"if": {"properties": {"classification": {"const": "SAFETY_OVERRIDE"}}}, "then": {"properties": {"objectiveRefs": {"contains": {"type": "string", "pattern": "^KF-"}}}}},
+        {"if": {"properties": {"classification": {"const": "HUMAN_DECISION"}}}, "then": {"properties": {"affectedClaims": {"minItems": 1}}}}
+      ]
+    }
+  }
+}

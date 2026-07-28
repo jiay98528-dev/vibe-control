@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "rules": [
+    {
+      "id": "RULE-CORE-OBSERVABLE-CANDIDATE",
+      "applicability": {"always": true},
+      "requirements": ["Bind every formal result to one immutable candidate."],
+      "evidenceRequirements": ["candidate-bound runtime or black-box observation"],
+      "caseCapabilities": ["candidate-integrity"]
+    },
+    {
+      "id": "RULE-CORE-FAILURE-CONSERVATION",
+      "applicability": {"always": true},
+      "requirements": ["Preserve executed, passed, failed and skipped counts."],
+      "evidenceRequirements": ["non-zero counters and raw transcript"],
+      "caseCapabilities": ["failure-conservation"]
+    }
+  ]
+}

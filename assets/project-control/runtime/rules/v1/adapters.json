@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "adapters": [
+    {
+      "id": "generic-command",
+      "version": "1.0.0",
+      "runtimeFamily": "generic",
+      "discoverySource": "locked case command",
+      "localExecution": {"mode": "command"},
+      "evidenceCapabilities": ["the locked command ran at the candidate commit", "exit code, counters, transcript and declared artifacts"],
+      "doesNotProve": ["runtime family semantics", "visual or interaction quality", "release intent", "human approval"],
+      "requiredCaseCapabilities": ["generic-command-execution"],
+      "provesCaseCapabilities": ["candidate-integrity", "failure-conservation", "generic-command-execution", "api-contract-runtime", "data-model-quality"],
+      "environmentLimits": ["only the recorded execution environment is covered"],
+      "degradationLimits": ["fallback execution cannot be extrapolated to a target runtime"],
+      "canApprove": false
+    },
+    {
+      "id": "browser-runtime",
+      "version": "1.0.0",
+      "runtimeFamily": "browser",
+      "discoverySource": "Playwright config or explicit browser runtime target",
+      "localExecution": {"mode": "playwright"},
+      "evidenceCapabilities": ["real browser navigation and interaction", "screenshots, trace, logs and per-case counters"],
+      "doesNotProve": ["native shell", "installer", "target hardware", "release intent", "human approval"],
+      "requiredCaseCapabilities": ["browser-runtime-observation"],
+      "provesCaseCapabilities": ["candidate-integrity", "failure-conservation", "browser-runtime-observation", "ui-runtime-interaction", "api-contract-runtime"],
+      "environmentLimits": ["browser and OS versions must be recorded"],
+      "degradationLimits": ["browser fallback cannot qualify a native runtime"],
+      "canApprove": false
+    },
+    {
+      "id": "godot-runtime",
+      "version": "1.0.0",
+      "runtimeFamily": "godot",
+      "discoverySource": "project.godot or explicit Godot runtime target",
+      "localExecution": {"mode": "godot"},
+      "evidenceCapabilities": ["project.godot and exact Godot executable/version are bound", "Godot execution output and declared artifacts"],
+      "doesNotProve": ["game feel without a human gate", "platform certification", "signed export", "release intent", "human approval"],
+      "requiredCaseCapabilities": ["godot-runtime-observation"],
+      "provesCaseCapabilities": ["candidate-integrity", "failure-conservation", "godot-runtime-observation", "gameplay-vertical-slice"],
+      "environmentLimits": ["Godot executable and version must be explicit"],
+      "degradationLimits": ["headless smoke does not prove rendered gameplay"],
+      "canApprove": false
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "3.2",
+  "decisionId": "DECISION-001",
+  "taskId": "TASK-001",
+  "candidateId": "replace-with-candidate-id",
+  "candidateCommit": "replace-with-40-char-commit",
+  "checkpointSetSha256": "replace-with-64-char-sha256",
+  "checkpointDecisions": [],
+  "positioning": {"path": ".vibe-control/project-positioning.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "resolvedRuleSet": {"path": ".vibe-control/resolved-rule-set.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "scope": ["replace-with-changed-path"],
+  "owner": {"actorId": "product-owner"},
+  "decision": "APPROVE",
+  "decidedAt": "replace-with-iso-time",
+  "expiresAt": null
+}

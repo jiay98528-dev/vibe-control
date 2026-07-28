@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "3.2",
+  "projectId": "vibe-control-self-032",
+  "sourceSchemaVersion": "3.1",
+  "successSignals": [
+    {"id": "SIG-43c96da476b2", "statement": "unknown objective references fail closed"},
+    {"id": "SIG-6838ab193fd0", "statement": "advisory findings do not expand current scope"},
+    {"id": "SIG-f112ef4a0219", "statement": "development package cannot exceed DEVELOPMENT_CHECKED"}
+  ],
+  "humanQualityGates": [
+    {"id": "HG-4e22e1e099ed", "statement": "owner confirms any KEY_OBJECTIVES.md revision and affected claim"}
+  ],
+  "checkpointDrafts": [
+    {
+      "id": "CP-001", "sourceRefs": ["SIG-43c96da476b2"], "objectiveRefs": ["KO-003"],
+      "statement": "the task rejects objective references outside the locked objective set", "type": "AUTOMATED",
+      "requiredForClaim": "DEVELOPMENT_CHECKED", "caseIds": ["CASE-VC032-KEY-RESTRAINT"],
+      "assertions": [{"id": "ASRT-001", "statement": "the objective closure regression exits successfully", "caseIds": ["CASE-VC032-KEY-RESTRAINT"]}],
+      "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"},
+      "notProven": ["formal package readiness"]
+    },
+    {
+      "id": "CP-002", "sourceRefs": ["SIG-6838ab193fd0"], "objectiveRefs": ["KO-004"],
+      "statement": "advisory findings remain non-blocking for the current task claim", "type": "AUTOMATED",
+      "requiredForClaim": "DEVELOPMENT_CHECKED", "caseIds": ["CASE-VC032-KEY-RESTRAINT"],
+      "assertions": [{"id": "ASRT-002", "statement": "the finding admission regression exits successfully", "caseIds": ["CASE-VC032-KEY-RESTRAINT"]}],
+      "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"},
+      "notProven": ["formal package readiness"]
+    },
+    {
+      "id": "CP-003", "sourceRefs": ["SIG-f112ef4a0219"], "objectiveRefs": ["KO-002"],
+      "statement": "a development package cannot exceed DEVELOPMENT_CHECKED", "type": "AUTOMATED",
+      "requiredForClaim": "DEVELOPMENT_CHECKED", "caseIds": ["CASE-VC032-KEY-RESTRAINT"],
+      "assertions": [{"id": "ASRT-003", "statement": "the development claim ceiling regression exits successfully", "caseIds": ["CASE-VC032-KEY-RESTRAINT"]}],
+      "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"},
+      "notProven": ["formal package readiness"]
+    }
+  ],
+  "confirmation": {
+    "actorId": "product-owner",
+    "summary": "The approved 0.3.3 migration preserves three deterministic Schema 3.1 success signals as three DEVELOPMENT_CHECKED automated checkpoint drafts; the existing human gate is not auto-approved or required by this diagnostic migration ceiling.",
+    "summarySha256": "186b1c18f44df3e2e636c91f218ed384f418971a728f0067545c0a6752d86264",
+    "confirmedAt": "2026-07-28T00:00:00+08:00"
+  }
+}

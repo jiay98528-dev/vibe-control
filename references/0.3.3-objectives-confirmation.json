@@ -1,0 +1,13 @@
+{
+  "recordId": "VC-033-OBJECTIVES-CONFIRMATION",
+  "actorId": "product-owner",
+  "decision": "CONFIRMED",
+  "confirmedScope": [
+    "KEY_OBJECTIVES.md revision 2 retains KO-001..KO-005, KF-001..KF-005, and NG-001..NG-005",
+    "the user-approved 0.3.3 checkpoint-contract plan is the stable requirements source",
+    "PRIVATE_OPERATION and DEVELOPMENT_DIAGNOSTIC remain unchanged",
+    "no v0.3.3 or audit tag"
+  ],
+  "source": "User-approved vibe-control 0.3.3 checkpoint-contract implementation plan",
+  "recordedAt": "2026-07-28T00:00:00+08:00"
+}

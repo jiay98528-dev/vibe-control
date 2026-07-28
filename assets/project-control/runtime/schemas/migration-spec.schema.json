@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "projectId", "sourceSchemaVersion", "successSignals", "humanQualityGates", "checkpointDrafts", "confirmation"],
+  "properties": {
+    "schemaVersion": {"const": "3.2"},
+    "projectId": {"type": "string", "minLength": 1},
+    "sourceSchemaVersion": {"const": "3.1"},
+    "successSignals": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/signal"}},
+    "humanQualityGates": {"type": "array", "items": {"$ref": "#/$defs/gate"}},
+    "checkpointDrafts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/checkpoint"}},
+    "confirmation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["actorId", "summary", "summarySha256", "confirmedAt"],
+      "properties": {
+        "actorId": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "summarySha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "confirmedAt": {"type": "string", "format": "date-time"}
+      }
+    }
+  },
+  "$defs": {
+    "claim": {"enum": ["DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY"]},
+    "signal": {"type": "object", "additionalProperties": false, "required": ["id", "statement"], "properties": {"id": {"type": "string", "pattern": "^SIG-[0-9a-f]{12}$"}, "statement": {"type": "string", "minLength": 1}}},
+    "gate": {"type": "object", "additionalProperties": false, "required": ["id", "statement"], "properties": {"id": {"type": "string", "pattern": "^HG-[0-9a-f]{12}$"}, "statement": {"type": "string", "minLength": 1}}},
+    "assertion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "statement", "caseIds"],
+      "properties": {"id": {"type": "string", "pattern": "^ASRT-[A-Z0-9][A-Z0-9._-]*$"}, "statement": {"type": "string", "minLength": 1}, "caseIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}}
+    },
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "sourceRefs", "objectiveRefs", "statement", "type", "requiredForClaim", "caseIds", "assertions", "expected", "notProven"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"},
+        "sourceRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^(SIG|HG)-[0-9a-f]{12}$"}},
+        "objectiveRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^K[OF]-[A-Z0-9][A-Z0-9._-]*$"}},
+        "statement": {"type": "string", "minLength": 1},
+        "type": {"enum": ["AUTOMATED", "HUMAN"]},
+        "requiredForClaim": {"$ref": "#/$defs/claim"},
+        "caseIds": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "assertions": {"type": "array", "items": {"$ref": "#/$defs/assertion"}},
+        "expected": {"type": "object", "additionalProperties": false, "required": ["status", "minExecuted", "maxFailed", "maxSkipped", "artifacts"], "properties": {"status": {"const": "PASS"}, "minExecuted": {"type": "integer", "minimum": 1}, "maxFailed": {"const": 0}, "maxSkipped": {"const": 0}, "artifacts": {"const": "AS_DECLARED"}}},
+        "notProven": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

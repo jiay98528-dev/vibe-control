@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "projectId", "keyObjectives"],
+  "properties": {
+    "schemaVersion": {"const": "3.2"}, "projectId": {"type": "string", "minLength": 1},
+    "keyObjectives": {
+      "type": "object", "additionalProperties": false,
+      "required": ["document", "documentId", "revision", "status", "sourceDocuments", "objectiveIds", "failureModeIds", "nonGoalIds", "confirmation"],
+      "properties": {
+        "document": {"type": "string", "minLength": 1}, "documentId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "revision": {"type": "integer", "minimum": 1}, "status": {"const": "CONFIRMED"},
+        "sourceDocuments": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "objectiveIds": {"type": "array", "minItems": 1, "maxItems": 5, "uniqueItems": true, "items": {"type": "string", "pattern": "^KO-[A-Z0-9][A-Z0-9._-]*$"}},
+        "failureModeIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^KF-[A-Z0-9][A-Z0-9._-]*$"}},
+        "nonGoalIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^NG-[A-Z0-9][A-Z0-9._-]*$"}},
+        "confirmation": {
+          "type": "object", "additionalProperties": false, "required": ["actorId", "summary", "summarySha256", "record"],
+          "properties": {"actorId": {"type": "string", "minLength": 1}, "summary": {"type": "string", "minLength": 1}, "summarySha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "record": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

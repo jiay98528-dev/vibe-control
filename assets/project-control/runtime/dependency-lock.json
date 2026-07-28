@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2.0",
+  "python": ">=3.12,<3.13",
+  "packages": {
+    "attrs": "26.1.0",
+    "cffi": "2.0.0",
+    "cryptography": "48.0.0",
+    "jsonschema": "4.26.0",
+    "jsonschema-specifications": "2025.9.1",
+    "pycparser": "3.0",
+    "referencing": "0.37.0",
+    "rpds-py": "0.30.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "3.2",
+  "version": "0.3.4",
+  "taskId": "TASK-001",
+  "candidateId": "replace-with-candidate-id",
+  "candidateCommit": "replace-with-40-char-commit",
+  "candidateTree": "replace-with-40-char-tree",
+  "candidate": {"path": ".vibe-control/candidates/replace-with-candidate-id.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "positioning": {"path": ".vibe-control/project-positioning.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "resolvedRuleSet": {"path": ".vibe-control/resolved-rule-set.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "decision": {"path": ".vibe-control/decisions/DECISION-001.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "auditReport": {"path": ".vibe-control/external-audits/RELEASE-AUDIT-001.json", "bytes": 0, "sha256": "replace-with-64-char-sha256", "tracked": true},
+  "packageManifestSha256": "replace-with-64-char-sha256",
+  "runtimeManifestSha256": "replace-with-64-char-sha256",
+  "assuranceMatrixSha256": "replace-with-64-char-sha256",
+  "enableFormalClaims": true,
+  "owner": {"actorId": "owner"},
+  "keyId": "owner-key",
+  "signedAt": "replace-with-iso-time",
+  "signature": {"algorithm": "Ed25519", "value": "replace-with-base64-signature"}
+}

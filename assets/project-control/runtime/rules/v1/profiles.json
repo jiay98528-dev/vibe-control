@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "profiles": [
+    {
+      "id": "game",
+      "primaryExperiences": ["GAMEPLAY"],
+      "capabilityDomains": ["REALTIME_ENGINE"],
+      "rules": [{
+        "id": "RULE-PROFILE-GAME-EXPERIENCE",
+        "applicability": {"profile": "game"},
+        "requirements": ["Prove the first gameplay slice in the real engine."],
+        "evidenceRequirements": ["engine-observed gameplay and human experience gate"],
+        "caseCapabilities": ["gameplay-vertical-slice"]
+      }]
+    },
+    {
+      "id": "ui-desktop",
+      "primaryExperiences": ["INTERACTIVE_APPLICATION"],
+      "capabilityDomains": ["USER_INTERFACE"],
+      "rules": [{
+        "id": "RULE-PROFILE-UI-INTERACTION",
+        "applicability": {"profile": "ui-desktop"},
+        "requirements": ["Observe the primary interaction path in a real runtime."],
+        "evidenceRequirements": ["runtime screenshot/trace and human quality gate"],
+        "caseCapabilities": ["ui-runtime-interaction"]
+      }]
+    },
+    {
+      "id": "backend-api",
+      "primaryExperiences": ["SERVICE"],
+      "capabilityDomains": ["BACKEND_API", "PERSISTENCE"],
+      "rules": [{
+        "id": "RULE-PROFILE-API-CONTRACT",
+        "applicability": {"profile": "backend-api"},
+        "requirements": ["Exercise the locked API or persistence contract."],
+        "evidenceRequirements": ["runtime-observed contract execution"],
+        "caseCapabilities": ["api-contract-runtime"]
+      }]
+    },
+    {
+      "id": "data-llm",
+      "primaryExperiences": ["DATA_OR_MODEL_SYSTEM"],
+      "capabilityDomains": ["DATA_PIPELINE", "LLM"],
+      "rules": [{
+        "id": "RULE-PROFILE-DATA-MODEL-QUALITY",
+        "applicability": {"profile": "data-llm"},
+        "requirements": ["Bind data, prompt/model version and non-deterministic evaluation inputs."],
+        "evidenceRequirements": ["versioned evaluation execution and human quality gate where subjective"],
+        "caseCapabilities": ["data-model-quality"]
+      }]
+    }
+  ]
+}

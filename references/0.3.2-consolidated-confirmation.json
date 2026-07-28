@@ -1,0 +1,14 @@
+{
+  "recordId": "VC-032-CONSOLIDATED-CONFIRMATION",
+  "actorId": "product-owner",
+  "decision": "CONFIRMED",
+  "confirmedScope": [
+    "vibe-control key objectives",
+    "PRIVATE_OPERATION release intent",
+    "0.3.2 DEVELOPMENT_DIAGNOSTIC package mode",
+    "Schema 3.1 objective and evidence boundaries",
+    "no v0.3.1 or v0.3.2 formal tag"
+  ],
+  "source": "User-approved vibe-control 0.3.2 key-objective restraint implementation plan",
+  "recordedAt": "2026-07-27T00:00:00+08:00"
+}

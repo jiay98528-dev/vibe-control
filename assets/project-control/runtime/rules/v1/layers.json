@@ -1,0 +1,5 @@
+{
+  "schemaVersion": "1.0",
+  "layers": ["CORE", "EXPERIENCE", "CAPABILITY_PROFILE", "RUNTIME_ADAPTER", "SKILL_BINDING", "PROJECT_OVERLAY"],
+  "version": "v1"
+}

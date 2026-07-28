@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "taskId", "goal", "objectiveRefs", "allowedPaths", "forbiddenPaths", "requiredCaseIds", "risk", "maxClaimLevel", "authorityRefs", "acceptanceCheckpoints", "checkpointConfirmation", "auditPolicy"],
+  "properties": {
+    "schemaVersion": {"const": "3.2"},
+    "taskId": {"type": "string", "minLength": 1},
+    "goal": {"type": "string", "minLength": 1},
+    "objectiveRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^K[OF]-[A-Z0-9][A-Z0-9._-]*$"}},
+    "allowedPaths": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "forbiddenPaths": {"type": "array", "items": {"type": "string"}},
+    "requiredCaseIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "risk": {"enum": ["R0", "R1", "R2", "R3"]},
+    "maxClaimLevel": {"$ref": "#/$defs/claim"},
+    "authorityRefs": {"type": "array", "items": {"type": "string"}},
+    "nonGoals": {"type": "array", "items": {"type": "string"}},
+    "humanDecisionPoints": {"type": "array", "items": {"type": "string"}},
+    "acceptanceCheckpoints": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/checkpoint"}},
+    "checkpointConfirmation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["actorId", "summary", "checkpointSetSha256", "record", "confirmedAt"],
+      "properties": {
+        "actorId": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "checkpointSetSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "record": {"type": "string", "minLength": 1},
+        "confirmedAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "auditPolicy": {"const": {"mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"}}
+  },
+  "$defs": {
+    "claim": {"enum": ["DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY"]},
+    "checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "sourceRefs", "objectiveRefs", "statement", "type", "requiredForClaim", "caseIds", "assertions", "expected", "notProven"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"},
+        "sourceRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^(SIG|HG)-[0-9a-f]{12}$"}},
+        "objectiveRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^K[OF]-[A-Z0-9][A-Z0-9._-]*$"}},
+        "statement": {"type": "string", "minLength": 1},
+        "type": {"enum": ["AUTOMATED", "HUMAN"]},
+        "requiredForClaim": {"$ref": "#/$defs/claim"},
+        "caseIds": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "assertions": {"type": "array", "items": {"$ref": "#/$defs/assertion"}},
+        "expected": {"type": "object", "additionalProperties": false, "required": ["status", "minExecuted", "maxFailed", "maxSkipped", "artifacts"], "properties": {"status": {"const": "PASS"}, "minExecuted": {"type": "integer", "minimum": 1}, "maxFailed": {"const": 0}, "maxSkipped": {"const": 0}, "artifacts": {"const": "AS_DECLARED"}}},
+        "notProven": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "assertion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "statement", "caseIds"],
+      "properties": {"id": {"type": "string", "pattern": "^ASRT-[A-Z0-9][A-Z0-9._-]*$"}, "statement": {"type": "string", "minLength": 1}, "caseIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}}
+    }
+  }
+}

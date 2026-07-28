@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "reportId", "taskId", "candidateId", "candidateCommit", "candidateTree", "candidate", "keyObjectives", "positioning", "resolvedRuleSet", "review", "evidenceRefs", "auditor", "findings", "transcript", "result", "packageManifestSha256", "runtimeManifestSha256", "assuranceMatrixSha256", "auditedAt", "keyId", "signature"],
+  "properties": {
+    "schemaVersion": {"const": "3.2"}, "reportId": {"type": "string"}, "taskId": {"type": "string"}, "candidateId": {"type": "string"},
+    "candidateCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "candidateTree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "candidate": {"$ref": "#/$defs/ref"}, "keyObjectives": {"$ref": "#/$defs/ref"}, "positioning": {"$ref": "#/$defs/ref"}, "resolvedRuleSet": {"$ref": "#/$defs/ref"}, "review": {"$ref": "#/$defs/ref"},
+    "evidenceRefs": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "auditor": {"type": "object", "additionalProperties": false, "required": ["actorId", "sessionId"], "properties": {"actorId": {"type": "string"}, "sessionId": {"type": "string"}}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}}, "transcript": {"$ref": "#/$defs/ref"}, "result": {"enum": ["PASS", "FAIL"]},
+    "packageManifestSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "runtimeManifestSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "assuranceMatrixSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "auditedAt": {"type": "string", "format": "date-time"}, "keyId": {"type": "string"}, "signature": {"type": "object"}
+  },
+  "$defs": {
+    "ref": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "tracked"], "properties": {"path": {"type": "string"}, "bytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "tracked": {"const": true}}},
+    "finding": {"type": "object", "additionalProperties": false, "required": ["id", "severity", "status", "classification", "objectiveRefs", "checkpointRefs", "coreControlRefs", "affectedClaims", "reproduction", "evidenceRefs", "minimumFix", "addedGovernanceCost"], "properties": {"id": {"type": "string"}, "severity": {"enum": ["P0", "P1", "P2", "P3"]}, "status": {"enum": ["OPEN", "CLOSED"]}, "classification": {"enum": ["CURRENT_GOAL_DEFECT", "MINIMUM_CORE_VIOLATION", "SAFETY_OVERRIDE", "HUMAN_DECISION", "PROCESS_WARNING", "INVESTIGATION", "FUTURE_PROPOSAL", "OUT_OF_SCOPE"]}, "objectiveRefs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^K[OF]-[A-Z0-9][A-Z0-9._-]*$"}}, "checkpointRefs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"}}, "coreControlRefs": {"type": "array", "uniqueItems": true, "items": {"enum": ["RULE-CORE-OBSERVABLE-CANDIDATE", "RULE-CORE-FAILURE-CONSERVATION"]}}, "affectedClaims": {"type": "array", "uniqueItems": true, "items": {"enum": ["DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY"]}}, "reproduction": {"type": "string", "minLength": 1}, "evidenceRefs": {"type": "array", "items": {"$ref": "#/$defs/ref"}}, "minimumFix": {"type": "string", "minLength": 1}, "addedGovernanceCost": {"type": "string", "minLength": 1}}}
+  }
+}

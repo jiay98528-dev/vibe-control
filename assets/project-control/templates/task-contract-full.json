@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "3.2",
+  "taskId": "TASK-001",
+  "goal": "Replace with one externally observable vertical-slice outcome",
+  "objectiveRefs": ["KO-001", "KF-001"],
+  "allowedPaths": ["src/**", "tests/**"],
+  "forbiddenPaths": [".vibe-control/**", "secrets/**"],
+  "requiredCaseIds": ["CASE-001"],
+  "risk": "R2",
+  "maxClaimLevel": "VERIFIED",
+  "authorityRefs": ["REQUIREMENTS.md"],
+  "nonGoals": [],
+  "humanDecisionPoints": [],
+  "acceptanceCheckpoints": [{
+    "id": "CP-001",
+    "sourceRefs": ["SIG-000000000000"],
+    "objectiveRefs": ["KO-001"],
+    "statement": "Replace with one externally observable passing fact",
+    "type": "AUTOMATED",
+    "requiredForClaim": "VERIFIED",
+    "caseIds": ["CASE-001"],
+    "assertions": [{"id": "ASRT-001", "statement": "Replace with one observable assertion", "caseIds": ["CASE-001"]}],
+    "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"},
+    "notProven": []
+  }],
+  "checkpointConfirmation": {"actorId": "product-owner", "summary": "replace-with-confirmed-checkpoint-summary", "checkpointSetSha256": "0000000000000000000000000000000000000000000000000000000000000000", "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-01-01T00:00:00Z"},
+  "auditPolicy": {"mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"}
+}

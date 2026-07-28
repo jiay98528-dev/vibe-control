@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "3.2",
+  "projectId": "replace-with-project-id",
+  "sourceSchemaVersion": "3.1",
+  "successSignals": [{"id": "SIG-000000000000", "statement": "replace-with-normalized-old-success-signal"}],
+  "humanQualityGates": [{"id": "HG-000000000000", "statement": "replace-with-normalized-old-human-gate"}],
+  "checkpointDrafts": [{
+    "id": "CP-001",
+    "sourceRefs": ["SIG-000000000000"],
+    "objectiveRefs": ["KO-001"],
+    "statement": "replace-with-observable-pass-fact",
+    "type": "AUTOMATED",
+    "requiredForClaim": "VERIFIED",
+    "caseIds": ["CASE-001"],
+    "assertions": [{"id": "ASRT-001", "statement": "replace-with-observable-assertion", "caseIds": ["CASE-001"]}],
+    "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"},
+    "notProven": []
+  }],
+  "confirmation": {
+    "actorId": "product-owner",
+    "summary": "replace-with-one-confirmed-migration-summary",
+    "summarySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "confirmedAt": "2026-01-01T00:00:00Z"
+  }
+}

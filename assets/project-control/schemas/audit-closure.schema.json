@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "closureId", "taskId", "candidateId", "candidateCommit",
+    "checkpointSetSha256", "reason", "reviewId", "reviewSha256", "findingIds", "closedAt"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "3.2"},
+    "closureId": {"type": "string", "pattern": "^audit-closure-[A-Za-z0-9._-]+$"},
+    "taskId": {"type": "string", "minLength": 1},
+    "candidateId": {"type": "string", "minLength": 1},
+    "candidateCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "checkpointSetSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reason": {"const": "EXPLORATION_BUDGET_EXHAUSTED"},
+    "reviewId": {"type": "string", "minLength": 1},
+    "reviewSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "findingIds": {"type": "array", "minItems": 4, "items": {"type": "string", "minLength": 1}},
+    "closedAt": {"type": "string", "format": "date-time"}
+  }
+}
