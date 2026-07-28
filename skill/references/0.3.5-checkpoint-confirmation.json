@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "3.2",
+  "recordType": "checkpoint-confirmation",
+  "recordId": "CONFIRM-VC035-CHECKPOINTS",
+  "actorId": "product-owner",
+  "confirmedAt": "2026-07-28T22:37:00+08:00",
+  "source": "user-approved vibe-control 0.3.5 portable installation and bounded test plan",
+  "summary": "Three DEVELOPMENT_CHECKED checkpoints cover no-Git install/bootstrap, unambiguous installation-versus-seal conclusions, and complete bounded execution of both deep regression suites.",
+  "checkpointSetSha256": "cd1db8f6a8e6468eadd53063f5d1155649539ac22acfdc6a33534f6546ccb906"
+}

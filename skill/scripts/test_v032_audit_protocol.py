@@ -133,7 +133,7 @@ def test_development_package_never_grants_high_claims() -> None:
         git(project, "add", "-A"); git(project, "commit", "-m", "bootstrap development")
         contract = checkpoint_contract()
         contract_path = project / ".vibe-control" / "tasks" / "TASK-001.json"; write_json(contract_path, contract); git(project, "add", "-A"); git(project, "commit", "-m", "task")
-        pinned = project / ".vibe-control" / "runtime" / "0.3.4" / "control.py"
+        pinned = project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
         run(sys.executable, str(pinned), "lock-task", "--project", str(project), "--contract", str(contract_path))
         git(project, "add", "-A"); git(project, "commit", "-m", "lock")
         release = json.loads(run(sys.executable, str(pinned), "release-check", "--project", str(project), expect=2).stdout)

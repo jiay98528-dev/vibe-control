@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Proof-boundary regressions for the 0.3.4 runtime adapters."""
+"""Proof-boundary regressions for the 0.3.5 runtime adapters."""
 from __future__ import annotations
 
 import json

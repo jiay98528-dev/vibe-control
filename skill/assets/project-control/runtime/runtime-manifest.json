@@ -1,6 +1,6 @@
 {
   "schemaVersion": "3.2",
-  "runtimeVersion": "0.3.4",
+  "runtimeVersion": "0.3.5",
   "hashAlgorithm": "sha256",
   "excludes": [
     "runtime-manifest.json",
@@ -11,7 +11,7 @@
     {
       "path": "control.py",
       "bytes": 3538,
-      "sha256": "2cd767655f9b108ae33e3a7ac2ae4d24664908e80e0ba069feaec24216a96955"
+      "sha256": "18d22bf71f8a1ebc9ce643f94d86138c951d6a1d1e1dbc67e8d467b7835f869b"
     },
     {
       "path": "dependency-lock.json",
@@ -101,7 +101,7 @@
     {
       "path": "schemas/migration-plan.schema.json",
       "bytes": 1661,
-      "sha256": "901d934c4004bc4c5e1b5a3ddd3cdf5d6f3764d0f605a1e400caaf5cd20d2342"
+      "sha256": "6fc2e8c2b2ad1bdd9c395e7524216abeb1cb1aa4721adcd91fcff9c7bc67f00d"
     },
     {
       "path": "schemas/migration-spec.schema.json",
@@ -130,8 +130,8 @@
     },
     {
       "path": "schemas/project-governance-lock.schema.json",
-      "bytes": 2350,
-      "sha256": "c5b56b77e50776e58e2b158045d3d5278a1cd53f191de41d7d1eca7a212741eb"
+      "bytes": 3493,
+      "sha256": "03cc5d25dc6c23bfbd566f00aae9e09d191901c62b2a79b0427f56a64a2fd8ca"
     },
     {
       "path": "schemas/project-positioning.schema.json",
@@ -181,7 +181,7 @@
     {
       "path": "vibe_runtime/__init__.py",
       "bytes": 73,
-      "sha256": "4847f4fd16613f432766288deed1f8a5019190a28f969a3db4b1c7e1ef24bf14"
+      "sha256": "38f5c7806f631548a5c15296b7405149aef03727d4c4157b503d299fbdcf857a"
     },
     {
       "path": "vibe_runtime/checkpoint_control.py",
@@ -200,8 +200,8 @@
     },
     {
       "path": "vibe_runtime/controller.py",
-      "bytes": 153307,
-      "sha256": "92a34cb9f816f6ece6f9f5f54698a7719e2654a640017283aea42036c74e3791"
+      "bytes": 155449,
+      "sha256": "d969838edf2f32625c21bf2f0f0f1f249af5f0a4018254bd1a537acead7eb24b"
     },
     {
       "path": "vibe_runtime/crypto.py",
@@ -210,8 +210,8 @@
     },
     {
       "path": "vibe_runtime/package_release.py",
-      "bytes": 36596,
-      "sha256": "857468643eacd67067d0da2d4ac5d7146f78a695e0deba4d0a3cdc0580f130cd"
+      "bytes": 42143,
+      "sha256": "4b57d1e3db884aaa035f60803036ce02dd6ff5e9dbffafe15be69aa5645ea8da"
     },
     {
       "path": "vibe_runtime/positioning_control.py",

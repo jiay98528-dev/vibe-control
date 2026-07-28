@@ -132,8 +132,8 @@
   "candidateAuditsAreHistorical": true,
   "subject": {
     "skill": "vibe-control",
-    "guidanceVersion": "0.3.4",
-    "runtimeVersion": "0.3.4"
+    "guidanceVersion": "0.3.5",
+    "runtimeVersion": "0.3.5"
   },
   "formalClaimsAllowed": false,
   "requirements": [
@@ -466,6 +466,22 @@
       "implementationRefs": ["SKILL.md", "references/multi-session-routing.md", "references/model-routing.md", "references/task-control.md", "assets/project-control/templates/model-routing.json"],
       "regressionTests": ["test_orchestration_compatibility_layer_is_capability_driven_and_unbounded"],
       "independentValidation": "NOT_REQUIRED"
+    },
+    {
+      "id": "CTRL-CONFIRMED-029",
+      "statement": "Development installation identity is explicit and non-escalating: Git-root packages bind commit and tree, Git-subdirectory packages bind the parent commit and exact subtree tree while checking only the Skill subtree, and portable copies omit Git identity and rely on freshly recomputed package/runtime inventories and assurance-matrix hash. Every development source remains capped at DEVELOPMENT_CHECKED.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["scripts/validate_installation.py", "assets/project-control/runtime/vibe_runtime/package_release.py", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/project-governance-lock.schema.json"],
+      "regressionTests": ["test_development_installation_source_kinds", "test_portable_binding_schema_and_bootstrap"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-030",
+      "statement": "Normal installation self-check is separate from formal package sealing, and both deep regression suites expose leaf listing/execution, bounded parallel workers, per-case and suite timeouts, flushed JSONL progress, process-tree termination and conserved final counters with zero skip required for PASS.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["scripts/validate_installation.py", "scripts/bounded_test_runner.py", "scripts/test_package_release_audit.py", "scripts/test_assurance_regressions.py"],
+      "regressionTests": ["test_installation_and_formal_validation_are_separate", "test_bounded_deep_suite_protocol"],
+      "independentValidation": "PENDING"
     }
   ]
 }

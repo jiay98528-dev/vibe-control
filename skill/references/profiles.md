@@ -22,7 +22,7 @@ Profile 不得覆盖项目目标、事实源优先级、架构、合法性判断
 - 要求记录可复现截图、录屏、trace 或实际运行日志；内部 DOM 标签、CSS 声明和自报 diagnostics 不能单独支持 PASS。
 - 可读性、视觉匹配、动效自然度和产品成熟度留给候选绑定的人工审阅；自动图像差异只能是辅助证据或 warning。
 
-`browser-runtime` 可以证明真实浏览器/Playwright 路径及其产物，但不能证明 Tauri/Electron/Capacitor 原生壳、安装包、目标硬件或主观质量。这些原生 runtime 在 0.3.4 只产生 investigation。
+`browser-runtime` 可以证明真实浏览器/Playwright 路径及其产物，但不能证明 Tauri/Electron/Capacitor 原生壳、安装包、目标硬件或主观质量。这些原生 runtime 在 0.3.5 只产生 investigation。
 
 ## `game`
 
@@ -33,7 +33,7 @@ Profile 不得覆盖项目目标、事实源优先级、架构、合法性判断
 - 资产链必须能追溯来源、许可、版本和运行时绑定；占位资产、编辑器预览或网页壳截图不能外推为正式游戏体验。
 - 乐趣、节奏、叙事、镜头感和美术质量为 `human-decision`；Profile 只保证它们被提出、记录并绑定候选。
 
-`godot-runtime` 绑定 `project.godot`、Godot 可执行文件、精确版本和候选 detached worktree 的原始输出。Headless smoke 只证明该执行路径，不证明渲染玩法、目标设备性能或游戏感。Unreal 在 0.3.4 只发现并产生 investigation。浏览器游戏可同时使用 `game` 与 `ui-desktop`，两者仍按 AND 闭合。
+`godot-runtime` 绑定 `project.godot`、Godot 可执行文件、精确版本和候选 detached worktree 的原始输出。Headless smoke 只证明该执行路径，不证明渲染玩法、目标设备性能或游戏感。Unreal 在 0.3.5 只发现并产生 investigation。浏览器游戏可同时使用 `game` 与 `ui-desktop`，两者仍按 AND 闭合。
 
 ## `backend-api`
 
@@ -59,7 +59,7 @@ Profile 不得覆盖项目目标、事实源优先级、架构、合法性判断
 
 Profile 说明“必须证明什么”；adapter descriptor 说明“某执行器确实能证明什么”；Skill binding 说明“哪个 Skill 可以生产证据或给出启发式意见”。三者必须同时进入唯一规则集，不能互相外推。
 
-- `generic-command`、`browser-runtime`、`godot-runtime` 是 0.3.4 的已实现 adapter 类别；
+- `generic-command`、`browser-runtime`、`godot-runtime` 是 0.3.5 的已实现 adapter 类别；
 - Tauri、Electron、Unreal 与 Capacitor 只允许 discovery/investigation；
 - MCP 输出作为带原始 transcript 的外部证据导入，不能由 Python runtime 直连后自报 PASS；
 - required Skill 必须有路径、版本和确定性 tree hash，缺失或漂移阻断相应任务；

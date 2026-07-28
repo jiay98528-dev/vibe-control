@@ -7,9 +7,9 @@
     "packageMode": {"enum": ["DEVELOPMENT", "SEALED"]},
     "packageBinding": {
       "type": "object", "additionalProperties": false,
-      "required": ["version", "commit", "tree", "packageManifest", "runtimeManifest", "assuranceMatrix"],
+      "required": ["version", "packageManifest", "runtimeManifest", "assuranceMatrix"],
       "properties": {
-        "version": {"type": "string"}, "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "version": {"type": "string"}, "sourceKind": {"enum": ["GIT_ROOT", "GIT_SUBDIRECTORY", "PORTABLE_COPY"]}, "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
         "packageManifest": {"$ref": "#/$defs/ref"}, "runtimeManifest": {"$ref": "#/$defs/ref"}, "assuranceMatrix": {"$ref": "#/$defs/ref"}
       }
     },
@@ -19,6 +19,41 @@
     "profileDirectory": {"$ref": "#/$defs/ref"}, "adapterDirectory": {"$ref": "#/$defs/ref"}, "skillBindings": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
     "releaseIntent": {"enum": ["LOCAL_EXPERIMENT", "PRIVATE_OPERATION", "EXTERNAL_RELEASE"]}, "trustedKeys": {"type": "object"}, "lockedAt": {"type": "string", "format": "date-time"}
   },
-  "allOf": [{"if": {"properties": {"packageMode": {"const": "SEALED"}}}, "then": {"required": ["packageAuditReceipt"]}}],
+  "allOf": [
+    {
+      "if": {"properties": {"packageMode": {"const": "SEALED"}}},
+      "then": {
+        "required": ["packageAuditReceipt"],
+        "properties": {"packageBinding": {"required": ["commit", "tree"]}}
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "packageMode": {"const": "DEVELOPMENT"},
+          "packageBinding": {"properties": {"version": {"const": "0.3.5"}}}
+        }
+      },
+      "then": {"properties": {"packageBinding": {"required": ["sourceKind"]}}}
+    },
+    {
+      "if": {
+        "properties": {
+          "packageMode": {"const": "DEVELOPMENT"},
+          "packageBinding": {"required": ["sourceKind"], "properties": {"sourceKind": {"enum": ["GIT_ROOT", "GIT_SUBDIRECTORY"]}}}
+        }
+      },
+      "then": {"properties": {"packageBinding": {"required": ["commit", "tree"]}}}
+    },
+    {
+      "if": {
+        "properties": {
+          "packageMode": {"const": "DEVELOPMENT"},
+          "packageBinding": {"required": ["sourceKind"], "properties": {"sourceKind": {"const": "PORTABLE_COPY"}}}
+        }
+      },
+      "then": {"properties": {"packageBinding": {"not": {"anyOf": [{"required": ["commit"]}, {"required": ["tree"]}]}}}}
+    }
+  ],
   "$defs": {"ref": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "tracked"], "properties": {"path": {"type": "string"}, "bytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "tracked": {"const": true}}}}
 }

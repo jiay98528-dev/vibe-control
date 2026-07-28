@@ -6,7 +6,7 @@ Bootstrap 的目标不是套用一个粗糙“项目类型”，而是先把产�
 
 先运行 `inspect`，确认目录是否为空、是否存在 Git、是否包含多个可独立发布单元、是否已有 `AGENTS.md`、`CLAUDE.md` 或产品文档。检测到多个治理单元时先确认范围，不得默认 repo 根或当前目录。
 
-发现结果只能写入 `discovered` 事实。仓库名称、框架、配置文件、体量、现有部署文字或用户数量不能替用户选择 `primaryExperience`、`deliveryObjective`、`releaseIntent`、目标环境、发行渠道或主观质量门禁。发现 Tauri、Electron、Unreal 或 Capacitor 只能生成 investigation；0.3.4 不具备这些原生运行时的正式 adapter。
+发现结果只能写入 `discovered` 事实。仓库名称、框架、配置文件、体量、现有部署文字或用户数量不能替用户选择 `primaryExperience`、`deliveryObjective`、`releaseIntent`、目标环境、发行渠道或主观质量门禁。发现 Tauri、Electron、Unreal 或 Capacitor 只能生成 investigation；0.3.5 不具备这些原生运行时的正式 adapter。
 
 ## 2. 自适应愿景与首个切片
 
@@ -78,7 +78,7 @@ Bootstrap 的目标不是套用一个粗糙“项目类型”，而是先把产�
 
 Profile 的选择由定位轴确定：`GAMEPLAY` 或 `REALTIME_ENGINE` 激活 `game`；`USER_INTERFACE` 激活 `ui-desktop`；`BACKEND_API` 激活 `backend-api`；`DATA_PIPELINE` 或 `LLM` 激活 `data-llm`。多项适用时全部生效。
 
-0.3.4 只有三种正式 adapter descriptor：
+0.3.5 只有三种正式 adapter descriptor：
 
 - `generic-command`：只证明锁定命令、原始 transcript、counters 与明确产物；
 - `browser-runtime`：证明真实浏览器/Playwright 运行及其截图、trace、日志和逐 case counters；

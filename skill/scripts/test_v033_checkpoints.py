@@ -397,7 +397,7 @@ def test_schema32_migration_fail_closed_mutations() -> None:
         state = json.loads((control / "stage-state.json").read_text(encoding="utf-8"))
         assert (state["phase"], state["health"], state["claimLevel"]) == ("DRAFT", "BLOCKED", "DIAGNOSTIC")
         assert not (control / "evidence").exists() and not (control / "tasks").exists()
-        assert (control / "runtime" / "0.3.2").is_dir() and (control / "runtime" / "0.3.4").is_dir()
+        assert (control / "runtime" / "0.3.2").is_dir() and (control / "runtime" / "0.3.5").is_dir()
         archive = control / "legacy" / "schema-3.1" / plan_hash
         assert (archive / "control-plane" / "evidence" / "legacy-evidence.json").is_file()
         manifest = json.loads((archive / "manifest.json").read_text(encoding="utf-8"))

@@ -70,7 +70,7 @@ def write(path: Path, value: object) -> None:
 def load(path: Path): return json.loads(path.read_text(encoding="utf-8-sig"))
 def sha(path: Path) -> str: return hashlib.sha256(path.read_bytes()).hexdigest()
 def ref(root: Path, path: Path) -> dict: return {"path":path.relative_to(root).as_posix(),"bytes":path.stat().st_size,"sha256":sha(path),"tracked":True}
-def runtime(root: Path) -> Path: return root / ".vibe-control" / "runtime" / "0.3.4" / "control.py"
+def runtime(root: Path) -> Path: return root / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
 def main_evidence_path(root: Path) -> Path: return next(path for path in (root/".vibe-control"/"evidence").glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json")))
 
 
@@ -184,7 +184,7 @@ def setup_project(*, risk: str = "R2", task_ceiling: str | None = None, case_cei
     spec = {"schemaVersion":"3.2","projectId":"fixture",**positioning,"confirmation":{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":objective_spec(),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["PROJECT_BRIEF.md"],"trustedKeys":[{"keyId":f"{name}-key","actorId":name,"role":name,"publicKey":public_b64(key)} for name,key in keys.items()],"cases":[{"id":"CASE-001","command":[sys.executable,command_script],"observation":observation,"maxClaimLevel":case_ceiling,"oracle":{"exitCode":0,"stdoutContainsAll":["OK"],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":adapter_binding()}]}
     spec_path = base / "bootstrap.json"; write(spec_path, spec)
     result = run(sys.executable, str(WRAPPER), "bootstrap", "--project", str(root), "--spec", str(spec_path), expect=2); assert json.loads(result.stdout)["status"] == "BLOCKED"; commit(root, "bootstrap v3")
-    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.4"
+    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.5"
     contract = task_contract(risk=risk, task_ceiling=task_ceiling)
     contract_path = control / "tasks" / "TASK-001.json"; write(contract_path, contract); commit(root, "add task contract")
     command(root, "lock-task", "--contract", str(contract_path)); commit(root, "lock task")
@@ -224,7 +224,7 @@ def advance_accept(root: Path, keys: dict, *, expired: bool = False):
 
 def install_release_chain(root: Path, keys: dict, *, report_result: str = "PASS", report_findings: list | None = None, use_review_auditor: bool = False):
     """Record a candidate-bound external audit and owner-signed receipt after audit/accept."""
-    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.4"
+    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.5"
     candidate_path = next((control/"candidates").glob("*.json")); candidate = load(candidate_path)
     review_path = next((control/"reviews").glob("*.json")); decision_path = next((control/"decisions").glob("*.json"))
     evidence_paths = sorted(path for path in (control/"evidence").glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json")))
@@ -239,7 +239,7 @@ def install_release_chain(root: Path, keys: dict, *, report_result: str = "PASS"
     }
     report_path = control / "external-audits" / "RELEASE-AUDIT-001.json"; write(report_path, sign(report, release_key)); commit(root, "record signed external release audit")
     receipt = {
-        "schemaVersion":"3.2", "version":"0.3.4", "taskId":"TASK-001", "candidateId":candidate["candidateId"], "candidateCommit":candidate["commit"], "candidateTree":candidate["tree"],
+        "schemaVersion":"3.2", "version":"0.3.5", "taskId":"TASK-001", "candidateId":candidate["candidateId"], "candidateCommit":candidate["commit"], "candidateTree":candidate["tree"],
         "candidate":ref(root,candidate_path), "positioning":candidate["positioning"], "resolvedRuleSet":candidate["resolvedRuleSet"], "decision":ref(root,decision_path), "auditReport":ref(root,report_path),
         "packageManifestSha256":sha(control/"governance"/"package-manifest.json"), "runtimeManifestSha256":sha(runtime_root/"runtime-manifest.json"), "assuranceMatrixSha256":sha(control/"governance"/"controller-assurance-matrix.json"),
         "enableFormalClaims":True, "owner":{"actorId":"owner"}, "keyId":"owner-key", "signedAt":"2026-07-25T04:00:00+08:00"

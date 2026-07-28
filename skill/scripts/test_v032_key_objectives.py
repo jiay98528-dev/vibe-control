@@ -158,7 +158,7 @@ def test_revise_objectives_invalidates_downstream() -> None:
 
     temp, root, _ = fx.setup_project(risk="R1", task_ceiling="VERIFIED")
     try:
-        old_receipt = root / ".vibe-control" / "runtime" / "0.3.4" / "release-receipt.json"
+        old_receipt = root / ".vibe-control" / "runtime" / "0.3.5" / "release-receipt.json"
         write_json(old_receipt, {"diagnostic": "old receipt must not survive objective revision"})
         git(root, "add", "-f", old_receipt.relative_to(root).as_posix()); git(root, "commit", "-m", "record old diagnostic receipt")
         (root / "KEY_OBJECTIVES.md").write_text("# Fixture objectives\n\n- `KO-001`: prove outcome\n- `KO-002`: keep scope\n- `KF-001`: prevent false evidence\n- `NG-001`: no deployment\n", encoding="utf-8", newline="\n")

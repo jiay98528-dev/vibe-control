@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Skill-binding, orchestration-compatibility, and package-structure tests for 0.3.4."""
+"""Skill-binding, orchestration-compatibility, and package-structure tests for 0.3.5."""
 from __future__ import annotations
 
 import hashlib
@@ -112,19 +112,21 @@ def test_unaddressed_advisory_skill_warns_without_blocking() -> None:
 def test_all_locked_check_ids_are_consumed_by_runtime() -> None:
     sources = "\n".join(path.read_text(encoding="utf-8-sig") for path in sorted((RUNTIME / "vibe_runtime").glob("*.py")))
     missing = sorted(check_id for check_id in LOCKED_CHECK_IDS if check_id not in sources)
-    assert not missing, f"locked 0.3.4 check IDs are not consumed by runtime: {missing}"
+    assert not missing, f"locked 0.3.5 check IDs are not consumed by runtime: {missing}"
 
 
 def test_skill_routes_schema3_positioning_and_reinstall_boundary() -> None:
     text = (ROOT / "SKILL.md").read_text(encoding="utf-8-sig")
     required_phrases = [
-        "0.3.4", "Schema 3.2", "resolve-rules", "reposition",
+        "0.3.5", "Schema 3.2", "resolve-rules", "reposition",
         "project-positioning.json", "checkpoint-contract.md",
         "ALL_REQUIRED_CHECKPOINTS_REPORTED", "VC-REINSTALL-REQUIRED",
     ]
     missing = [phrase for phrase in required_phrases if phrase not in text]
-    assert not missing, f"SKILL.md is missing 0.3.4 route language: {missing}"
+    assert not missing, f"SKILL.md is missing 0.3.5 route language: {missing}"
     assert "private key is never required to install" in text.lower()
+    assert (ROOT / "scripts" / "validate_installation.py").is_file()
+    assert "validate_installation.py" in text and "PORTABLE_COPY" in text
 
 
 def test_orchestration_compatibility_layer_is_capability_driven_and_unbounded() -> None:

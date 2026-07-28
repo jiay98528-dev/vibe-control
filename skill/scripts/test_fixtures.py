@@ -23,7 +23,7 @@ def test_bootstrap_schema3():
 def test_runtime_bundle_excludes_bytecode_cache():
     temp,root,_=fx.setup_project()
     try:
-        runtime=root/".vibe-control"/"runtime"/"0.3.4"
+        runtime=root/".vibe-control"/"runtime"/"0.3.5"
         assert not any(path.name=="__pycache__" or path.suffix==".pyc" for path in runtime.rglob("*"))
         assert not any("__pycache__" in path or path.endswith(".pyc") for path in fx.git(root,"ls-files").splitlines())
     finally: temp.cleanup()

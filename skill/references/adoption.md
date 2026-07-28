@@ -27,12 +27,12 @@
 
 运行只读 `resolve-rules` 展示 Profile AND、adapter 证明边界、Skill bindings、人工门禁、warning、investigation、冲突和安装请求：
 
-- 0.3.4 只实现 `generic-command`、`browser-runtime`、`godot-runtime`；
+- 0.3.5 只实现 `generic-command`、`browser-runtime`、`godot-runtime`；
 - Tauri、Electron、Unreal 与 Capacitor 信号只产生 investigation；
 - required Skill 缺失或漂移会阻断对应任务，advisory 缺失只告警；
 - 缺失 Skill 的安装必须获得用户明确批准，安装后重新发现、哈希并解析；安装不使用私钥。
 
-接入获批后创建全新 `key-objectives-lock.json`、`project-positioning.json`、`resolved-rule-set.json`、治理锁、case catalog、状态与固定 runtime，不创建 candidate、evidence、review、decision 或 handoff 占位文件。状态从 `DRAFT/DIAGNOSTIC` 开始。`DEVELOPMENT` 包可建立该诊断控制面，但最高只到 `DEVELOPMENT_CHECKED`；`SEALED` 包还必须闭合包级审计收据。现有状态叙述只作为输入，不迁移为机器 PASS。
+接入获批前先运行 `scripts/validate_installation.py`。接入后创建全新 `key-objectives-lock.json`、`project-positioning.json`、`resolved-rule-set.json`、治理锁、case catalog、状态与固定 runtime，不创建 candidate、evidence、review、decision 或 handoff 占位文件。状态从 `DRAFT/DIAGNOSTIC` 开始。Git 根、Git 子目录和无 Git portable copy 都可作为 `DEVELOPMENT` 来源，但必须登记实际 `sourceKind`，且最高只到 `DEVELOPMENT_CHECKED`；`SEALED` 包还必须闭合 Git/tag/包级审计收据。现有状态叙述只作为输入，不迁移为机器 PASS。
 
 ## 已有 Schema 3.2 项目：使用 Revise Objectives
 
@@ -67,6 +67,6 @@
 
 ## Schema 2.0：只允许全新接入提案
 
-0.3.4 **不迁移、不转换、不继承** Schema 2.0 的机器对象或证据。旧项目可以继续使用固定 0.2.2 runtime；一旦用 0.3.4 操作，必须返回 `VC-REINSTALL-REQUIRED` 且不写入。
+0.3.5 **不迁移、不转换、不继承** Schema 2.0 的机器对象或证据。旧项目可以继续使用固定 0.2.2 runtime；一旦用 0.3.5 操作，必须返回 `VC-REINSTALL-REQUIRED` 且不写入。
 
 用户批准可恢复归档后，重新运行 discovery、目标推导、positioning、checkpoint 确认、resolve-rules 和 Schema 3.2 bootstrap。旧证据不得通过复制、改 `schemaVersion`、重算哈希或 narrative summary 获得 3.2 资格。

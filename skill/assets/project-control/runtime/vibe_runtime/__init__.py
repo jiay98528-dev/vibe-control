@@ -1,3 +1,3 @@
-"""vibe-control 0.3.4 development runtime package."""
+"""vibe-control 0.3.5 development runtime package."""
 
-VERSION = "0.3.4"
+VERSION = "0.3.5"

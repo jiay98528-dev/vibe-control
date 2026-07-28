@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "3.2",
+  "recordType": "positioning-confirmation",
+  "recordId": "CONFIRM-VC035-POSITIONING",
+  "actorId": "product-owner",
+  "confirmedAt": "2026-07-28T22:37:00+08:00",
+  "source": "user-approved vibe-control 0.3.5 portable installation and bounded test plan",
+  "summary": "Keep PRIVATE_OPERATION self-governance and DEVELOPMENT_DIAGNOSTIC package posture while adding portable/Git installation identities, a dedicated installation validator, and two bounded deep regression suites; GitHub synchronization distributes a development package and does not authorize formal sealing."
+}

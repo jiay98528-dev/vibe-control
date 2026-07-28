@@ -3,13 +3,18 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
+
+import bounded_test_runner as bounded
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +30,7 @@ CONTROL_IDS = sorted({
     "CTRL-CONFIRMED-019", "CTRL-CONFIRMED-020", "CTRL-CONFIRMED-021",
     "CTRL-CONFIRMED-022", "CTRL-CONFIRMED-023", "CTRL-CONFIRMED-024",
     "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
-    "CTRL-CONFIRMED-028",
+    "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
 })
 
 
@@ -152,10 +157,11 @@ def package_copy() -> tuple[tempfile.TemporaryDirectory, Path]:
         if item.get("id") in {
             "CTRL-CONFIRMED-020", "CTRL-CONFIRMED-021", "CTRL-CONFIRMED-022",
             "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
+            "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
         }:
             item["independentValidation"] = "PASS"
     write_json(matrix_path, matrix)
-    # The installed 0.3.4 tree is intentionally DEVELOPMENT_DIAGNOSTIC. This
+    # The installed 0.3.5 tree is intentionally DEVELOPMENT_DIAGNOSTIC. This
     # isolated fixture models a future sealed candidate so the release-seal
     # validator remains directly testable without changing the installed tree.
     builder_path = target / "scripts" / "build_manifest.py"
@@ -252,6 +258,36 @@ def assert_fails(root: Path, expected_id: str) -> dict:
     return report
 
 
+EVIDENCE_MUTATIONS = [
+    ("summary-only", {"omit_evidence": True}, "PKG-AUDIT-EVIDENCE-MANIFEST"),
+    ("missing-transcript", {"evidence_mutation": lambda value: value["cases"][0].pop("transcriptBlob")}, "PKG-AUDIT-EVIDENCE-TRANSCRIPT"),
+    ("wrong-transcript-hash", {"evidence_mutation": lambda value: value["cases"][0].update({"transcriptSha256": "0" * 64})}, "PKG-AUDIT-EVIDENCE-TRANSCRIPT"),
+    ("zero-counters", {"evidence_mutation": lambda value: value["cases"][0].update({"counters": {"executed": 0, "passed": 0, "failed": 0, "skipped": 0}})}, "PKG-AUDIT-EVIDENCE-COUNTERS"),
+    ("skip-counter", {"evidence_mutation": lambda value: value["cases"][0].update({"counters": {"executed": 1, "passed": 0, "failed": 0, "skipped": 1}})}, "PKG-AUDIT-EVIDENCE-COUNTERS"),
+    ("wrong-evidence-candidate", {"evidence_mutation": lambda value: value.update({"candidateCommit": "f" * 40})}, "PKG-AUDIT-EVIDENCE-BINDING"),
+    ("wrong-evidence-manifest-hash", {"report_mutation": lambda value: value.update({"evidenceManifestSha256": "e" * 64})}, "PKG-AUDIT-EVIDENCE-BINDING"),
+    ("aggregate-counter-drift", {"evidence_mutation": lambda value: value.update({"counters": {"executed": 2, "passed": 2, "failed": 0, "skipped": 0}})}, "PKG-AUDIT-EVIDENCE-COUNTERS"),
+    ("incomplete-control-coverage", {"evidence_mutation": lambda value: value["cases"][0].update({"validatedControlIds": CONTROL_IDS[:-1]})}, "PKG-AUDIT-EVIDENCE-COVERAGE"),
+    ("unknown-control-coverage", {"evidence_mutation": lambda value: value["cases"][0].update({"validatedControlIds": [*CONTROL_IDS, "CTRL-UNKNOWN-999"]})}, "PKG-AUDIT-EVIDENCE-COVERAGE"),
+    ("wrong-artifact-hash", {"evidence_mutation": lambda value: value["cases"][0]["artifacts"][0].update({"sha256": "a" * 64})}, "PKG-AUDIT-EVIDENCE-ARTIFACT"),
+    ("empty-artifacts", {"evidence_mutation": lambda value: value["cases"][0].update({"artifacts": []})}, "PKG-AUDIT-EVIDENCE-ARTIFACT"),
+]
+
+
+SEAL_MUTATIONS = [
+    ("missing-tags", None, "PKG-AUDIT-RELEASE-TAG-MISSING"),
+    ("lightweight", {"lightweight_release": True}, "PKG-AUDIT-RELEASE-TAG-ANNOTATED"),
+    ("wrong-package-hash", {"receipt_mutation": lambda value: value.update({"packageManifestSha256": "0" * 64})}, "PKG-AUDIT-RECEIPT-BINDING"),
+    ("wrong-runtime-hash", {"receipt_mutation": lambda value: value.update({"runtimeManifestSha256": "1" * 64})}, "PKG-AUDIT-RECEIPT-BINDING"),
+    ("wrong-matrix-hash", {"receipt_mutation": lambda value: value.update({"assuranceMatrixSha256": "2" * 64})}, "PKG-AUDIT-RECEIPT-BINDING"),
+    ("same-identity", {"same_identity": True}, "PKG-AUDIT-INDEPENDENCE"),
+    ("non-pass", {"result": "FAIL"}, "PKG-AUDIT-RESULT"),
+    ("open-p0", {"counts": {"P0": 1, "P1": 0, "P2": 0, "P3": 0}}, "PKG-AUDIT-RESULT"),
+    ("open-p1", {"counts": {"P0": 0, "P1": 1, "P2": 0, "P3": 0}}, "PKG-AUDIT-RESULT"),
+    ("report-substitution", {"receipt_mutation": lambda value: value.update({"auditReportSha256": "3" * 64})}, "PKG-AUDIT-REPORT-HASH"),
+]
+
+
 def test_valid_package_release_seal() -> None:
     temp, root = package_copy()
     try:
@@ -338,65 +374,7 @@ def test_stale_package_manifest_cannot_be_resealed() -> None:
 
 def test_audit_evidence_closure_negative_mutations() -> None:
     """A report summary alone must never substitute for executable audit evidence."""
-    mutations = [
-        ("summary-only", {"omit_evidence": True}, "PKG-AUDIT-EVIDENCE-MANIFEST"),
-        (
-            "missing-transcript",
-            {"evidence_mutation": lambda value: value["cases"][0].pop("transcriptBlob")},
-            "PKG-AUDIT-EVIDENCE-TRANSCRIPT",
-        ),
-        (
-            "wrong-transcript-hash",
-            {"evidence_mutation": lambda value: value["cases"][0].update({"transcriptSha256": "0" * 64})},
-            "PKG-AUDIT-EVIDENCE-TRANSCRIPT",
-        ),
-        (
-            "zero-counters",
-            {"evidence_mutation": lambda value: value["cases"][0].update({"counters": {"executed": 0, "passed": 0, "failed": 0, "skipped": 0}})},
-            "PKG-AUDIT-EVIDENCE-COUNTERS",
-        ),
-        (
-            "skip-counter",
-            {"evidence_mutation": lambda value: value["cases"][0].update({"counters": {"executed": 1, "passed": 0, "failed": 0, "skipped": 1}})},
-            "PKG-AUDIT-EVIDENCE-COUNTERS",
-        ),
-        (
-            "wrong-evidence-candidate",
-            {"evidence_mutation": lambda value: value.update({"candidateCommit": "f" * 40})},
-            "PKG-AUDIT-EVIDENCE-BINDING",
-        ),
-        (
-            "wrong-evidence-manifest-hash",
-            {"report_mutation": lambda value: value.update({"evidenceManifestSha256": "e" * 64})},
-            "PKG-AUDIT-EVIDENCE-BINDING",
-        ),
-        (
-            "aggregate-counter-drift",
-            {"evidence_mutation": lambda value: value.update({"counters": {"executed": 2, "passed": 2, "failed": 0, "skipped": 0}})},
-            "PKG-AUDIT-EVIDENCE-COUNTERS",
-        ),
-        (
-            "incomplete-control-coverage",
-            {"evidence_mutation": lambda value: value["cases"][0].update({"validatedControlIds": CONTROL_IDS[:-1]})},
-            "PKG-AUDIT-EVIDENCE-COVERAGE",
-        ),
-        (
-            "unknown-control-coverage",
-            {"evidence_mutation": lambda value: value["cases"][0].update({"validatedControlIds": [*CONTROL_IDS, "CTRL-UNKNOWN-999"]})},
-            "PKG-AUDIT-EVIDENCE-COVERAGE",
-        ),
-        (
-            "wrong-artifact-hash",
-            {"evidence_mutation": lambda value: value["cases"][0]["artifacts"][0].update({"sha256": "a" * 64})},
-            "PKG-AUDIT-EVIDENCE-ARTIFACT",
-        ),
-        (
-            "empty-artifacts",
-            {"evidence_mutation": lambda value: value["cases"][0].update({"artifacts": []})},
-            "PKG-AUDIT-EVIDENCE-ARTIFACT",
-        ),
-    ]
-    for name, options, expected in mutations:
+    for name, options, expected in EVIDENCE_MUTATIONS:
         temp, root = package_copy()
         try:
             # Every fixture creates an annotated audit tag and release tag for
@@ -411,19 +389,7 @@ def test_audit_evidence_closure_negative_mutations() -> None:
 
 
 def test_package_release_negative_mutations() -> None:
-    mutations = [
-        ("missing-tags", None, "PKG-AUDIT-RELEASE-TAG-MISSING"),
-        ("lightweight", {"lightweight_release": True}, "PKG-AUDIT-RELEASE-TAG-ANNOTATED"),
-        ("wrong-package-hash", {"receipt_mutation": lambda value: value.update({"packageManifestSha256": "0" * 64})}, "PKG-AUDIT-RECEIPT-BINDING"),
-        ("wrong-runtime-hash", {"receipt_mutation": lambda value: value.update({"runtimeManifestSha256": "1" * 64})}, "PKG-AUDIT-RECEIPT-BINDING"),
-        ("wrong-matrix-hash", {"receipt_mutation": lambda value: value.update({"assuranceMatrixSha256": "2" * 64})}, "PKG-AUDIT-RECEIPT-BINDING"),
-        ("same-identity", {"same_identity": True}, "PKG-AUDIT-INDEPENDENCE"),
-        ("non-pass", {"result": "FAIL"}, "PKG-AUDIT-RESULT"),
-        ("open-p0", {"counts": {"P0": 1, "P1": 0, "P2": 0, "P3": 0}}, "PKG-AUDIT-RESULT"),
-        ("open-p1", {"counts": {"P0": 0, "P1": 1, "P2": 0, "P3": 0}}, "PKG-AUDIT-RESULT"),
-        ("report-substitution", {"receipt_mutation": lambda value: value.update({"auditReportSha256": "3" * 64})}, "PKG-AUDIT-REPORT-HASH"),
-    ]
-    for name, options, expected in mutations:
+    for name, options, expected in SEAL_MUTATIONS:
         temp, root = package_copy()
         try:
             if options is not None:
@@ -448,30 +414,135 @@ def test_package_release_negative_mutations() -> None:
         assert_fails(root, "PKG-AUDIT-GIT")
 
 
-TESTS = [
-    test_valid_package_release_seal,
-    test_post_audit_runtime_change_invalidates,
-    test_post_audit_test_change_invalidates,
-    test_post_audit_excluded_control_change_invalidates_candidate,
-    test_stale_runtime_manifest_cannot_be_resealed,
-    test_stale_package_manifest_cannot_be_resealed,
-    test_audit_evidence_closure_negative_mutations,
-    test_package_release_negative_mutations,
-]
+BASE_CASES = {
+    test.__name__: test
+    for test in (
+        test_valid_package_release_seal,
+        test_post_audit_runtime_change_invalidates,
+        test_post_audit_test_change_invalidates,
+        test_post_audit_excluded_control_change_invalidates_candidate,
+        test_stale_runtime_manifest_cannot_be_resealed,
+        test_stale_package_manifest_cannot_be_resealed,
+    )
+}
+EVIDENCE_CASES = {f"evidence-{name}": (options, expected) for name, options, expected in EVIDENCE_MUTATIONS}
+SEAL_CASES = {f"seal-{name}": (options, expected) for name, options, expected in SEAL_MUTATIONS}
+CASE_IDS = [*BASE_CASES, *EVIDENCE_CASES, *SEAL_CASES, "seal-dirty-worktree", "seal-no-git"]
+DEFAULT_CASE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_PACKAGE_CASE_TIMEOUT", "180"))
+DEFAULT_SUITE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_PACKAGE_SUITE_TIMEOUT", "240"))
 
 
-def main() -> int:
-    results = []
-    for test in TESTS:
+def run_leaf(case_id: str) -> None:
+    if case_id in BASE_CASES:
+        BASE_CASES[case_id]()
+        return
+    if case_id in EVIDENCE_CASES:
+        options, expected = EVIDENCE_CASES[case_id]
+        temp, root = package_copy()
         try:
-            test()
-            results.append({"case": test.__name__, "status": "PASS"})
-        except Exception as exc:
-            results.append({"case": test.__name__, "status": "FAIL", "error": str(exc)})
-    passed = sum(item["status"] == "PASS" for item in results)
-    report = {"test": "package-release-audit", "status": "PASS" if passed == len(results) else "FAIL", "counters": {"total": len(results), "passed": passed, "failed": len(results) - passed}, "cases": results}
+            seal(root, **options)
+            assert_fails(root, expected)
+        finally:
+            temp.cleanup()
+        return
+    if case_id in SEAL_CASES:
+        options, expected = SEAL_CASES[case_id]
+        temp, root = package_copy()
+        try:
+            if options is not None:
+                seal(root, **options)
+            assert_fails(root, expected)
+        finally:
+            temp.cleanup()
+        return
+    if case_id == "seal-dirty-worktree":
+        temp, root = package_copy()
+        try:
+            seal(root)
+            (root / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+            assert_fails(root, "PKG-AUDIT-WORKTREE-CLEAN")
+        finally:
+            temp.cleanup()
+        return
+    if case_id == "seal-no-git":
+        with tempfile.TemporaryDirectory(prefix="vibe-control-no-git-", ignore_cleanup_errors=True) as temp_name:
+            root = Path(temp_name) / "skill"
+            shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", ".vibe-control", "__pycache__", "*.pyc"))
+            assert_fails(root, "PKG-AUDIT-GIT")
+        return
+    raise KeyError(case_id)
+
+
+def run_worker(case_id: str) -> int:
+    started = time.monotonic()
+    if case_id not in CASE_IDS:
+        print(json.dumps({"case": case_id, "status": "FAIL", "checkId": "PACKAGE-AUDIT-UNKNOWN-CASE"}, ensure_ascii=False))
+        return 1
+    try:
+        run_leaf(case_id)
+        result = {"case": case_id, "status": "PASS"}
+        exit_code = 0
+    except Exception as exc:
+        result = {"case": case_id, "status": "FAIL", "checkId": "PACKAGE-AUDIT-CASE-FAIL", "errorType": type(exc).__name__, "error": str(exc)}
+        exit_code = 1
+    result["durationSeconds"] = round(time.monotonic() - started, 3)
+    print(json.dumps(result, ensure_ascii=False), flush=True)
+    return exit_code
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ValueError(message)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = JsonArgumentParser(add_help=True)
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--case")
+    parser.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
+    parser.add_argument("--case-timeout", type=int, default=DEFAULT_CASE_TIMEOUT_SECONDS)
+    parser.add_argument("--suite-timeout", type=int, default=DEFAULT_SUITE_TIMEOUT_SECONDS)
+    try:
+        args = parser.parse_args(argv)
+        if args.list and args.case:
+            raise ValueError("--list and --case are mutually exclusive")
+        if args.jobs < 1 or args.case_timeout < 1 or args.suite_timeout < 1:
+            raise ValueError("jobs and timeouts must be positive integers")
+        if args.list:
+            print(json.dumps({"status": "PASS", "cases": CASE_IDS}, ensure_ascii=False))
+            return 0
+        if args.case:
+            return run_worker(args.case)
+    except ValueError as exc:
+        print(json.dumps({"status": "FAIL", "checkId": "PACKAGE-AUDIT-INVALID-ARGUMENTS", "error": str(exc)}, ensure_ascii=False))
+        return 1
+    with tempfile.TemporaryDirectory(prefix="vibe-control-package-suite-", ignore_cleanup_errors=True) as temp_name:
+        results, duration = bounded.run_suite(
+            CASE_IDS,
+            command_for=lambda case_id: [sys.executable, str(Path(__file__).resolve()), "--case", case_id],
+            temp_root=Path(temp_name),
+            jobs=args.jobs,
+            case_timeout=args.case_timeout,
+            suite_timeout=args.suite_timeout,
+            identity_field="case",
+            protocol_id="PACKAGE-AUDIT-CASE-PROTOCOL",
+            timeout_id="PACKAGE-AUDIT-CASE-TIMEOUT",
+            suite_timeout_id="PACKAGE-AUDIT-SUITE-TIMEOUT",
+        )
+    result_counters = bounded.counters(results)
+    passed = bool(results) and result_counters["passed"] == len(results)
+    report = {
+        "test": "package-release-audit",
+        "status": "PASS" if passed else "FAIL",
+        "jobs": args.jobs,
+        "caseTimeoutSeconds": args.case_timeout,
+        "suiteTimeoutSeconds": args.suite_timeout,
+        "durationSeconds": round(duration, 3),
+        "counters": result_counters,
+        "cases": results,
+    }
     print(json.dumps(report, ensure_ascii=False))
-    return 0 if report["status"] == "PASS" else 1
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

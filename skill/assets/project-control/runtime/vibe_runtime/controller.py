@@ -57,7 +57,7 @@ REQUIRED_ASSURANCE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-019", "CTRL-CONFIRMED-020", "CTRL-CONFIRMED-021",
     "CTRL-CONFIRMED-022", "CTRL-CONFIRMED-023", "CTRL-CONFIRMED-024",
     "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
-    "CTRL-CONFIRMED-028",
+    "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
 })
 
 
@@ -443,7 +443,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
         package_release = validate_development_package(skill_root)
         package_mode = "DEVELOPMENT"
         if package_release.get("status") != "PASS":
-            raise ControlError("HC-DEVELOPMENT-PACKAGE-INTEGRITY", "the installed development Skill package is not a clean exact integrity-checked candidate", status="BLOCKED" if package_release.get("status") == "BLOCKED" else "FAIL", details={"readiness": package_release.get("readiness"), "blockers": package_release.get("blockers", [])})
+            raise ControlError("HC-DEVELOPMENT-PACKAGE-INTEGRITY", "the installed development Skill package does not have a valid scoped installation identity and content closure", status="BLOCKED" if package_release.get("status") == "BLOCKED" else "FAIL", details={"readiness": package_release.get("readiness"), "blockers": package_release.get("blockers", [])})
     else:
         package_release = validate_package_release(skill_root)
         package_mode = "SEALED"
@@ -486,11 +486,15 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
         "version": package_release["receipt"]["version"], "commit": package_release["receipt"]["candidateCommit"], "tree": package_release["receipt"]["candidateTree"],
     }
     package_binding = {
-        "version": binding["version"], "commit": binding["commit"], "tree": binding["tree"],
+        "version": binding["version"],
         "packageManifest": content_ref(root, p["governance"] / "package-manifest.json"),
         "runtimeManifest": content_ref(root, p["runtime"] / "runtime-manifest.json"),
         "assuranceMatrix": content_ref(root, p["governance"] / "controller-assurance-matrix.json"),
     }
+    if package_mode == "DEVELOPMENT":
+        package_binding["sourceKind"] = binding["sourceKind"]
+    if "commit" in binding and "tree" in binding:
+        package_binding.update({"commit": binding["commit"], "tree": binding["tree"]})
     lock = {
         "schemaVersion": SCHEMA_VERSION, "lockId": f"lock-{spec['projectId']}-v32", "projectId": spec["projectId"],
         "packageMode": package_mode, "packageBinding": package_binding,
@@ -1094,6 +1098,29 @@ def assurance_matrix_checks(p: dict[str, Path]) -> list[dict[str, Any]]:
         if bound["status"] != "PASS":
             return [bound]
         package_assurance = package.get("assuranceValidation", {})
+        package_binding = lock.get("packageBinding", {})
+        if package_mode == "DEVELOPMENT":
+            source_kind = package_binding.get("sourceKind") if isinstance(package_binding, dict) else None
+            binding_version_ok = isinstance(package_binding, dict) and package_binding.get("version") == package.get("version")
+            has_git_identity = (
+                isinstance(package_binding.get("commit"), str) and len(package_binding["commit"]) == 40
+                and isinstance(package_binding.get("tree"), str) and len(package_binding["tree"]) == 40
+            ) if isinstance(package_binding, dict) else False
+            source_shape_ok = (
+                source_kind in {"GIT_ROOT", "GIT_SUBDIRECTORY"} and has_git_identity
+                or source_kind == "PORTABLE_COPY" and "commit" not in package_binding and "tree" not in package_binding
+                or source_kind is None and package_binding.get("version") != VERSION and has_git_identity
+            )
+            source_check = check(
+                "HC-DEVELOPMENT-PACKAGE-SOURCE",
+                "PASS" if binding_version_ok and source_shape_ok else "FAIL",
+                "development package source identity matches its package version and provenance limits" if binding_version_ok and source_shape_ok else "development package source identity is forged, incomplete, or bound to another package version",
+                sourceKind=source_kind,
+                packageVersion=package.get("version"),
+                bindingVersion=package_binding.get("version") if isinstance(package_binding, dict) else None,
+            )
+        else:
+            source_check = check("HC-DEVELOPMENT-PACKAGE-SOURCE", "PASS", "sealed package uses the separate Git/tag/audit identity chain")
         expected_maturity = "DEVELOPMENT_DIAGNOSTIC" if package_mode == "DEVELOPMENT" else "AWAITING_EXTERNAL_VALIDATION"
         allowed_readiness = {"CONTROL_IMPLEMENTATION_READY"} if package_mode == "SEALED" else {"CONTROL_IMPLEMENTATION_READY", "CONTROL_IMPLEMENTATION_PENDING_EXTERNAL_VALIDATION"}
         package_content_ready = (
@@ -1184,7 +1211,7 @@ def assurance_matrix_checks(p: dict[str, Path]) -> list[dict[str, Any]]:
         formal_status = "PASS" if ready else ("FAIL" if declared_formal else "BLOCKED")
         formal_message = "exact package audit receipt permits use of the implemented formal gate" if ready else ("the matrix cannot self-grant package release readiness" if declared_formal else "development mode or package audit closure prevents formal eligibility")
         formal_check = check("HC-ASSURANCE-MATRIX-FORMAL", formal_status, formal_message)
-        return [bound, maturity_check, *receipt_checks, shape_check, item_type_check, duplicate_check, coverage_check, implementation_check, independent_check, formal_check]
+        return [bound, source_check, maturity_check, *receipt_checks, shape_check, item_type_check, duplicate_check, coverage_check, implementation_check, independent_check, formal_check]
     except ControlError as exc:
         return [check(exc.check_id, exc.status, exc.message)]
 
@@ -1750,7 +1777,7 @@ def migration_plan(project: Path, spec_path: Path | None = None) -> dict[str, An
         "signalConversions": signals, "humanGateConversions": gates,
         "caseConversions": [{"caseId": item["id"], "oracle": item["oracle"], "artifacts": item.get("artifacts", [])} for item in converted_cases],
         "checkpointDrafts": checkpoint_drafts, "unresolvedMappings": unresolved,
-        "actions": ["archive-schema-3.1", "install-runtime-0.3.4", "convert-positioning-sources", "convert-case-oracles", "invalidate-downstream", "reset-diagnostic-state"],
+        "actions": ["archive-schema-3.1", "install-runtime-0.3.5", "convert-positioning-sources", "convert-case-oracles", "invalidate-downstream", "reset-diagnostic-state"],
         "invalidates": ["task", "candidate", "evidence", "review", "decision", "receipt", "handoff"], "risk": "R2",
     }
     base["planHash"] = sha256_bytes(canonical_bytes(base)); validate_object("migration-plan", base)
@@ -1802,7 +1829,7 @@ def migration_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str,
     skill_root = runtime_root().parents[2]
     package_release = validate_development_package(skill_root)
     if package_release.get("status") != "PASS":
-        raise ControlError("HC-DEVELOPMENT-PACKAGE-INTEGRITY", "migration requires a clean exact 0.3.4 development package", status="BLOCKED", details=package_release.get("blockers", []))
+        raise ControlError("HC-DEVELOPMENT-PACKAGE-INTEGRITY", "migration requires an integrity-checked 0.3.5 development package", status="BLOCKED", details=package_release.get("blockers", []))
 
     staging = root / f".vibe-control.migrate-{plan_hash[:12]}.tmp"
     backup = root / f".vibe-control.migrate-{plan_hash[:12]}.backup"
@@ -1852,7 +1879,7 @@ def migration_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str,
         binding = package_release["binding"]
         new_lock = {
             **lock, "schemaVersion": SCHEMA_VERSION, "lockId": f"lock-{lock['projectId']}-v32", "packageMode": "DEVELOPMENT",
-            "packageBinding": {"version": binding["version"], "commit": binding["commit"], "tree": binding["tree"], "packageManifest": _staged_ref(staging, "governance/package-manifest.json"), "runtimeManifest": _staged_ref(staging, f"runtime/{VERSION}/runtime-manifest.json"), "assuranceMatrix": _staged_ref(staging, "governance/controller-assurance-matrix.json")},
+            "packageBinding": {"version": binding["version"], "sourceKind": binding["sourceKind"], **({"commit": binding["commit"], "tree": binding["tree"]} if "commit" in binding and "tree" in binding else {}), "packageManifest": _staged_ref(staging, "governance/package-manifest.json"), "runtimeManifest": _staged_ref(staging, f"runtime/{VERSION}/runtime-manifest.json"), "assuranceMatrix": _staged_ref(staging, "governance/controller-assurance-matrix.json")},
             "skill": _staged_ref(staging, "governance/package-manifest.json"), "runtime": _staged_ref(staging, f"runtime/{VERSION}/runtime-manifest.json"),
             "keyObjectives": _staged_ref(staging, "key-objectives-lock.json"), "caseCatalog": _staged_ref(staging, "case-catalog.json"),
             "ruleInputs": _staged_ref(staging, "rule-inputs.json"), "positioning": _staged_ref(staging, "project-positioning.json"), "resolvedRuleSet": _staged_ref(staging, "resolved-rule-set.json"),

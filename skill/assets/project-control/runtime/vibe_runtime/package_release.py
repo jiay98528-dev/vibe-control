@@ -23,7 +23,7 @@ REQUIRED_PACKAGE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-019", "CTRL-CONFIRMED-020", "CTRL-CONFIRMED-021",
     "CTRL-CONFIRMED-022", "CTRL-CONFIRMED-023", "CTRL-CONFIRMED-024",
     "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
-    "CTRL-CONFIRMED-028",
+    "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
 })
 
 
@@ -114,17 +114,63 @@ def _manifest_inventory_checks(root: Path, package: Any, runtime: Any) -> list[d
 
 
 def validate_development_package(root: Path) -> dict[str, Any]:
-    """Validate a clean exact development package without granting formal claims."""
+    """Validate a development package without pretending every install has Git provenance."""
     root = root.resolve()
     checks: list[dict[str, Any]] = []
     code, top, _ = _git(root, "rev-parse", "--show-toplevel")
-    if code != 0 or Path(top).resolve() != root:
-        checks.append(_check("PKG-DEV-GIT", "BLOCKED", "development package must be the root of a Git repository"))
-        return {"status": "BLOCKED", "readiness": "DIAGNOSTIC", "packageMode": "DEVELOPMENT", "formalClaimsAllowed": False, "maxClaimLevel": "DIAGNOSTIC", "checks": checks, "blockers": [checks[0]["id"]]}
-    _, head, _ = _git(root, "rev-parse", "HEAD")
-    _, tree, _ = _git(root, "show", "-s", "--format=%T", "HEAD")
-    _, dirty, _ = _git(root, "status", "--porcelain=v1")
-    checks.append(_check("PKG-DEV-WORKTREE-CLEAN", "PASS" if not dirty else "BLOCKED", "development package worktree is clean" if not dirty else "development package worktree is dirty", entries=dirty.splitlines()))
+    source_kind = "PORTABLE_COPY"
+    head: str | None = None
+    tree: str | None = None
+    git_marker = root / ".git"
+    if code == 0:
+        repository = Path(top).resolve()
+        try:
+            relative = root.relative_to(repository)
+        except ValueError:
+            checks.append(_check("PKG-DEV-GIT-IDENTITY", "FAIL", "Git reported a repository that does not contain the Skill root", repository=str(repository)))
+        else:
+            source_kind = "GIT_ROOT" if relative == Path(".") else "GIT_SUBDIRECTORY"
+            head_code, head_value, head_error = _git(repository, "rev-parse", "HEAD")
+            head = head_value if head_code == 0 and len(head_value) == 40 else None
+            if source_kind == "GIT_ROOT":
+                tree_code, tree_value, tree_error = _git(repository, "show", "-s", "--format=%T", "HEAD")
+                tree = tree_value if tree_code == 0 and len(tree_value) == 40 else None
+                _, dirty, _ = _git(repository, "status", "--porcelain=v1", "--untracked-files=all")
+            else:
+                relative_path = relative.as_posix()
+                tree_code, tree_value, tree_error = _git(repository, "rev-parse", f"HEAD:{relative_path}")
+                tree = tree_value if tree_code == 0 and len(tree_value) == 40 else None
+                checks.append(_check(
+                    "PKG-DEV-GIT-SUBTREE",
+                    "PASS" if tree is not None else "FAIL",
+                    "development package is a tracked Git subtree" if tree is not None else "development package is not present as a tree in the current commit",
+                    path=relative_path,
+                    error=tree_error,
+                ))
+                _, dirty, _ = _git(repository, "status", "--porcelain=v1", "--untracked-files=all", "--", relative_path)
+            checks.append(_check(
+                "PKG-DEV-GIT-IDENTITY",
+                "PASS" if head is not None and tree is not None else "FAIL",
+                "development package binds the current Git commit and package tree" if head is not None and tree is not None else "development package Git commit or tree identity is unavailable",
+                sourceKind=source_kind,
+                headError=head_error,
+                treeError=tree_error,
+            ))
+            checks.append(_check(
+                "PKG-DEV-WORKTREE-CLEAN",
+                "PASS" if not dirty else "BLOCKED",
+                "development package source scope is clean" if not dirty else "development package source scope is dirty",
+                sourceKind=source_kind,
+                entries=dirty.splitlines(),
+            ))
+    elif git_marker.exists():
+        checks.append(_check("PKG-DEV-GIT-IDENTITY", "FAIL", "a .git marker exists but does not identify a usable repository"))
+    else:
+        checks.append(_check(
+            "PKG-DEV-PORTABLE-IDENTITY",
+            "PASS",
+            "portable development package has no Git provenance and will be identified only by recomputed content inventories",
+        ))
     try:
         version = (root / "VERSION").read_text(encoding="utf-8-sig").strip()
         package_path = root / "package-manifest.json"
@@ -163,8 +209,8 @@ def validate_development_package(root: Path) -> dict[str, Any]:
         "blockers": blockers,
         "binding": {
             "version": version,
-            "commit": head,
-            "tree": tree,
+            "sourceKind": source_kind,
+            **({"commit": head, "tree": tree} if head is not None and tree is not None else {}),
             "packageManifestSha256": _sha256_file(package_path),
             "runtimeManifestSha256": _sha256_file(runtime_path),
             "assuranceMatrixSha256": _sha256_file(matrix_path),
@@ -451,6 +497,34 @@ def validate_package_release(root: Path) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     code, top, _ = _git(root, "rev-parse", "--show-toplevel")
     if code != 0 or Path(top).resolve() != root:
+        try:
+            package = json.loads((root / "package-manifest.json").read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            package = None
+        if isinstance(package, dict) and package.get("maturity") == "DEVELOPMENT_DIAGNOSTIC":
+            installation = validate_development_package(root)
+            checks.extend(installation.get("checks", []))
+            checks.extend([
+                _check("PKG-AUDIT-GIT", "BLOCKED", "formal sealing requires the Skill package to be the root of a Git repository"),
+                _check("PKG-AUDIT-RELEASE-TAG-MISSING", "BLOCKED", "a portable or Git-subdirectory development install has no package-root release tag"),
+                _check("PKG-AUDIT-REPORT-TAG-MISSING", "BLOCKED", "a portable or Git-subdirectory development install has no package-root audit tag"),
+                _check(
+                    "PKG-DEVELOPMENT-NOT-SEAL-CANDIDATE",
+                    "BLOCKED",
+                    "the development package may be installation-usable, but it is not a formal seal candidate; run validate_installation.py for installation status",
+                ),
+            ])
+            installation_usable = installation.get("status") == "PASS"
+            return {
+                "status": "BLOCKED" if installation_usable else "FAIL",
+                "readiness": "DEVELOPMENT_INSTALLABLE_NOT_SEAL_CANDIDATE" if installation_usable else "DIAGNOSTIC",
+                "packageMode": "DEVELOPMENT",
+                "installationUsable": installation_usable,
+                "formalClaimsAllowed": False,
+                "maxClaimLevel": "DEVELOPMENT_CHECKED" if installation_usable else "DIAGNOSTIC",
+                "checks": checks,
+                "blockers": [item["id"] for item in checks if item["status"] != "PASS"],
+            }
         checks.append(_check("PKG-AUDIT-GIT", "BLOCKED", "the Skill package must be the root of a Git repository"))
         return _report(checks)
     code, head, _ = _git(root, "rev-parse", "HEAD")
@@ -490,6 +564,28 @@ def validate_package_release(root: Path) -> dict[str, Any]:
     checks.extend(inventory_checks)
     if any(item["status"] != "PASS" for item in inventory_checks):
         return _report(checks)
+
+    if isinstance(package, dict) and package.get("maturity") == "DEVELOPMENT_DIAGNOSTIC":
+        installation = validate_development_package(root)
+        installation_usable = installation.get("status") == "PASS"
+        checks.append(_check(
+            "PKG-DEVELOPMENT-NOT-SEAL-CANDIDATE",
+            "BLOCKED",
+            "the development package may be installation-usable, but it is not a formal seal candidate; run validate_installation.py for installation status",
+            installationStatus=installation.get("status"),
+            installationBlockers=installation.get("blockers", []),
+        ))
+        has_failure = any(item["status"] == "FAIL" for item in checks) or installation.get("status") == "FAIL"
+        return {
+            "status": "FAIL" if has_failure else "BLOCKED",
+            "readiness": "DEVELOPMENT_INSTALLABLE_NOT_SEAL_CANDIDATE" if installation_usable else "DIAGNOSTIC",
+            "packageMode": "DEVELOPMENT",
+            "installationUsable": installation_usable,
+            "formalClaimsAllowed": False,
+            "maxClaimLevel": "DEVELOPMENT_CHECKED" if installation_usable else "DIAGNOSTIC",
+            "checks": checks,
+            "blockers": [item["id"] for item in checks if item["status"] != "PASS"],
+        }
 
     expected = {
         "version": version,

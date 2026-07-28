@@ -94,7 +94,7 @@ manifest builder 对非法 JSON、顶层非 object 与 section 非 array 不得 
 ### 7. 收口声明
 
 - `quick_validate` 和 package manifest 只证明 Skill 结构与内容寻址。
-- `DEVELOPMENT_DIAGNOSTIC` 可以安装并用于诊断开发，但最高只到 `DEVELOPMENT_CHECKED`；它不得被描述为正式封印、正式安装或 `FORMAL_GATE_READY`。正式资格与开发安装是两个不同概念。
+- `validate_installation.py` 是普通安装的唯一自检入口。它可以把 Git 根、受跟踪 Git 子目录或无 Git 的 manifest-verified portable copy 判为可用于诊断开发，但最高只到 `DEVELOPMENT_CHECKED`；portable 身份不得携带 commit/tree。`validate_package_release.py` 只回答正式封印，面对开发包必须报告“安装可用但不是 seal candidate”，不得把缺 release/audit tag 或开发 maturity 描述为安装损坏。
 - baseline fixtures 只证明已覆盖行为。
 - formal-gate readiness 只能在保证矩阵闭合、变异套件全绿和外部复核完成后声明。
 - 激活采用“内容候选 → 独立审计证据 bundle tree → 两个 annotated tag → seal 复核”协议。候选 tree 完成 manifest 后不得再改；`vibe-control-audit/v<version>` 指向包含 `report.json`、`evidence-manifest.json`、逐 case transcript 与声明 artifact 的 Git tree，`v<version>` 指向候选 commit 且其 JSON message 绑定 bundle/report/evidence 对象、commit/tree 与三项内容哈希。矩阵保持 `formalClaimsAllowed=false`。validator 必须重算当前 package/runtime inventory，并验证 case 命令、时间、退出码、非零守恒 counters、零 skip、blob/哈希和控制覆盖；任何审计后代码、Schema、测试、文档、manifest 或证据变化都自动失效。
@@ -123,3 +123,4 @@ manifest builder 对非法 JSON、顶层非 object 与 section 非 array 不得 
 - package、runtime、Schema、测试或外部复核不绑定同一版本。
 - 候选由旧工作树切换得到且 package manifest 未重新验证；
 - 对抗回归没有逐 case 超时、实时进度或最终 counters。
+- 深度回归把多个 Git 夹具重新聚合为不可监督的单个长 case，或在宿主时限内没有叶级最终计数。

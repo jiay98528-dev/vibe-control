@@ -22,7 +22,7 @@ Build a project-local, version-pinned control plane before broad implementation.
 - Before creating a project control plane, ask the user for that **project's expected release intent**. Do not infer it from project size, user count, repository name, or a template; do not write bootstrap files until one intent is explicitly selected.
 - `releaseIntent` describes the product's delivery boundary, never installation, licensing, payment, public distribution, or Git tagging of this Skill. `LOCAL_EXPERIMENT` caps at `VERIFIED`; `PRIVATE_OPERATION` caps at `ACCEPTED`; only `EXTERNAL_RELEASE` can use the `RELEASE_READY` path.
 - Candidate-bound R2 review and owner decisions are tracked human attestations, not cryptographic licensing. Ed25519 public-key verification, the external release audit, and the receipt are required only for an actual `EXTERNAL_RELEASE` R3 task. A private key is never required to install, use, version, or locally tag this Skill, and it must remain outside the Skill and project control directory.
-- Version `0.3.4` is installed in `DEVELOPMENT_DIAGNOSTIC` mode while Schema 3.2 enforcement and orchestration compatibility remain unsealed. Its package manifest and assurance matrix can never self-grant `FORMAL_GATE_READY`; `formalClaimsAllowed` remains false and an unsealed package is capped at `DEVELOPMENT_CHECKED`. Diagnostic development remains available, but formal acceptance, release readiness, and package sealing are fail-closed until an exact future candidate completes independent package-audit closure.
+- Version `0.3.5` is installed in `DEVELOPMENT_DIAGNOSTIC` mode while Schema 3.2 enforcement and orchestration compatibility remain unsealed. Its package manifest and assurance matrix can never self-grant `FORMAL_GATE_READY`; `formalClaimsAllowed` remains false and an unsealed package is capped at `DEVELOPMENT_CHECKED`. Diagnostic development remains available, but formal acceptance, release readiness, and package sealing are fail-closed until an exact future candidate completes independent package-audit closure.
 - A Schema 3.1 project may use the content-bound `migrate --plan [--spec]` / `--apply <plan-hash> --spec` path. Migration archives the complete old control plane, invalidates every downstream fact, and returns to `DRAFT / BLOCKED / DIAGNOSTIC`; it never rebinds old evidence. Schema 2.0 remains pinned to runtime 0.2.2 and returns `VC-REINSTALL-REQUIRED` instead of being converted.
 - On an external R3 **project** release path, `executor`、`auditor`、`release-auditor`、`owner` must use distinct actors and public keys, and the release-auditor must differ from the internal review auditor. This project-level signed chain is separate from the Skill package audit tags. The controller executes local cases in a temporary Git worktree at the candidate commit, never from the caller's worktree. Absence, drift, a non-PASS review/audit, credential reuse, or invalid required signatures blocks that external project release claim.
 - When modifying a controller, validator, gate, Schema or claim protocol, read [controller-assurance.md](references/controller-assurance.md) and [incident-2026-07-25.md](references/incident-2026-07-25.md). A happy-path fixture or manifest PASS cannot close a public hard claim.
@@ -106,27 +106,35 @@ Never display a selectable option without both scores. This includes binary `con
 - Put concurrent writers in separate worktrees with disjoint ownership; allow read-only workers to share the source directory. If writing isolation is unavailable, serialize writes.
 - Give every worker a bounded task packet with goal, allowed and forbidden files, baseline, validation command, stop condition, and report shape.
 - After candidate freeze, use a fresh read-only auditor context without expected defects or the intended conclusion. Under `SUBAGENTS`, this means a newly spawned auditor with no answer leakage; if the host cannot provide fresh isolated context, the result is diagnostic and non-independent.
-- Before checkout, run `python <source>/scripts/check_audit_path.py --source <source> --candidate <candidate-branch-or-tag> --audit-root <short-audit-dir>`. Over 240 characters is `VC-AUDIT-PATH-BUDGET / BLOCKED`; use a short root such as `C:\vc34\<id>` or explicitly opt in per Git command with `-c core.longpaths=true`, never by silently changing global Git settings.
+- Before checkout, run `python <source>/scripts/check_audit_path.py --source <source> --candidate <candidate-branch-or-tag> --audit-root <short-audit-dir>`. Over 240 characters is `VC-AUDIT-PATH-BUDGET / BLOCKED`; use a short root such as `C:\vc35\<id>` or explicitly opt in per Git command with `-c core.longpaths=true`, never by silently changing global Git settings.
 - Materialize the candidate branch/tag as the **first checkout**: `git -c core.autocrlf=true clone --no-local --branch <candidate-branch-or-tag> --single-branch <source> <audit-dir>`. Then verify exact `HEAD` and immediately run `python <audit-dir>/scripts/build_manifest.py --root <audit-dir> --verify`. `--no-checkout` is retained only in historical negative tests. A clean Git status alone is not package-integrity evidence.
 - Under `CODEX_THREADS`, prefer cursor-based event waits of no more than 60 seconds and aggregate unchanged progress at 300-second intervals. Under `SUBAGENTS`, use the host's native mailbox/wait primitive; do not pretend a Codex cursor exists. `SERIAL` requires no coordination polling.
 - Preserve the same candidate binding, evidence, checkpoint, audit-stop and role-separation rules under every backend. See [multi-session-routing.md](references/multi-session-routing.md).
 
 ## Deterministic commands
 
-Before relying on any formal-gate behavior, validate the assurance inventory and run the adversarial regressions:
+For a normal installation, run only the installation self-check before bootstrap:
+
+```text
+python <skill-root>/scripts/validate_installation.py --skill-root <skill-root>
+```
+
+Its `PASS` means the installed package is content-complete for diagnostic development. `sourceKind=GIT_ROOT | GIT_SUBDIRECTORY | PORTABLE_COPY` states which installation identity was actually observed; a portable copy deliberately has no commit/tree provenance. A development result always keeps `formalClaimsAllowed=false` and caps claims at `DEVELOPMENT_CHECKED`.
+
+Only maintainers evaluating formal sealing run the package-release validator and deep suites. Run the long suites with bounded leaf supervision:
 
 ```text
 python <skill-root>/scripts/validate_assurance_matrix.py --skill-root <skill-root>
 python <skill-root>/scripts/validate_package_release.py --skill-root <skill-root>
-python <skill-root>/scripts/test_package_release_audit.py
+python <skill-root>/scripts/test_package_release_audit.py --jobs 4 --case-timeout 180 --suite-timeout 240
 python <skill-root>/scripts/test_assurance_matrix_fail_closed.py
 python <skill-root>/scripts/test_assurance_harness.py
 python <skill-root>/scripts/test_formal_activation.py
-python <skill-root>/scripts/test_assurance_regressions.py
+python <skill-root>/scripts/test_assurance_regressions.py --jobs 4 --case-timeout 180 --suite-timeout 240
 python <skill-root>/scripts/test_v033_checkpoints.py
 ```
 
-Interpret matrix `PASS / CONTROL_IMPLEMENTATION_READY` only as internal traceability. A `DEVELOPMENT_DIAGNOSTIC` package may bootstrap a diagnostic control plane from a clean exact integrity-checked commit, but it is capped at `DEVELOPMENT_CHECKED`. Only the separate package release validator may report package `FORMAL_GATE_READY`; missing tags, a dirty tree, candidate/hash/report drift, identity overlap, a non-PASS result or an admitted blocking finding must fail closed. Even after package readiness, project release intent independently caps each task's claim.
+Interpret matrix `PASS / CONTROL_IMPLEMENTATION_READY` only as internal traceability. A `DEVELOPMENT_DIAGNOSTIC` package may bootstrap from an integrity-checked Git root, tracked Git subtree, or manifest-verified portable copy, but it is capped at `DEVELOPMENT_CHECKED`. The formal validator reports a development package as installation-usable but not a seal candidate; only an exact sealed Git-root candidate can ever reach `FORMAL_GATE_READY`. Even after package readiness, project release intent independently caps each task's claim.
 
 Run the global wrapper before project pinning:
 
@@ -147,15 +155,15 @@ python <skill-root>/scripts/vibe_control.py migrate --project <root> --apply <pl
 Run the pinned project controller after bootstrap:
 
 ```text
-python .vibe-control/runtime/0.3.4/control.py lock-task --project . --contract <contract.json>
-python .vibe-control/runtime/0.3.4/control.py freeze --project . --actor <implementer> --session <session>
-python .vibe-control/runtime/0.3.4/control.py execute --project . --actor <actor> --session <session> [--case <case-id>]
-python .vibe-control/runtime/0.3.4/control.py ingest --project . --attestation <external-evidence-attestation.json>
-python .vibe-control/runtime/0.3.4/control.py validate --project .
-python .vibe-control/runtime/0.3.4/control.py audit --project . --review <review.json>
-python .vibe-control/runtime/0.3.4/control.py accept --project . --decision <decision.json>
-python .vibe-control/runtime/0.3.4/control.py release-check --project .
-python .vibe-control/runtime/0.3.4/control.py handoff --project .
+python .vibe-control/runtime/0.3.5/control.py lock-task --project . --contract <contract.json>
+python .vibe-control/runtime/0.3.5/control.py freeze --project . --actor <implementer> --session <session>
+python .vibe-control/runtime/0.3.5/control.py execute --project . --actor <actor> --session <session> [--case <case-id>]
+python .vibe-control/runtime/0.3.5/control.py ingest --project . --attestation <external-evidence-attestation.json>
+python .vibe-control/runtime/0.3.5/control.py validate --project .
+python .vibe-control/runtime/0.3.5/control.py audit --project . --review <review.json>
+python .vibe-control/runtime/0.3.5/control.py accept --project . --decision <decision.json>
+python .vibe-control/runtime/0.3.5/control.py release-check --project .
+python .vibe-control/runtime/0.3.5/control.py handoff --project .
 ```
 
 Interpret exit codes as:
@@ -186,6 +194,8 @@ Only for an `EXTERNAL_RELEASE` R3 task whose contract permits `RELEASE_READY`, a
 - `assets/project-control/runtime/control.py`: thin entry shim; deterministic implementation is split under `runtime/vibe_runtime/` and copied into each project.
 - `assets/project-control/runtime/schemas/external-release-audit.schema.json`: signed candidate-bound external audit interface used by the receipt chain.
 - `scripts/build_manifest.py`: rebuild or verify the Skill package manifest.
+- `scripts/validate_installation.py`: normal installation self-check for Git-root, Git-subdirectory and portable development packages; it never grants a formal seal.
+- `scripts/bounded_test_runner.py`: shared leaf-process supervision, timeout, progress and counter-conservation implementation for deep suites.
 - `scripts/test_fixtures.py`: deterministic positive/negative tests.
 - Git tag `v0.1.2-containment`: preserves the historical containment runtime and assertions.
 - `scripts/test_v2_security.py`: signature, dependency, migration, receipt, handoff, and composition regressions.

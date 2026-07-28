@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """External-audit-derived mutations. Each must hit its own stable check ID."""
 from __future__ import annotations
-import json, os, signal, subprocess, sys, tempfile, time
+import argparse, json, os, subprocess, sys, tempfile, time
 from pathlib import Path
 import test_v2_support as fx
+import bounded_test_runner as bounded
 
-CASE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_ASSURANCE_CASE_TIMEOUT", "180"))
+DEFAULT_CASE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_ASSURANCE_CASE_TIMEOUT", "180"))
+DEFAULT_SUITE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_ASSURANCE_SUITE_TIMEOUT", "240"))
 
 def reject(root, ids):
     _,report=fx.command(root,"validate",expect=None); assert report["status"] in {"FAIL","BLOCKED","INVALIDATED"}; assert report["formal"]["eligible"] is False; actual=fx.failing_ids(report); assert actual & ids, f"expected {ids}, got {actual}"
@@ -125,10 +127,6 @@ def test_managed_identifier_cannot_escape_control_directory():
 TESTS=[test_release_ready_without_review_or_decision_is_blocked,test_task_claim_ceiling_is_enforced,test_bootstrap_requires_explicit_release_intent,test_release_intent_paths_are_enforced,test_local_experiment_caps_and_blocks_release,test_private_r3_does_not_require_keys_or_receipt,test_schema_is_executed,test_bad_top_level_returns_stable_json,test_candidate_task_identity_closes,test_freeze_rejects_forbidden_diff,test_declared_observation_cannot_cover_required_case,test_failed_health_is_not_eligible,test_phase_history_closes,test_cli_error_surface_is_stable,test_candidate_manifest_diff_recomputed,test_r2_attestations_do_not_require_keys,test_signed_failed_review_cannot_advance_or_qualify,test_candidate_input_bindings_cannot_be_substituted,test_managed_identifier_cannot_escape_control_directory]
 
 
-def emit_progress(event: dict) -> None:
-    print(json.dumps(event, ensure_ascii=False), file=sys.stderr, flush=True)
-
-
 def run_worker(test_name: str) -> int:
     tests = {test.__name__: test for test in TESTS}
     test = tests.get(test_name)
@@ -154,161 +152,88 @@ def run_worker(test_name: str) -> int:
     return exit_code
 
 
-def terminate_process_tree(process: subprocess.Popen[str]) -> None:
-    if process.poll() is not None:
-        return
-    if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    try:
-        process.communicate(timeout=10)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.communicate()
-
-
-def parse_worker_output(test_name: str, stdout: str, stderr: str, returncode: int) -> dict:
-    lines = [line for line in stdout.splitlines() if line.strip()]
-    if len(lines) != 1:
-        return {
-            "test": test_name,
-            "status": "FAIL",
-            "checkId": "ASSURANCE-CASE-PROTOCOL",
-            "error": f"worker emitted {len(lines)} non-empty stdout lines",
-            "workerExitCode": returncode,
-            "workerStderr": stderr[-2000:],
-        }
-    try:
-        result = json.loads(lines[0])
-    except json.JSONDecodeError as exc:
-        return {
-            "test": test_name,
-            "status": "FAIL",
-            "checkId": "ASSURANCE-CASE-PROTOCOL",
-            "error": f"worker output is not JSON: {exc}",
-            "workerExitCode": returncode,
-            "workerStderr": stderr[-2000:],
-        }
-    if result.get("test") != test_name or result.get("status") not in {"PASS", "FAIL"}:
-        return {
-            "test": test_name,
-            "status": "FAIL",
-            "checkId": "ASSURANCE-CASE-PROTOCOL",
-            "error": "worker result identity or status is invalid",
-            "workerExitCode": returncode,
-        }
-    expected_exit = 0 if result["status"] == "PASS" else 1
-    if returncode != expected_exit:
-        return {
-            "test": test_name,
-            "status": "FAIL",
-            "checkId": "ASSURANCE-CASE-PROTOCOL",
-            "error": f"worker exit {returncode} contradicts status {result['status']}",
-            "workerExitCode": returncode,
-        }
-    result["workerExitCode"] = returncode
-    return result
-
-
 def run_supervised_command(
     test_name: str,
     temp_root: Path,
     command: list[str],
     timeout_seconds: int,
 ) -> dict:
-    case_temp = temp_root / test_name
-    case_temp.mkdir(parents=True, exist_ok=True)
-    env = os.environ.copy()
-    env.update({
-        "TEMP": str(case_temp),
-        "TMP": str(case_temp),
-        "TMPDIR": str(case_temp),
-        "PYTHONDONTWRITEBYTECODE": "1",
-    })
-    kwargs: dict = {
-        "cwd": str(Path(__file__).resolve().parent),
-        "env": env,
-        "stdout": subprocess.PIPE,
-        "stderr": subprocess.PIPE,
-        "text": True,
-        "encoding": "utf-8",
-        "errors": "replace",
-    }
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
-        kwargs["start_new_session"] = True
-    process = subprocess.Popen(command, **kwargs)
-    try:
-        stdout, stderr = process.communicate(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        terminate_process_tree(process)
-        return {
-            "test": test_name,
-            "status": "TIMEOUT",
-            "checkId": "ASSURANCE-CASE-TIMEOUT",
-            "timeoutSeconds": timeout_seconds,
-        }
-    return parse_worker_output(test_name, stdout, stderr, process.returncode)
+    return bounded.run_supervised_command(
+        test_name, temp_root, command, timeout_seconds,
+        identity_field="test",
+        protocol_id="ASSURANCE-CASE-PROTOCOL",
+        timeout_id="ASSURANCE-CASE-TIMEOUT",
+    )
 
 
-def run_supervised(test_name: str, temp_root: Path) -> dict:
+def run_supervised(test_name: str, temp_root: Path, timeout_seconds: int = DEFAULT_CASE_TIMEOUT_SECONDS) -> dict:
     return run_supervised_command(
         test_name,
         temp_root,
         [sys.executable, str(Path(__file__).resolve()), "--case", test_name],
-        CASE_TIMEOUT_SECONDS,
+        timeout_seconds,
     )
 
 
 def build_report(out: list[dict], duration_seconds: float) -> dict:
-    passed = sum(result["status"] == "PASS" for result in out)
-    timed_out = sum(result["status"] == "TIMEOUT" for result in out)
-    failed = len(out) - passed
-    counters = {"total": len(out), "passed": passed, "failed": failed, "timedOut": timed_out, "skipped": 0}
-    ok = bool(out) and passed == len(out)
+    result_counters = bounded.counters(out)
+    ok = bool(out) and result_counters["passed"] == len(out)
     effective_formal = ok and fx.package_formal_enabled()
     return {
         "status": "PASS" if ok else "FAIL",
         "readiness": "FORMAL_GATE_READY" if effective_formal else ("AWAITING_EXTERNAL_VALIDATION" if ok else "DIAGNOSTIC"),
         "formalClaimsAllowed": effective_formal,
-        "caseTimeoutSeconds": CASE_TIMEOUT_SECONDS,
         "durationSeconds": round(duration_seconds, 3),
-        "counters": counters,
+        "counters": result_counters,
         "tests": out,
     }
 
 
-def main() -> int:
-    out = []
-    suite_started = time.monotonic()
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ValueError(message)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = JsonArgumentParser(add_help=True)
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--case")
+    parser.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
+    parser.add_argument("--case-timeout", type=int, default=DEFAULT_CASE_TIMEOUT_SECONDS)
+    parser.add_argument("--suite-timeout", type=int, default=DEFAULT_SUITE_TIMEOUT_SECONDS)
+    try:
+        args = parser.parse_args(argv)
+        names = [test.__name__ for test in TESTS]
+        if args.list and args.case:
+            raise ValueError("--list and --case are mutually exclusive")
+        if args.jobs < 1 or args.case_timeout < 1 or args.suite_timeout < 1:
+            raise ValueError("jobs and timeouts must be positive integers")
+        if args.list:
+            print(json.dumps({"status": "PASS", "cases": names}, ensure_ascii=False))
+            return 0
+        if args.case:
+            return run_worker(args.case)
+    except ValueError as exc:
+        print(json.dumps({"status": "FAIL", "checkId": "ASSURANCE-INVALID-ARGUMENTS", "error": str(exc)}, ensure_ascii=False))
+        return 1
     with tempfile.TemporaryDirectory(prefix="vibe-control-assurance-suite-", ignore_cleanup_errors=True) as temp:
-        temp_root = Path(temp)
-        total = len(TESTS)
-        for index, test in enumerate(TESTS, start=1):
-            emit_progress({"event": "case-start", "index": index, "total": total, "test": test.__name__})
-            result = run_supervised(test.__name__, temp_root)
-            out.append(result)
-            emit_progress({"event": "case-complete", "index": index, "total": total, **result})
-    report = build_report(out, time.monotonic() - suite_started)
+        out, duration = bounded.run_suite(
+            names,
+            command_for=lambda name: [sys.executable, str(Path(__file__).resolve()), "--case", name],
+            temp_root=Path(temp),
+            jobs=args.jobs,
+            case_timeout=args.case_timeout,
+            suite_timeout=args.suite_timeout,
+            identity_field="test",
+            protocol_id="ASSURANCE-CASE-PROTOCOL",
+            timeout_id="ASSURANCE-CASE-TIMEOUT",
+            suite_timeout_id="ASSURANCE-SUITE-TIMEOUT",
+        )
+    report = build_report(out, duration)
+    report.update({"jobs": args.jobs, "caseTimeoutSeconds": args.case_timeout, "suiteTimeoutSeconds": args.suite_timeout})
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["status"] == "PASS" else 1
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "--case":
-        raise SystemExit(run_worker(sys.argv[2]))
-    if len(sys.argv) != 1:
-        print(json.dumps({"status": "FAIL", "checkId": "ASSURANCE-INVALID-ARGUMENTS"}, ensure_ascii=False))
-        raise SystemExit(1)
     raise SystemExit(main())

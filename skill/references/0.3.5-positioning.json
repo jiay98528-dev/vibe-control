@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "3.2",
+  "positioningId": "positioning-vibe-control-self-035-d6f180af7501",
+  "primaryExperience": "SERVICE",
+  "capabilityDomains": [
+    "BACKEND_API"
+  ],
+  "deliveryObjective": "VERTICAL_SLICE",
+  "releaseIntent": "PRIVATE_OPERATION",
+  "runtimeTargets": [
+    "python-3.12-cli"
+  ],
+  "targetEnvironments": [
+    {
+      "id": "maintainer-windows",
+      "operatingSystem": "Windows",
+      "deviceClass": "desktop",
+      "architecture": "x86_64"
+    }
+  ],
+  "distributionChannels": [
+    "local-codex-skill",
+    "github-development-package",
+    "standard-skill-installer"
+  ],
+  "humanQualityGates": [
+    {
+      "id": "HG-4e22e1e099ed",
+      "statement": "owner confirms any KEY_OBJECTIVES.md revision and affected claim"
+    }
+  ],
+  "nonGoals": [
+    "formal package sealing in 0.3.5",
+    "release or audit tag creation",
+    "GitHub Release publication",
+    "private-key custody",
+    "Pulse or VibeCodingGovernance changes"
+  ],
+  "firstVerticalSlice": {
+    "outcome": "A standard no-Git Skill installation can establish a diagnostic control plane while formal sealing stays blocked and deep regressions finish under bounded supervision",
+    "included": [
+      "Git-root installation identity",
+      "Git-subdirectory installation identity",
+      "portable-copy installation identity",
+      "development installation self-check",
+      "diagnostic bootstrap",
+      "bounded deep regression execution"
+    ],
+    "excluded": [
+      "formal package seal",
+      "release or audit tags",
+      "GitHub Release",
+      "malicious installer/verifier/maintainer collusion"
+    ],
+    "successSignals": [
+      {
+        "id": "SIG-4b7740e772dd",
+        "statement": "a no-Git installation can pass installation self-check and create a diagnostic bootstrap control plane"
+      },
+      {
+        "id": "SIG-ad5c6208ae75",
+        "statement": "development installation and formal package sealing produce distinct unambiguous conclusions"
+      },
+      {
+        "id": "SIG-47f8cfde40f1",
+        "statement": "both deep regression suites finish within 240 seconds with zero failures, skips, or timeouts"
+      }
+    ]
+  },
+  "confirmation": {
+    "actorId": "product-owner",
+    "summary": "Keep PRIVATE_OPERATION self-governance and DEVELOPMENT_DIAGNOSTIC package posture while adding portable/Git installation identities, a dedicated installation validator, and two bounded deep regression suites; GitHub synchronization distributes a development package and does not authorize formal sealing.",
+    "summarySha256": "d6f180af75013a03cea25279a2a5acf01b31936e97a906d1736279a6827826d9",
+    "record": {
+      "path": "references/0.3.5-positioning-confirmation.json",
+      "bytes": 605,
+      "sha256": "51a2a23f9f75b32bc39baf569b0d370721414d952a3aec1772a072184dc02dc7",
+      "tracked": true
+    }
+  },
+  "confirmedAt": "2026-07-28T22:37:00+08:00"
+}

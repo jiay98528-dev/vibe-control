@@ -6,7 +6,7 @@
 
 Observable control planes for VibeCoding and multi-agent software development.
 
-![Version](https://img.shields.io/badge/version-0.3.4-2563eb)
+![Version](https://img.shields.io/badge/version-0.3.5-2563eb)
 ![Maturity](https://img.shields.io/badge/maturity-DEVELOPMENT__DIAGNOSTIC-f59e0b)
 ![Schema](https://img.shields.io/badge/schema-3.2-7c3aed)
 ![Python](https://img.shields.io/badge/python-3.12-3776ab)
@@ -14,7 +14,7 @@ Observable control planes for VibeCoding and multi-agent software development.
 </div>
 
 > [!WARNING]
-> 当前公开包是 `0.3.4 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
+> 当前公开包是 `0.3.5 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
 
 ## 它解决什么问题
 
@@ -33,6 +33,8 @@ VibeCoding 的典型失败往往不是“模型完全不会写代码”，而是
 | 多智能体边界 | 单一控制面写入者、隔离写入、无答案泄漏审核；Worker 回报不能自行批准。 |
 | 跨宿主兼容 | 按实际能力选择 `CODEX_THREADS → SUBAGENTS → SERIAL`，不伪造宿主不存在的功能。 |
 | 发行意图分级 | 区分本地实验、私有运行和外部发行，避免把同一套高强度门禁施加给所有项目。 |
+| 便携安装身份 | 区分 Git 根、Git 子目录和无 Git 副本；普通下载不再被正式封印所需的 Git 前置误伤。 |
+| 有界深度测试 | 长回归按叶级 case 并发执行，提供独立超时、实时进度和守恒的最终计数。 |
 
 ```mermaid
 flowchart LR
@@ -48,19 +50,27 @@ flowchart LR
 
 ### 1. 安装到 Codex
 
-首次安装（PowerShell）：
+在 Codex 中使用内置 Skill Installer（推荐）：
+
+```text
+使用 $skill-installer 安装 https://github.com/jiay98528-dev/vibe-control/tree/main/skill
+```
+
+也可以手工安装（PowerShell）：
 
 ```powershell
 git clone https://github.com/jiay98528-dev/vibe-control.git vibe-control-repo
 Copy-Item -Recurse .\vibe-control-repo\skill "$env:USERPROFILE\.codex\skills\vibe-control"
 ```
 
-验证安装包内容：
+完成后运行普通安装自检：
 
 ```powershell
-python "$env:USERPROFILE\.codex\skills\vibe-control\scripts\build_manifest.py" `
-  --root "$env:USERPROFILE\.codex\skills\vibe-control" --verify
+python "$env:USERPROFILE\.codex\skills\vibe-control\scripts\validate_installation.py" `
+  --skill-root "$env:USERPROFILE\.codex\skills\vibe-control"
 ```
+
+标准下载应报告 `status=PASS`、`sourceKind=PORTABLE_COPY`、`packageMode=DEVELOPMENT` 和 `maxClaimLevel=DEVELOPMENT_CHECKED`。这证明安装内容可用于诊断开发，不证明 Git 来源或正式封印。`validate_package_release.py` 与两套深度对抗回归属于维护者封印流程，不是普通安装步骤。
 
 ### 2. 启动项目
 
@@ -84,13 +94,13 @@ Skill 不设置固定子智能体数量上限，但仍服从宿主容量、任�
 
 ## 当前成熟度
 
-- 版本：`0.3.4`
+- 版本：`0.3.5`
 - Schema：`3.2`
 - 首个真实运行环境：Windows + Python 3.12
-- 包清单：143 个受管条目，SHA-256 内容寻址
+- 包清单：150 个受管条目、runtime 44 个受管条目，SHA-256 内容寻址
 - 姿态：`DEVELOPMENT_DIAGNOSTIC`
 - 正式声明：`formalClaimsAllowed=false`
-- 当前没有 `v0.3.4` release tag 或对应 package audit tag
+- 当前没有 `v0.3.5` release tag 或对应 package audit tag
 
 公开仓库可以用于研究、诊断开发和本地试用；它目前不能作为 `FORMAL_GATE_READY` 的证明。
 

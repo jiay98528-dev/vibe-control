@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inherited composition, signature, dependency, and reinstall tests for 0.3.4."""
+"""Inherited composition, signature, dependency, and reinstall tests for 0.3.5."""
 from __future__ import annotations
 import json
 import sys
@@ -80,7 +80,7 @@ def test_expired_approval():
 def test_dependency_mismatch_blocks():
     temp,root,_=fx.setup_project()
     try:
-        path=root/".vibe-control"/"runtime"/"0.3.4"/"dependency-lock.json"; value=fx.load(path); value["packages"]["jsonschema"]="0.0.0"; fx.write(path,value); fx.commit(root,"dependency attack"); _,report=fx.command(root,"validate",expect=2); assert "HC-DEPENDENCY-JSONSCHEMA" in fx.failing_ids(report)
+        path=root/".vibe-control"/"runtime"/"0.3.5"/"dependency-lock.json"; value=fx.load(path); value["packages"]["jsonschema"]="0.0.0"; fx.write(path,value); fx.commit(root,"dependency attack"); _,report=fx.command(root,"validate",expect=2); assert "HC-DEPENDENCY-JSONSCHEMA" in fx.failing_ids(report)
     finally: temp.cleanup()
 
 def test_missing_dependencies_emit_stable_json():

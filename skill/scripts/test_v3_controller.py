@@ -174,7 +174,7 @@ def test_cli_surface_and_envelope_are_schema3() -> None:
     result, report = _run(sys.executable, str(CONTROL), "risk", "--score", "10", expect=0)
     assert result.stderr == ""
     assert report["schemaVersion"] == "3.2"
-    assert report["runtimeVersion"] == "0.3.4"
+    assert report["runtimeVersion"] == "0.3.5"
     assert set(report) >= {"status", "integrity", "formal", "state"}
 
 
@@ -242,7 +242,7 @@ def test_schema2_control_plane_returns_reinstall_required_without_writes() -> No
         assert result.returncode == 2
         assert "VC-REINSTALL-REQUIRED" in _failing_ids(report)
         assert old.read_bytes() == before
-        assert not (control / "legacy").exists(), "0.3.4 must not migrate/import Schema 2.0 evidence"
+        assert not (control / "legacy").exists(), "0.3.5 must not migrate/import Schema 2.0 evidence"
 
 
 def test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules() -> None:
@@ -266,7 +266,7 @@ def test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules() -> None:
             _write(contract_path, contract)
             _git(project, "add", "-A")
             _git(project, "commit", "-m", "add task")
-            pinned = project / ".vibe-control" / "runtime" / "0.3.4" / "control.py"
+            pinned = project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
             result, report = _run(sys.executable, str(pinned), "lock-task", "--project", str(project), "--contract", str(contract_path), expect=None)
             assert result.returncode == 3, json.dumps(report, ensure_ascii=False)
             assert "HC-RULE-CASE-COVERAGE" in _failing_ids(report)
@@ -312,8 +312,8 @@ def test_reposition_invalidates_downstream() -> None:
             current["confirmation"] = {"actorId": "owner", "summary": "production candidate", "summarySha256": "pending", "record": {"path": "REPOSITION_CONFIRMATION.json", "bytes": confirmation.stat().st_size, "sha256": hashlib.sha256(confirmation.read_bytes()).hexdigest(), "tracked": True}}
             current["confirmation"]["summarySha256"] = hashlib.sha256(json.dumps(positioning_summary(current), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             positioning_path = project / "reposition.json"; _write(positioning_path, current); _git(project, "add", "reposition.json"); _git(project, "commit", "-m", "record reposition spec")
-            _, planned = _run(sys.executable, str(project / ".vibe-control" / "runtime" / "0.3.4" / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--plan", expect=2)
-            _, applied = _run(sys.executable, str(project / ".vibe-control" / "runtime" / "0.3.4" / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--apply", planned["data"]["planHash"], expect=2)
+            _, planned = _run(sys.executable, str(project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--plan", expect=2)
+            _, applied = _run(sys.executable, str(project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--apply", planned["data"]["planHash"], expect=2)
             state = json.loads((project / ".vibe-control" / "stage-state.json").read_text(encoding="utf-8"))
             assert state["phase"] == "DRAFT" and state["claimLevel"] == "DIAGNOSTIC"
             assert not marker.exists() and any(path.name == "old.json" for path in (project / ".vibe-control" / "legacy").rglob("old.json"))
@@ -337,7 +337,7 @@ def test_execute_aggregate_fails_when_any_case_fails() -> None:
             contract["goal"] = "prove execute aggregation"
             contract_path = project / ".vibe-control" / "tasks" / "TASK-FAIL.json"; _write(contract_path, contract)
             _git(project, "add", "-A"); _git(project, "commit", "-m", "add failing task")
-            pinned = project / ".vibe-control" / "runtime" / "0.3.4" / "control.py"
+            pinned = project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
             _run(sys.executable, str(pinned), "lock-task", "--project", str(project), "--contract", str(contract_path), expect=0)
             _git(project, "add", "-A"); _git(project, "commit", "-m", "lock failing task")
             (project / "fixture.py").write_text("raise SystemExit(7)\n", encoding="utf-8")
