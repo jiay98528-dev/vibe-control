@@ -62,6 +62,16 @@ REQUIRED_ASSURANCE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
     "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
 })
+LEGACY_034_ASSURANCE_CONTROL_IDS = frozenset(
+    item for item in REQUIRED_ASSURANCE_CONTROL_IDS
+    if not any(item == f"CTRL-CONFIRMED-{number:03d}" for number in range(30, 34))
+)
+
+
+def required_assurance_control_ids(package_version: str) -> frozenset[str]:
+    if package_version == "0.3.4":
+        return LEGACY_034_ASSURANCE_CONTROL_IDS
+    return REQUIRED_ASSURANCE_CONTROL_IDS
 
 
 def paths(project: Path) -> dict[str, Path]:
@@ -1459,7 +1469,8 @@ def assurance_matrix_checks(p: dict[str, Path]) -> list[dict[str, Any]]:
             "assurance matrix IDs are unique" if not duplicate_ids else "assurance matrix contains duplicate IDs",
             duplicateIds=duplicate_ids,
         )
-        missing_controls = sorted(REQUIRED_ASSURANCE_CONTROL_IDS - item_ids)
+        package_version = str(lock.get("packageBinding", {}).get("version", ""))
+        missing_controls = sorted(required_assurance_control_ids(package_version) - item_ids)
         open_items = sorted(item.get("id", "UNKNOWN") for item in items if item.get("implementationStatus") != "IMPLEMENTED")
         pending = sorted(item.get("id", "UNKNOWN") for item in items if item.get("independentValidation") not in {"PASS", "NOT_REQUIRED"})
         declared_formal = matrix.get("formalClaimsAllowed") is True

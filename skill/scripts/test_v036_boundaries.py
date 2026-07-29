@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import test_v036_automation as base
+from vibe_runtime.controller import required_assurance_control_ids
 
 
 def _file_ref(root: Path, path: Path) -> dict:
@@ -258,6 +259,14 @@ def test_automation_commits_new_active_task_lock_file() -> None:
         fixture.close()
 
 
+def test_assurance_requirements_follow_bound_package_version() -> None:
+    legacy = required_assurance_control_ids("0.3.4")
+    current = required_assurance_control_ids("0.3.6")
+    assert "CTRL-CONFIRMED-029" in legacy
+    assert not {"CTRL-CONFIRMED-030", "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"} & legacy
+    assert {"CTRL-CONFIRMED-030", "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"} <= current
+
+
 def main() -> int:
     tests = [
         test_commit_and_push_are_real_bounded_side_effects,
@@ -268,6 +277,7 @@ def main() -> int:
         test_current_controller_relocks_exact_supported_bound_runtime,
         test_resolved_compiler_metadata_is_rederived,
         test_automation_commits_new_active_task_lock_file,
+        test_assurance_requirements_follow_bound_package_version,
     ]
     results = []
     for test in tests:
