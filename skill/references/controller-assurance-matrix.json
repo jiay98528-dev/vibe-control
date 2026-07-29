@@ -540,7 +540,7 @@
     },
     {
       "id": "CTRL-CONFIRMED-036",
-      "statement": "Bootstrap diagnostics cannot enter candidate-required case or rule coverage, automation milestone messages are hook-compatible and bounded, and same-Schema runtime upgrades use a content-bound plan, byte-hashed legacy archive, atomic replacement, complete downstream invalidation and no evidence inheritance.",
+      "statement": "Bootstrap diagnostics cannot enter candidate-required case or rule coverage, automation milestone messages are hook-compatible and bounded, and same-Schema runtime upgrades use a content-bound plan, preserve prior legacy archives without recursive nesting, create a byte-hashed active-control archive, atomically replace the runtime, completely invalidate downstream records and inherit no evidence.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/positioning_control.py", "assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/vibe_runtime/upgrade_control.py", "assets/project-control/runtime/schemas/case-catalog.schema.json"],
       "regressionTests": ["test_case_lifecycle_is_not_candidate_coverage", "test_default_subject_is_conventional", "test_explicit_subject_and_cli_scope", "test_hook_failure_keeps_worktree_and_clears_automation_staging", "test_plan_is_read_only_and_apply_invalidates", "test_staging_failure_preserves_live_control"],

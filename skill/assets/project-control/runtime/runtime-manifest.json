@@ -260,8 +260,8 @@
     },
     {
       "path": "vibe_runtime/upgrade_control.py",
-      "bytes": 44288,
-      "sha256": "623603a547a09db9da65697d58144c20f7750d376c1496e1ddffa2c98833c0cd"
+      "bytes": 45861,
+      "sha256": "0b897a995622114540d265973ac3d8375a6e4d794679e11cd7795d61aa6a24d8"
     }
   ]
 }

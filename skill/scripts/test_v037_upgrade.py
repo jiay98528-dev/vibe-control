@@ -239,6 +239,11 @@ def command(package: Path, project: Path, *args: str, expect: int | None = None)
 
 def test_plan_is_read_only_and_apply_invalidates(base: Path, package: Path) -> None:
     project, source, target = make_project(base, package, "positive")
+    prior_legacy = project / ".vibe-control/legacy/runtime-upgrade-prior/control-plane/evidence/prior.txt"
+    prior_legacy.parent.mkdir(parents=True, exist_ok=True)
+    prior_legacy.write_bytes(b"prior archive bytes\x00\r\n")
+    git(project, "add", "-A")
+    git(project, "commit", "-m", "record prior runtime archive")
     before = control_snapshot(project)
     _, unsigned = command(package, project, "--plan", expect=2)
     assert "HC-UPGRADE-SPEC-REQUIRED" in unsigned["formal"]["blockers"], unsigned
@@ -274,6 +279,8 @@ def test_plan_is_read_only_and_apply_invalidates(base: Path, package: Path) -> N
     assert load_json(control / "case-catalog.json") == load_json(project / "replacement-case-catalog.json")
     assert not any((control / name).exists() for name in ("tasks", "task-locks", "candidates", "evidence", "reviews", "decisions", "external-audits", "handoffs"))
     archive = control / "legacy" / f"runtime-upgrade-{plan_hash}"
+    assert prior_legacy.read_bytes() == b"prior archive bytes\x00\r\n"
+    assert not (archive / "control-plane/legacy").exists()
     assert (archive / "control-plane/evidence/OLD.txt").is_file()
     assert (archive / "control-plane/MiXeD/Blob.TXT").read_bytes() == b"mixed-case\x00\r\n"
     assert (archive / "control-plane/evidence/CRLF.json").read_bytes() == b'{"status":"historical"}\r\n'
@@ -302,7 +309,9 @@ def test_plan_is_read_only_and_apply_invalidates(base: Path, package: Path) -> N
     assert manifest["snapshotSha256"] == hashlib.sha256(json.dumps(actual, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     expected_archived = {
         path: digest for path, digest in before.items()
-        if "__pycache__" not in Path(path).parts and not path.lower().endswith(".pyc")
+        if Path(path).parts[0].casefold() != "legacy"
+        and "__pycache__" not in Path(path).parts
+        and not path.lower().endswith(".pyc")
     }
     assert {item["path"]: item["sha256"] for item in actual} == expected_archived
     dispositions = {item["path"]: item["disposition"] for item in manifest["sourceDispositions"]}
@@ -324,6 +333,8 @@ def test_plan_is_read_only_and_apply_invalidates(base: Path, package: Path) -> N
         expect=0, timeout=120,
     )
     fresh_archive = fresh / ".vibe-control" / "legacy" / f"runtime-upgrade-{plan_hash}"
+    assert (fresh / ".vibe-control/legacy/runtime-upgrade-prior/control-plane/evidence/prior.txt").read_bytes() == b"prior archive bytes\x00\r\n"
+    assert not (fresh_archive / "control-plane/legacy").exists()
     fresh_manifest = load_json(fresh_archive / "manifest.json")
     fresh_actual = [
         {

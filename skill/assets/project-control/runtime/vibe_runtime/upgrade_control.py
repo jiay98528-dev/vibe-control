@@ -109,10 +109,16 @@ def _is_ephemeral_path(relative: Path) -> bool:
     return any(part.casefold() == "__pycache__" for part in relative.parts) or relative.suffix.casefold() == ".pyc"
 
 
-def _ephemeral_files(root: Path) -> list[dict[str, Any]]:
+def _top_level_excluded(relative: Path, excluded: set[str] | frozenset[str]) -> bool:
+    return bool(relative.parts) and relative.parts[0].casefold() in {item.casefold() for item in excluded}
+
+
+def _ephemeral_files(root: Path, *, exclude_top_level: set[str] | frozenset[str] = frozenset()) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
     for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
         relative = path.relative_to(root)
+        if _top_level_excluded(relative, exclude_top_level):
+            continue
         if path.is_file() and _is_ephemeral_path(relative):
             files.append({
                 "path": relative.as_posix(),
@@ -130,10 +136,12 @@ def _ignore_ephemeral(_: str, names: list[str]) -> set[str]:
     }
 
 
-def _snapshot_files(root: Path) -> list[dict[str, Any]]:
+def _snapshot_files(root: Path, *, exclude_top_level: set[str] | frozenset[str] = frozenset()) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
     for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
         relative = path.relative_to(root)
+        if _top_level_excluded(relative, exclude_top_level):
+            continue
         if _is_ephemeral_path(relative):
             continue
         if path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction()):
@@ -413,8 +421,8 @@ def upgrade_plan(project: Path, spec_path: Path | None = None) -> dict[str, Any]
 
 def _copy_archive_source(root: Path, live: Path, archive_root: Path) -> dict[str, Any]:
     """Copy the exact old control file tree and prove source/archive equality."""
-    source_before = _snapshot_files(live)
-    excluded_ephemeral = _ephemeral_files(live)
+    source_before = _snapshot_files(live, exclude_top_level={"legacy"})
+    excluded_ephemeral = _ephemeral_files(live, exclude_top_level={"legacy"})
     dispositions = _source_dispositions(root, live, source_before)
     ignored = [item["path"] for item in dispositions if item["disposition"] == "IGNORED"]
     if ignored:
@@ -432,11 +440,19 @@ def _copy_archive_source(root: Path, live: Path, archive_root: Path) -> dict[str
         )
     snapshot = archive_root / "control-plane"
     archive_root.mkdir(parents=True)
-    shutil.copytree(live, snapshot, ignore=_ignore_ephemeral)
+    live_resolved = live.resolve()
+
+    def ignore_active_archive(directory: str, names: list[str]) -> set[str]:
+        ignored = _ignore_ephemeral(directory, names)
+        if Path(directory).resolve() == live_resolved and "legacy" in names:
+            ignored.add("legacy")
+        return ignored
+
+    shutil.copytree(live, snapshot, ignore=ignore_active_archive)
     byte_policy = archive_root / ".gitattributes"
     byte_policy.write_text(ARCHIVE_ATTRIBUTES, encoding="utf-8", newline="\n")
 
-    source_after = _snapshot_files(live)
+    source_after = _snapshot_files(live, exclude_top_level={"legacy"})
     archive_files = _snapshot_files(snapshot)
     if source_before != source_after or source_before != archive_files:
         raise ControlError(
@@ -915,7 +931,19 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
     new_state: dict[str, Any] | None = None
     archive_relative = f"legacy/runtime-upgrade-{plan_hash}"
     try:
+        prior_legacy = _snapshot_files(p["control"] / "legacy") if (p["control"] / "legacy").exists() else []
         shutil.copytree(p["control"], staging, ignore=_ignore_ephemeral)
+        staged_legacy = _snapshot_files(staging / "legacy") if (staging / "legacy").exists() else []
+        if staged_legacy != prior_legacy:
+            raise ControlError(
+                "HC-UPGRADE-LEGACY-PRESERVATION",
+                "existing runtime-upgrade archives were not preserved byte-for-byte in staging",
+                status="INVALIDATED",
+                details={
+                    "sourceSha256": sha256_bytes(canonical_bytes(prior_legacy)),
+                    "stagedSha256": sha256_bytes(canonical_bytes(staged_legacy)),
+                },
+            )
         archive_root = staging / archive_relative
         archive_manifest = _copy_archive_source(root, p["control"], archive_root)
         write_json_atomic(archive_root / "manifest.json", archive_manifest)
