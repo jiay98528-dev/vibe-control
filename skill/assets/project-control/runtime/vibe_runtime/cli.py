@@ -14,6 +14,7 @@ from .controller import (
     reposition_plan, resolve_rules, revise_objectives_apply, revise_objectives_plan, validate,
 )
 from .dashboard import generate_dashboard
+from .upgrade_control import upgrade_apply, upgrade_plan
 
 
 class JsonParser(argparse.ArgumentParser):
@@ -40,6 +41,7 @@ def parser() -> JsonParser:
     item = sub.add_parser("automation"); item.add_argument("--project", default="."); item.add_argument("--spec"); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); mode.add_argument("--action", choices=("dispatch", "continue", "commit", "push")); item.add_argument("--message"); item.add_argument("--output")
     item = sub.add_parser("dashboard"); item.add_argument("--project", default="."); item.add_argument("--output-dir"); item.add_argument("--output")
     item = sub.add_parser("migrate"); item.add_argument("--project", default="."); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); item.add_argument("--spec"); item.add_argument("--output")
+    item = sub.add_parser("upgrade"); item.add_argument("--project", default="."); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); item.add_argument("--spec"); item.add_argument("--output")
     item = sub.add_parser("risk"); item.add_argument("--score", required=True, type=int); item.add_argument("--forced-r3", action="store_true"); item.add_argument("--output")
     return root
 
@@ -83,6 +85,10 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         if args.apply and not args.spec:
             raise ControlError("CLI-INVALID-ARGUMENTS", "migrate --apply requires --spec")
         return migration_plan(project, Path(args.spec) if args.spec else None) if args.plan else migration_apply(project, args.apply, Path(args.spec))
+    if args.command == "upgrade":
+        if args.apply and not args.spec:
+            raise ControlError("CLI-INVALID-ARGUMENTS", "upgrade --apply requires --spec")
+        return upgrade_plan(project, Path(args.spec) if args.spec else None) if args.plan else upgrade_apply(project, args.apply, Path(args.spec))
     if args.command == "risk": return risk(args.score, args.forced_r3)
     raise ControlError("CLI-UNKNOWN-COMMAND", f"unknown command: {args.command}")
 

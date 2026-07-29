@@ -232,7 +232,7 @@ def inspect(project: Path) -> dict[str, Any]:
     data = {
         "project": str(p["root"]), "gitRoot": str(root), "head": git(root, "rev-parse", "HEAD", required=False) or None,
         "dirtyEntries": clean_status(root), "controlPlaneExists": p["control"].is_dir(),
-        "runtimeInstalled": p["runtime"].is_dir(), "commands": ["inspect", "resolve-rules", "bootstrap", "reposition", "revise-objectives", "automation", "dashboard", "lock-task", "validate", "freeze", "execute", "ingest", "audit", "accept", "release-check", "handoff", "migrate", "risk"],
+        "runtimeInstalled": p["runtime"].is_dir(), "commands": ["inspect", "resolve-rules", "bootstrap", "reposition", "revise-objectives", "automation", "dashboard", "lock-task", "validate", "freeze", "execute", "ingest", "audit", "accept", "release-check", "handoff", "migrate", "upgrade", "risk"],
     }
     if p["lock"].is_file():
         try:

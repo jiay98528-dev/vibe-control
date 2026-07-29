@@ -33,6 +33,8 @@ def validate_object(kind: str, value: Any) -> None:
             "automation-policy": "HC-SCHEMA-AUTOMATION-POLICY",
             "migration-spec": "HC-SCHEMA-MIGRATION-SPEC",
             "migration-plan": "HC-SCHEMA-MIGRATION-PLAN",
+            "upgrade-spec": "HC-SCHEMA-UPGRADE-SPEC",
+            "upgrade-plan": "HC-SCHEMA-UPGRADE-PLAN",
             "project-positioning": "HC-POSITIONING-SCHEMA",
             "resolved-rule-set": "HC-RULESET-BINDING",
             "adapter-descriptor": "HC-ADAPTER-CAPABILITY",

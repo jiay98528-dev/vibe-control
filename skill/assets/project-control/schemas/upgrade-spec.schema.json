@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "sourceRuntimeVersion",
+    "targetRuntimeVersion",
+    "confirmation"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "3.2"},
+    "projectId": {"type": "string", "minLength": 1},
+    "sourceRuntimeVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "targetRuntimeVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "replacementCaseCatalog": {"type": ["string", "null"], "minLength": 1},
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "summary", "summarySha256", "confirmedAt"],
+      "properties": {
+        "actorId": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "summarySha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "confirmedAt": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

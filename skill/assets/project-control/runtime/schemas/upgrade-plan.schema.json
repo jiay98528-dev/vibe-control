@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "operation",
+    "planId",
+    "project",
+    "projectId",
+    "gitHead",
+    "sourceRuntimeVersion",
+    "targetRuntimeVersion",
+    "sourceSnapshotSha256",
+    "sourcePackageBinding",
+    "targetPackageBinding",
+    "spec",
+    "replacementCaseCatalog",
+    "actions",
+    "invalidates",
+    "risk",
+    "planHash"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "3.2"},
+    "operation": {"const": "runtime-upgrade"},
+    "planId": {"type": "string", "minLength": 1},
+    "project": {"type": "string", "minLength": 1},
+    "projectId": {"type": "string", "minLength": 1},
+    "gitHead": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sourceRuntimeVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "targetRuntimeVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "sourceSnapshotSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sourcePackageBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageMode", "packageBinding", "lock", "caseCatalog"],
+      "properties": {
+        "packageMode": {"const": "DEVELOPMENT"},
+        "packageBinding": {"$ref": "#/$defs/sourcePackageBinding"},
+        "lock": {"$ref": "#/$defs/ref"},
+        "caseCatalog": {"$ref": "#/$defs/ref"}
+      }
+    },
+    "targetPackageBinding": {"$ref": "#/$defs/targetPackageBinding"},
+    "spec": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/ref"}]},
+    "replacementCaseCatalog": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/ref"}]},
+    "actions": {"type": "array", "minItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "invalidates": {
+      "const": ["task", "task-lock", "candidate", "evidence", "review", "decision", "external-audit", "receipt", "handoff"]
+    },
+    "risk": {"const": "R2"},
+    "planHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "tracked"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "tracked": {"const": true}
+      }
+    },
+    "sourcePackageBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "packageManifest", "runtimeManifest", "assuranceMatrix"],
+      "properties": {
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "sourceKind": {"enum": ["GIT_ROOT", "GIT_SUBDIRECTORY", "PORTABLE_COPY"]},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "packageManifest": {"$ref": "#/$defs/ref"},
+        "runtimeManifest": {"$ref": "#/$defs/ref"},
+        "assuranceMatrix": {"$ref": "#/$defs/ref"}
+      }
+    },
+    "targetPackageBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sourceKind", "packageManifestSha256", "runtimeManifestSha256", "assuranceMatrixSha256"],
+      "properties": {
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "sourceKind": {"enum": ["GIT_ROOT", "GIT_SUBDIRECTORY", "PORTABLE_COPY"]},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "packageManifestSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "runtimeManifestSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "assuranceMatrixSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}
