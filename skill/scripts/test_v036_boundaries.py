@@ -11,6 +11,8 @@ import time
 from pathlib import Path
 
 import test_v036_automation as base
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "assets/project-control/runtime"))
 from vibe_runtime.controller import required_assurance_control_ids
 
 
