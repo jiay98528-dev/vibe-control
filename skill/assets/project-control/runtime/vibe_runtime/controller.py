@@ -780,7 +780,7 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
     resolved = load_json(p["resolved_rules"]); validate_object("resolved-rule-set", resolved)
     rule_inputs = load_json(p["rule_inputs"])
     positioning_checks = verify_positioning(root, positioning)
-    compiled = compile_for_project(rule_inputs, root, p["runtime"])
+    compiled = compile_for_project(rule_inputs, root, p["runtime"], expected_runtime_manifest_sha256=lock["runtime"]["sha256"])
     rule_checks = compiler_checks(compiled)
     binding_ok = resolved["canonicalSha256"] == compiled["canonicalSha256"] and resolved["compiler"] == rule_compiler_binding(p["runtime"])
     rule_checks.append(check("HC-RULESET-BINDING", "PASS" if binding_ok else "INVALIDATED", "resolved rule set matches a fresh compilation" if binding_ok else "rule inputs or runtime catalogs drifted"))
@@ -1525,7 +1525,7 @@ def validate(project: Path) -> dict[str, Any]:
         resolved = load_json(p["resolved_rules"]); validate_object("resolved-rule-set", resolved)
         rule_inputs = load_json(p["rule_inputs"])
         checks.extend(verify_positioning(root, positioning))
-        compiled = compile_for_project(rule_inputs, root, p["runtime"])
+        compiled = compile_for_project(rule_inputs, root, p["runtime"], expected_runtime_manifest_sha256=lock["runtime"]["sha256"])
         checks.extend(compiler_checks(compiled))
         fresh_rule_hash = compiled["canonicalSha256"]
         fresh_compiler = rule_compiler_binding(p["runtime"])
@@ -1956,6 +1956,7 @@ def revise_objectives_apply(project: Path, spec_path: Path, plan_hash: str) -> d
 
 def reposition_plan(project: Path, spec_path: Path) -> dict[str, Any]:
     assert_dependencies(); p = paths(project); _guard_v3_control_plane(p); root = git_root(p["root"])
+    lock = load_json(p["lock"]); validate_object("project-governance-lock", lock)
     current = load_json(p["positioning"]); validate_object("project-positioning", current)
     proposed = load_json(spec_path.resolve()); validate_object("project-positioning", proposed)
     checks = verify_positioning(root, proposed)
@@ -1963,7 +1964,7 @@ def reposition_plan(project: Path, spec_path: Path) -> dict[str, Any]:
     updated_inputs = dict(current_inputs)
     for key in positioning_summary(proposed): updated_inputs[key] = proposed[key]
     updated_inputs["confirmation"] = {**proposed["confirmation"], "record": proposed["confirmation"]["record"]["path"]}
-    compiled = compile_for_project(updated_inputs, root, p["runtime"]); checks.extend(compiler_checks(compiled))
+    compiled = compile_for_project(updated_inputs, root, p["runtime"], expected_runtime_manifest_sha256=lock["runtime"]["sha256"]); checks.extend(compiler_checks(compiled))
     catalog = load_json(p["cases"]); validate_object("case-catalog", catalog); checks.append(coverage_check(compiled, catalog["cases"]))
     invalidates = ["task-lock", "candidate", "execution-evidence", "review", "decision", "release-receipt", "handoff"]
     plan = {
@@ -1981,6 +1982,8 @@ def reposition_plan(project: Path, spec_path: Path) -> dict[str, Any]:
 
 def reposition_apply(project: Path, spec_path: Path, plan_hash: str) -> dict[str, Any]:
     p = paths(project); root = git_root(p["root"])
+    _guard_v3_control_plane(p)
+    lock = load_json(p["lock"]); validate_object("project-governance-lock", lock)
     if clean_status(root): raise ControlError("HC-WORKTREE-CLEAN", "reposition apply requires a clean worktree", status="BLOCKED")
     planned = reposition_plan(project, spec_path)["data"]
     if planned["planHash"] != plan_hash:
@@ -1989,14 +1992,14 @@ def reposition_apply(project: Path, spec_path: Path, plan_hash: str) -> dict[str
     updated_inputs = dict(current_inputs)
     for key in positioning_summary(proposed): updated_inputs[key] = proposed[key]
     updated_inputs["confirmation"] = {**proposed["confirmation"], "record": proposed["confirmation"]["record"]["path"]}
-    compiled = compile_for_project(updated_inputs, root, p["runtime"]); fail_on_compile_issues(compiler_checks(compiled))
+    compiled = compile_for_project(updated_inputs, root, p["runtime"], expected_runtime_manifest_sha256=lock["runtime"]["sha256"]); fail_on_compile_issues(compiler_checks(compiled))
     legacy = p["legacy"] / f"reposition-{now_iso().replace(':', '-')}"; legacy.mkdir(parents=True)
     for name in ("task-locks", "candidates", "evidence", "reviews", "decisions", "external-audits", "handoffs"):
         source = p["control"] / name
         if source.exists(): shutil.move(str(source), str(legacy / name))
     write_json_atomic(p["positioning"], proposed); write_json_atomic(p["rule_inputs"], updated_inputs)
     resolved = _resolved_rule_object(root, p, proposed, compiled); write_json_atomic(p["resolved_rules"], resolved)
-    lock = load_json(p["lock"]); lock.update({
+    lock.update({
         "positioning": content_ref(root, p["positioning"]), "resolvedRuleSet": content_ref(root, p["resolved_rules"]),
         "ruleInputs": content_ref(root, p["rule_inputs"]), "releaseIntent": proposed["releaseIntent"], "lockedAt": now_iso(),
     }); validate_object("project-governance-lock", lock); write_json_atomic(p["lock"], lock)

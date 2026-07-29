@@ -12,11 +12,7 @@ from .schema import validate_object
 
 
 _COMPATIBLE_RULE_COMPILERS = {
-    (
-        "0.3.4",
-        "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293",
-        "ceff3807b3ada16f2668a09f195186ead392f5547097a64ae01b5ae1aeba3fa1",
-    ),
+    ("0.3.4", "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"),
 }
 _COMPILER_PATH = "vibe_runtime/project_rules.py"
 _RULE_CATALOG_PATHS = {
@@ -113,7 +109,13 @@ def verify_positioning(root: Path, positioning: dict[str, Any]) -> list[dict[str
     return checks
 
 
-def compile_for_project(spec: dict[str, Any], project_root: Path, runtime_root: Path) -> dict[str, Any]:
+def compile_for_project(
+    spec: dict[str, Any],
+    project_root: Path,
+    runtime_root: Path,
+    *,
+    expected_runtime_manifest_sha256: str | None = None,
+) -> dict[str, Any]:
     """Always recompile from the source spec; never consume a caller-supplied result."""
     runtime_root = runtime_root.resolve()
     current_compiler = Path(__file__).resolve().with_name("project_rules.py")
@@ -155,12 +157,19 @@ def compile_for_project(spec: dict[str, Any], project_root: Path, runtime_root: 
             raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound compiler input does not match its runtime manifest", status="INVALIDATED", details={"path": relative})
     compiler_hash = entries[_COMPILER_PATH]["sha256"]
     manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
-    if (version, compiler_hash, manifest_hash) not in _COMPATIBLE_RULE_COMPILERS:
+    if expected_runtime_manifest_sha256 is None or manifest_hash != expected_runtime_manifest_sha256:
+        raise ControlError(
+            "HC-RULE-COMPILER-COMPATIBILITY",
+            "bound runtime manifest does not match the governance snapshot",
+            status="INVALIDATED",
+            details={"expectedSha256": expected_runtime_manifest_sha256, "actualSha256": manifest_hash},
+        )
+    if (version, compiler_hash) not in _COMPATIBLE_RULE_COMPILERS:
         raise ControlError(
             "HC-RULE-COMPILER-COMPATIBILITY",
             "the installed controller does not support this bound rule compiler",
             status="BLOCKED",
-            details={"runtimeVersion": version, "compilerSha256": compiler_hash, "runtimeManifestSha256": manifest_hash},
+            details={"runtimeVersion": version, "compilerSha256": compiler_hash},
         )
     try:
         namespace: dict[str, Any] = {"__name__": "vibe_control_bound_project_rules", "__file__": str(requested_compiler)}
