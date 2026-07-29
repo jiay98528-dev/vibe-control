@@ -17,6 +17,7 @@
 - `AUTOMATED` 必须至少有一个当前任务 case 和一个 assertion；assertion 的 case 必须是其 checkpoint case 的非空子集。
 - `HUMAN` 必须引用一个锁定的 `HG-*`。它可以查看运行证据，但测试不能替 owner 自动批准。
 - 每个 required case 至少被一个 checkpoint 使用；一个 case 可以支持多个 checkpoint。
+- 只有 `CANDIDATE_EXECUTION` case 可以成为 required case 或支持 checkpoint。缺省 lifecycle 为 `CANDIDATE_EXECUTION`；`BOOTSTRAP_DIAGNOSTIC` 只能检查接入前置，不能进入候选、满足规则覆盖或被重新包装为产品证据。
 - checkpoint 的 objective 必须属于当前 task；声明等级不得超过 task、release intent 或其 case 的最小 ceiling。
 - case oracle 至少锁定 `exitCode`、`stdoutContainsAll[]`、`stderrContainsNone[]`，artifact 以 `{path,minBytes}` 描述。退出码为零但文字或产物不符仍为 FAIL。
 - checkpoint、assertion、case、oracle、confirmation 或其哈希变化，使 candidate、evidence、review、decision 与 handoff 失效。

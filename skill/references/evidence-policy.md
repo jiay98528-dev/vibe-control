@@ -1,6 +1,6 @@
 # 证据、硬检查与非硬发现
 
-> `vibe-control 0.3.6` 的正式声明先受定位锁中的 `releaseIntent` 限定：`LOCAL_EXPERIMENT` 最高 `VERIFIED`，`PRIVATE_OPERATION` 最高 `ACCEPTED`，`EXTERNAL_RELEASE` 才可能到 `RELEASE_READY`。任何路径还要求项目锁绑定有效的 Skill 包级审计收据、`project-positioning.json`、`resolved-rule-set.json` 与已确认 checkpoint set；外部 R3 正式发行另需绑定当前项目候选、owner decision、已签 external-release-audit 与当前 package/runtime/matrix 的项目级 release receipt。缺失、重放、漂移、失败结果或无效的**必需**签名一律 fail-closed。
+> `vibe-control 0.3.7` 的正式声明先受定位锁中的 `releaseIntent` 限定：`LOCAL_EXPERIMENT` 最高 `VERIFIED`，`PRIVATE_OPERATION` 最高 `ACCEPTED`，`EXTERNAL_RELEASE` 才可能到 `RELEASE_READY`。任何路径还要求项目锁绑定有效的 Skill 包级审计收据、`project-positioning.json`、`resolved-rule-set.json` 与已确认 checkpoint set；外部 R3 正式发行另需绑定当前项目候选、owner decision、已签 external-release-audit 与当前 package/runtime/matrix 的项目级 release receipt。缺失、重放、漂移、失败结果或无效的**必需**签名一律 fail-closed。
 
 Release receipt 不是包级“曾审过”的通行证，也不能单独授权任何项目候选。R2 与私有 R3 的 review/owner decision 是受版本管理、候选绑定的人工记录，不要求密码学身份；真实性仍由人负责。只有 `EXTERNAL_RELEASE + risk=R3 + maxClaimLevel=RELEASE_READY` 的任务要求 `executor`、`auditor`、`release-auditor`、`owner` 的 Ed25519 公钥与签名闭包，这些 actor/公钥不得复用，release-auditor 还必须与内部 review auditor 分离。私钥不得写入 runtime、Skill 或项目受管目录，也不用于 Skill 安装、授权、收费或本地 tag。
 
@@ -10,13 +10,13 @@ Release receipt 不是包级“曾审过”的通行证，也不能单独授权�
 
 以下检查可机械判定，失败时只能阻止相关声明或状态跃迁：
 
-1. **文件完整性**：受管证据、产物、合同、case 和候选清单使用安全相对路径与安全标识符；拒绝绝对路径、路径穿越和符号链接逃逸；声明的字节数与 SHA-256 匹配。
+1. **文件完整性**：受管证据、产物、合同、case 和候选清单使用安全相对路径与安全标识符；拒绝绝对路径、路径穿越和符号链接逃逸；声明的字节数与 SHA-256 匹配。项目必须跟踪有效的 `.vibe-control/.gitattributes` 字节策略，提交后证据工作副本还必须逐项等于 `HEAD` Git blob。
 2. **引用闭包**：ID、路径、哈希、candidate、case、transcript、产物与审核记录均存在且互相可解析；拒绝孤儿引用、重复 ID 与混候选引用。
 3. **目标、定位与规则闭包**：关键目标对象绑定受跟踪文档、需求来源、确认摘要、修订、ID 集合和 SHA-256；定位对象满足 Schema 且具备用户确认摘要哈希；规则集由六层输入确定性编译；目标引用未知、规则 ID 冲突、overlay 弱化、治理锁/任务/候选哈希漂移或建立第二规则状态源一律失败。
-4. **规则覆盖**：`lock-task` 派生的每个 `applicableRuleId` 和 `requiredCaseCapability` 都由 required case 的 `satisfiesRuleIds[]` 与能力字段覆盖；任务合同、Profile、adapter 或 Skill 不能删减覆盖要求。
+4. **规则覆盖**：`lock-task` 派生的每个 `applicableRuleId` 和 `requiredCaseCapability` 都由 lifecycle 为 `CANDIDATE_EXECUTION` 的 required case 的 `satisfiesRuleIds[]` 与能力字段覆盖；`BOOTSTRAP_DIAGNOSTIC`、任务合同、Profile、adapter 或 Skill 不能删减或冒充覆盖要求。
 5. **候选绑定**：候选精确绑定 commit/tree、positioning、resolved rule set、task lock 和 `checkpointSetSha256`；正式候选工作树洁净；证据、case、oracle、assertion、受测输入和产物均绑定同一候选或明确的上游版本。
 6. **执行守恒**：每个 required case 有可解析执行记录、退出码、时间、非空 counters、原始 transcript 及哈希；`executed > 0`、`skip == 0`，并且 passed/failed/skipped 与总计守恒。一份执行不能冒充多个无独立 provenance 的 case。
-7. **Adapter 能力**：执行或导入记录必须绑定当前 adapter descriptor、工具/可执行文件版本、操作和输入；证据只能满足 descriptor 明确声明的能力，任何明确的 non-proof 均不得外推为 PASS。
+7. **Adapter 能力**：执行或导入记录必须绑定当前 adapter descriptor、requested/resolved 可执行文件、宿主平台、工具版本、操作和输入；证据只能满足 descriptor 明确声明的能力，任何明确的 non-proof 均不得外推为 PASS。
 8. **Skill binding**：required Skill 的路径、版本和确定性 tree hash 必须闭合且 `canApprove=false`；advisory Skill 不得成为硬 PASS 的唯一来源。未批准的安装请求不能通过写状态文件消除。
 9. **覆盖与声明**：required case 完整覆盖；声明等级不得超过 phase、合同、case、规则集与项目 `releaseIntent` 的最小上限。
 10. **失效传播**：关键目标/需求来源、定位、规则目录、Profile、adapter、Skill binding、overlay、合同、checkpoint/assertion/确认记录、case、oracle、候选、产品输入或环境锁发生绑定变更时，所有依赖它们的验证、审核和声明自动标记 `INVALIDATED`，不得继承。
@@ -24,6 +24,7 @@ Release receipt 不是包级“曾审过”的通行证，也不能单独授权�
 12. **检查点闭合**：每份 execution evidence 声明其 `checkpointIds[]`，控制器从原始 case evidence 重算自动 checkpoint 结果。Review 对每个自动 checkpoint 恰好记录一次；owner decision 对每个适用 HUMAN checkpoint 恰好决定一次。总计数不能替代逐 checkpoint provenance。
 13. **发行路径闭合**：本地实验禁止 release；私有运行要求候选绑定的独立审核和 owner 决定；外部 R3 正式发行的 receipt 精确引用当前 candidate、decision 和受管 external-release-audit，审计报告精确引用当前 candidate、review、evidence、transcript 与控制器 manifest。任一上游引用或必需签名变化均使对应资格无效。
 14. **执行隔离**：本地 runtime-observed case 必须在 candidate commit 的干净 detached Git worktree 中执行；调用方工作树的未跟踪、ignored、缓存或临时 runner 不得成为候选执行输入。
+15. **命令与字节身份**：执行记录必须同时保存锁定的 requested command、解析后的绝对 executable 与 host platform。首个程序由宿主解析，参数保持数组并使用 `shell=False`；解析失败命中 `HC-EXECUTABLE-RESOLUTION`。Evidence 子树必须由 `evidence/** -text -filter -working-tree-encoding` 禁止 Git 转换，策略缺失、未跟踪、无效或工作副本/Git blob 不同均命中 `HC-EVIDENCE-GIT-BYTE-POLICY`。
 
 硬检查不得因紧急、历史结论、负责人判断、用户口头同意或 warning 接受而豁免。可选动作只有：修复事实、重跑证据、冻结新候选、降低声明，或保持未通过。
 

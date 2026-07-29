@@ -26,6 +26,8 @@ Build a project-local, version-pinned control plane before broad implementation.
 - Browser WebGL gameplay uses the separate `browser-webgl-game-runtime` proof boundary. It activates only for confirmed `GAMEPLAY` positioning with an explicit WebGL runtime target, requires a direct locked `playwright test` command and freshly generated candidate-bound artifacts, and never proves unrecorded browser/viewport/WebGL details, a native shell, target hardware, game feel, human approval, or release readiness.
 - A new project must explicitly select `MANUAL_STAGE_CONFIRMATION`, `AUTO_LOCAL_TO_REVIEW`, or `AUTO_PUSH_TO_REVIEW` in the consolidated startup confirmation. An unanswered automation choice blocks bootstrap. A legacy Schema 3.2 project without an automation policy remains manual-compatible and gains no automatic side-effect authority until a content-bound `automation --plan` / `--apply` opt-in completes. See [automation-advancement.md](references/automation-advancement.md).
 - A Schema 3.1 project may use the content-bound `migrate --plan [--spec]` / `--apply <plan-hash> --spec` path. Migration archives the complete old control plane, invalidates every downstream fact, and returns to `DRAFT / BLOCKED / DIAGNOSTIC`; it never rebinds old evidence. Schema 2.0 remains pinned to runtime 0.2.2 and returns `VC-REINSTALL-REQUIRED` instead of being converted.
+- A Schema 3.2 project pinned to an older runtime must use the content-bound `upgrade --plan [--spec]` / `--apply <plan-hash> --spec` path. Upgrade archives the old runtime and every task-downstream object, installs and validates the new runtime in staging, then atomically returns to `DRAFT / BLOCKED / DIAGNOSTIC`; it never rebinds an old candidate, PASS, review, decision, or handoff. See [0.3.7-requirements.md](references/0.3.7-requirements.md).
+- Candidate execution preserves the locked logical command but resolves its first executable explicitly on the host; it never routes arguments through a shell. Project evidence is protected by a tracked nested `.vibe-control/.gitattributes`, and validation compares the working bytes with the committed Git blob. `BOOTSTRAP_DIAGNOSTIC` cases are onboarding diagnostics only and can never enter a candidate task.
 - On an external R3 **project** release path, `executor`、`auditor`、`release-auditor`、`owner` must use distinct actors and public keys, and the release-auditor must differ from the internal review auditor. This project-level signed chain is separate from the Skill package audit tags. The controller executes local cases in a temporary Git worktree at the candidate commit, never from the caller's worktree. Absence, drift, a non-PASS review/audit, credential reuse, or invalid required signatures blocks that external project release claim.
 - When modifying a controller, validator, gate, Schema or claim protocol, read [controller-assurance.md](references/controller-assurance.md) and [incident-2026-07-25.md](references/incident-2026-07-25.md). A happy-path fixture or manifest PASS cannot close a public hard claim.
 
@@ -43,6 +45,7 @@ Build a project-local, version-pinned control plane before broad implementation.
 | Change a Schema 3.2 project milestone/environment | `reposition` | [project-positioning.md](references/project-positioning.md), [evidence-policy.md](references/evidence-policy.md) |
 | Change confirmed objectives | `revise-objectives` | [key-objectives.md](references/key-objectives.md), [evidence-policy.md](references/evidence-policy.md) |
 | Encounter a Schema 3.1 control plane | `migrate --plan` → confirmed spec → `--apply` | [adoption.md](references/adoption.md), [checkpoint-contract.md](references/checkpoint-contract.md), [evidence-policy.md](references/evidence-policy.md) |
+| Upgrade a Schema 3.2 pinned runtime | `upgrade --plan` → confirmed spec → `--apply` | [task-control.md](references/task-control.md), [evidence-policy.md](references/evidence-policy.md), [0.3.7-requirements.md](references/0.3.7-requirements.md) |
 | Encounter a Schema 2.0 control plane | fresh-bootstrap proposal only | [adoption.md](references/adoption.md), [evidence-policy.md](references/evidence-policy.md) |
 | Build, repair, or audit governance enforcement | `assure-controller` | [controller-assurance.md](references/controller-assurance.md), [incident-2026-07-25.md](references/incident-2026-07-25.md), [controller-assurance-matrix.json](references/controller-assurance-matrix.json) |
 | Understand machine objects | any machine-state operation | [schema-guide.md](references/schema-guide.md) |
@@ -155,12 +158,16 @@ python <skill-root>/scripts/vibe_control.py revise-objectives --project <root> -
 python <skill-root>/scripts/vibe_control.py revise-objectives --project <root> --spec <confirmed-objectives.json> --apply <plan-hash>
 python <skill-root>/scripts/vibe_control.py automation --project <root> --spec <confirmed-policy.json> --plan
 python <skill-root>/scripts/vibe_control.py automation --project <root> --spec <confirmed-policy.json> --apply <plan-hash>
-python <skill-root>/scripts/vibe_control.py automation --project <root> --action dispatch|continue|commit|push
+python <skill-root>/scripts/vibe_control.py automation --project <root> --action dispatch|continue|push
+python <skill-root>/scripts/vibe_control.py automation --project <root> --action commit [--message "<single-line-subject>"]
 python <skill-root>/scripts/vibe_control.py dashboard --project <root> [--output-dir <external-path>]
 python <skill-root>/scripts/vibe_control.py risk --score <0-100> [--forced-r3]
 python <skill-root>/scripts/vibe_control.py migrate --project <root> --plan
 python <skill-root>/scripts/vibe_control.py migrate --project <root> --plan --spec <confirmed-migration-spec.json>
 python <skill-root>/scripts/vibe_control.py migrate --project <root> --apply <plan-hash> --spec <confirmed-migration-spec.json>
+python <skill-root>/scripts/vibe_control.py upgrade --project <root> --plan
+python <skill-root>/scripts/vibe_control.py upgrade --project <root> --plan --spec <confirmed-upgrade.json>
+python <skill-root>/scripts/vibe_control.py upgrade --project <root> --apply <plan-hash> --spec <confirmed-upgrade.json>
 ```
 
 Run the pinned project controller after bootstrap:
@@ -188,7 +195,7 @@ Always preserve the JSON 3.2 envelope. Use only `formal.eligible` and `formal.ma
 
 Only for an `EXTERNAL_RELEASE` R3 task whose contract permits `RELEASE_READY`, after `audit` and `accept` have produced tracked records, the independent **release-auditor**—distinct from the implementation/execution actors and the internal review auditor—must create and sign an `external-release-audit` object under `.vibe-control/external-audits/`, including a tracked raw transcript, exact candidate/review/evidence references, and current package/runtime/matrix hashes. Commit that report. The owner then signs the project runtime's `release-receipt.json`, binding that exact candidate, decision and external-audit file; commit it. Private keys remain outside the agent/runtime environment. These two signed objects are deliberately not fabricated by a CLI convenience command. They do not apply to `LOCAL_EXPERIMENT` or `PRIVATE_OPERATION`.
 
-`adopt`, `start`, `resume`, and `advance` remain Skill workflow routes. The implemented CLI is exactly: `inspect`, `resolve-rules`, `bootstrap`, `reposition`, `revise-objectives`, `automation`, `dashboard`, `lock-task`, `validate`, `freeze`, `execute`, `ingest`, `audit`, `accept`, `release-check`, `handoff`, `migrate`, and `risk`.
+`adopt`, `start`, `resume`, and `advance` remain Skill workflow routes. The implemented CLI is exactly: `inspect`, `resolve-rules`, `bootstrap`, `reposition`, `revise-objectives`, `automation`, `dashboard`, `upgrade`, `lock-task`, `validate`, `freeze`, `execute`, `ingest`, `audit`, `accept`, `release-check`, `handoff`, `migrate`, and `risk`.
 
 ## Completion discipline
 

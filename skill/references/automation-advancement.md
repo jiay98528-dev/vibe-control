@@ -37,11 +37,14 @@ Skill 不设置 worker 或子智能体数量上限。实际数量由宿主容量
 ```text
 automation --project <root> --spec <policy.json> --plan
 automation --project <root> --spec <policy.json> --apply <plan-hash>
-automation --project <root> --action dispatch|continue|commit|push
+automation --project <root> --action dispatch|continue|push
+automation --project <root> --action commit [--message "<single-line-subject>"]
 dashboard --project <root> [--output-dir <external-path>]
 ```
 
 `plan` 只读；`apply` 写入已确认策略；`action` 在副作用前重新验证策略哈希、task/candidate 绑定、允许路径、Git 分支、工作树与相应权限。未知动作、策略漂移或缺少前置必须返回稳定阻断，不能由叙述性授权绕过。CLI 只执行并核对动作，不替模型生成开发计划，也不批准人工检查点。
+
+自动提交的默认标题是 `chore(governance): record <taskId> milestone`；调用方可用 `--message` 提供单行标题。空标题、换行、Unicode 行分隔符或控制字符必须在调用 Git 前阻断。工作树解析必须消费完整 porcelain 输出，包括首行 `.vibe-control/**` 路径。若 commit hook 或 commitlint 拒绝提交，控制器保留原工作文件、清除本次新增 staging，并以 `HC-AUTOMATION-MILESTONE-COMMIT / BLOCKED` 返回退出码和 hook stdout/stderr；不得绕过 hook 或把失败叙述为已提交。
 
 ## 固定人工复核点
 
@@ -67,6 +70,6 @@ summary.md
 
 默认写入用户外部缓存目录：Windows 为 `%LOCALAPPDATA%\vibe-control\dashboards\<project>\<task>\`，其他平台使用用户缓存目录；除非用户显式指定外部路径，不得写入项目 Git 工作树。
 
-Dashboard 从控制对象和 Git 实况只读派生，展示 phase/health/claim、自动化模式、目标与检查点、candidate、变更范围、case counters、证据、审核发现、提交/推送状态、停止原因、已证明/未证明边界以及唯一待人工决定事项。三份文件必须绑定同一快照 SHA-256；HTML 必须转义项目内容并可离线打开。
+Dashboard 与 `validate` 必须消费同一份无副作用 validation projection。顶层展示 derived phase/health/claim；declared state 只在单独区域展示并标记漂移，不能覆盖派生事实。自动 checkpoint 只有在其全部 case 都有合格、候选绑定的 PASS evidence，且满足 `minExecuted/maxFailed/maxSkipped/artifacts` 时才显示 PASS；一项 case PASS 而其余缺失必须显示 `PENDING/BLOCKED`。Blocker、case counters、checkpoint rows 和“已证明/未证明”只能从该 projection 派生。三份文件必须绑定同一快照 SHA-256；HTML 必须转义项目内容并可离线打开。
 
-Dashboard 是可观察投影，不是事实源、执行证据、审核或批准。生成、浏览或修改它都不能改变状态、覆盖 evidence、授予 claim 或解除 blocker；冲突时以重新验证后的机器对象和 Git 实况为准。
+Dashboard 是可观察投影，不是事实源、执行证据、审核或批准。生成前后 stage-state 与 evidence 字节必须不变；生成、浏览或修改它都不能改变状态、覆盖 evidence、授予 claim 或解除 blocker。Dashboard 与 CLI 冲突是投影缺陷，不能通过相信更乐观的一方解决；必须重新运行共享 projection 并保持 fail-closed。

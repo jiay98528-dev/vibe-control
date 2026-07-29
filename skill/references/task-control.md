@@ -33,7 +33,7 @@ Skill 的安装、更新、Git commit 或 tag 不是项目 `EXTERNAL_RELEASE`，
 - `requiredCaseCapabilities[]`：这些规则要求的外部可观察能力；
 - Profile AND、adapter 和 required/advisory Skill bindings。
 
-合同只能增加限制或缩小工作范围，不能删除、覆盖或降低派生值。每个 applicable rule 必须由 required case 的 `satisfiesRuleIds[]` 覆盖；总 case 数、测试文件名或一个万能 case 不能替代逐规则覆盖。缺口由 `HC-RULE-CASE-COVERAGE` 阻断 lock。
+合同只能增加限制或缩小工作范围，不能删除、覆盖或降低派生值。每个 applicable rule 必须由 lifecycle 为 `CANDIDATE_EXECUTION` 的 required case 的 `satisfiesRuleIds[]` 覆盖；总 case 数、测试文件名、一个万能 case 或 `BOOTSTRAP_DIAGNOSTIC` 接入自检不能替代逐规则覆盖。后者进入任务时由 `HC-CASE-LIFECYCLE-SCOPE` 阻断，其余覆盖缺口由 `HC-RULE-CASE-COVERAGE` 阻断 lock。
 
 Adapter 只可支持 descriptor 明确列出的证据能力：generic command 不证明真实 UI/部署，Browser 不证明原生壳/安装包/目标硬件，Browser WebGL 只在 `GAMEPLAY` 与显式 WebGL target 下通过直接 `playwright test` 和执行后新产物证明候选绑定的浏览器玩法切片；未被锁定产物记录的环境事实及游戏感仍不在证明范围。Godot headless 不证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在 0.3.6 只能形成 investigation。MCP transcript 按外部证据导入，不由 runtime 自报为本地执行。
 
@@ -41,7 +41,7 @@ Required Skill 缺失、不可寻址或 tree hash 漂移会阻断其任务；adv
 
 ## R1 精简任务卡
 
-使用精简 task-contract 模板。必须固定目标、可观察成功标准、允许/禁止路径、权威引用、机械 case、检查点、审计停止条件和最大声明。自动 case 必须逐项说明它来自哪条已锁定事实或 rule ID；不能追溯的 case 只能是草案。
+使用精简 task-contract 模板。必须固定目标、可观察成功标准、允许/禁止路径、权威引用、机械 case、检查点、审计停止条件和最大声明。自动 case 必须逐项说明它来自哪条已锁定事实或 rule ID；不能追溯的 case 只能是草案。控制面 bootstrap/DRAFT 闭包属于接入诊断，不得包装成候选 required case，否则候选锁定后会制造自我依赖。
 
 ## R2/R3 完整合同
 
@@ -83,8 +83,16 @@ Required Skill 缺失、不可寻址或 tree hash 漂移会阻断其任务；adv
 
 冻结后产品、合同、case、oracle、定位、规则目录、Profile、adapter、Skill binding、依赖或环境发生变化，都必须按固定失效边使对应 execution、review、decision、receipt 和 handoff 失效。状态文件不得自报“仍然有效”。
 
+Evidence 创建时记录工作副本字节身份；提交后 `validate` 必须从 Git blob 复核 transcript、artifact 与 invocation。项目根级换行策略不能覆盖 `.vibe-control/.gitattributes` 中的 evidence `-text -filter -working-tree-encoding` 规则。嵌套策略缺失、漂移或未跟踪时不得沿用旧 PASS。
+
 并行 worker 的提交由负责会话整合。不得自动 push、发布、解锁里程碑、安装缺失 Skill 或执行 R3 操作。
 
 ## 重定位
 
 `reposition --plan --spec <positioning-spec>` 只读展示规范化变化、规则变化和失效集合。`reposition --apply <plan-hash>` 必须匹配当前计划和授权；应用后重新编译规则并回到 `DRAFT/DIAGNOSTIC`。旧 task/candidate/evidence 只保留为诊断历史，不得继承 PASS。
+
+## 同 Schema runtime 升级
+
+Schema 3.2 项目更换固定 runtime 时使用 `upgrade`，不能手工替换 `.vibe-control/runtime/` 或重绑定旧 evidence。无 spec 的 `upgrade --plan` 只读报告旧/新 package、runtime、matrix、治理锁、case catalog、当前 HEAD 和失效集合；带已确认 spec 的 plan 生成内容绑定的 plan hash。Apply 必须重新核对这些输入、干净工作树和确认记录。
+
+Apply 在 staging 中构建并完整验证新控制面，把旧 runtime、task、candidate、evidence、review、decision 与 handoff 复制到 `.vibe-control/legacy/runtime-upgrade-<plan-hash>/`，生成逐文件 bytes/SHA-256 manifest，再原子替换 runtime、Schema、规则与治理锁。中途失败必须恢复旧控制面。升级完成后固定回到 `DRAFT / BLOCKED / DIAGNOSTIC`；归档对象只用于历史诊断，任何旧 PASS、候选或人工决定都不得继承。Case catalog 的有意变化属于确认 spec，且仍受 `CANDIDATE_EXECUTION | BOOTSTRAP_DIAGNOSTIC` 生命周期边界约束。
