@@ -17,6 +17,7 @@ sys.path.insert(0, str(RUNTIME))
 import vibe_runtime.controller as controller
 from vibe_runtime.common import ControlError
 from vibe_runtime.controller import (
+    ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS,
     EVIDENCE_BYTE_POLICY,
     attach_execution_cleanup_error,
     assert_candidate_case_lifecycle,
@@ -28,6 +29,7 @@ from vibe_runtime.controller import (
     paths,
     remove_execution_worktree,
     resolve_executable,
+    run_adapter_tool_probe,
     run_locked_command,
     write_evidence_byte_policy,
 )
@@ -72,6 +74,42 @@ def test_windows_resolution_and_argument_boundary() -> None:
         assert exc.check_id == "HC-EXECUTABLE-RESOLUTION" and exc.status == "BLOCKED"
     else:
         raise AssertionError("missing executable was accepted")
+
+
+def test_adapter_tool_probe_has_bounded_cold_start_budget() -> None:
+    assert ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS == 180
+    original = controller.run_locked_command
+    observed: list[int | None] = []
+
+    def successful_probe(command: list[str], execution_root: Path, *, timeout: int | None = None):
+        observed.append(timeout)
+        return subprocess.CompletedProcess(command, 0, "Version 1.0\n", ""), {
+            "requestedExecutable": command[0],
+            "resolvedExecutable": command[0],
+            "hostPlatform": sys.platform,
+        }
+
+    controller.run_locked_command = successful_probe
+    try:
+        run, _ = run_adapter_tool_probe(["pnpm", "exec", "playwright", "--version"], Path.cwd())
+        assert run.returncode == 0 and observed == [ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS]
+
+        def timed_out_probe(command: list[str], execution_root: Path, *, timeout: int | None = None):
+            raise ControlError(
+                "HC-EXECUTION-TIMEOUT", "synthetic timeout", status="BLOCKED",
+                details={"requestedExecutable": command[0], "timeoutSeconds": timeout},
+            )
+
+        controller.run_locked_command = timed_out_probe
+        try:
+            run_adapter_tool_probe(["pnpm", "exec", "playwright", "--version"], Path.cwd())
+        except ControlError as exc:
+            assert exc.check_id == "HC-ADAPTER-TOOL-PROBE" and exc.status == "BLOCKED"
+            assert exc.details["timeoutSeconds"] == ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS
+        else:
+            raise AssertionError("adapter tool probe timeout was accepted")
+    finally:
+        controller.run_locked_command = original
 
 
 def test_evidence_git_byte_policy_round_trip() -> None:
@@ -217,6 +255,7 @@ def test_cleanup_fails_closed_when_registration_remains() -> None:
 def main() -> int:
     tests = [
         test_windows_resolution_and_argument_boundary,
+        test_adapter_tool_probe_has_bounded_cold_start_budget,
         test_evidence_git_byte_policy_round_trip,
         test_case_lifecycle_is_not_candidate_coverage,
         test_execution_worktree_longpaths_and_cleanup,

@@ -38,6 +38,7 @@ from .schema import validate_object
 PHASES = ["DRAFT", "CONTRACT_LOCKED", "IMPLEMENTING", "CANDIDATE_FROZEN", "VERIFIED", "AUDITED", "ACCEPTED", "RELEASE_READY"]
 CLAIMS = ["DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY"]
 SCHEMA_VERSION = "3.2"
+ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS = 180
 SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 OBJECTIVE_ID = re.compile(r"\b(?:KO|KF|NG)-[A-Z0-9][A-Z0-9._-]*\b")
 DIRECT_BLOCKING_FINDING_CLASSES = {"CURRENT_GOAL_DEFECT", "MINIMUM_CORE_VIOLATION", "SAFETY_OVERRIDE"}
@@ -1171,6 +1172,25 @@ def run_locked_command(command: list[str], execution_root: Path, *, timeout: int
     return result, resolution
 
 
+def run_adapter_tool_probe(command: list[str], execution_root: Path) -> tuple[subprocess.CompletedProcess[str], dict[str, str]]:
+    """Observe the locked adapter tool with a bounded cold-materialization budget."""
+    try:
+        return run_locked_command(command, execution_root, timeout=ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS)
+    except ControlError as exc:
+        if exc.check_id != "HC-EXECUTION-TIMEOUT":
+            raise
+        raise ControlError(
+            "HC-ADAPTER-TOOL-PROBE",
+            f"adapter tool-version probe exceeded {ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS} seconds",
+            status="BLOCKED",
+            details={
+                "command": command,
+                "timeoutSeconds": ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS,
+                "cause": exc.details,
+            },
+        ) from exc
+
+
 def remove_execution_worktree(root: Path, parent: Path, worktree: Path) -> None:
     result = _execution_worktree_git(root, "remove", "--force", str(worktree))
     cleanup_errors: list[str] = []
@@ -1259,7 +1279,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
             if adapter["id"] == "godot-runtime":
                 if not (execution_root / "project.godot").is_file() or "godot" not in Path(case["command"][0]).name.lower():
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Godot case {case_id} must bind project.godot and a Godot executable")
-                version_run, _ = run_locked_command([case["command"][0], "--version"], execution_root, timeout=20)
+                version_run, _ = run_adapter_tool_probe([case["command"][0], "--version"], execution_root)
                 tool_version = (version_run.stdout or version_run.stderr).strip()
                 if version_run.returncode or not tool_version:
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Godot executable/version cannot be observed for {case_id}", status="BLOCKED")
@@ -1267,7 +1287,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
                 version_command = _playwright_version_command(case["command"])
                 if version_command is None:
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright case {case_id} must execute a locked Playwright test command")
-                version_run, _ = run_locked_command(version_command, execution_root, timeout=20)
+                version_run, _ = run_adapter_tool_probe(version_command, execution_root)
                 tool_version = (version_run.stdout or version_run.stderr).strip()
                 if version_run.returncode or not tool_version:
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright executable/version cannot be observed for {case_id}", status="BLOCKED")

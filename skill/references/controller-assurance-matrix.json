@@ -524,10 +524,10 @@
     },
     {
       "id": "CTRL-CONFIRMED-034",
-      "statement": "Locked commands resolve their executable without a shell and preserve argument boundaries; Windows package-manager shims resolve to the actual executable. Windows candidate worktrees use a short root and process-local long-path support, are removed with their Git registration after generated dependency trees, and cleanup errors never mask the primary execution result. Candidate evidence is protected by a tracked byte-preserving Git policy and must match both working-copy hashes and committed Git blobs before it can qualify.",
+      "statement": "Locked commands resolve their executable without a shell and preserve argument boundaries; Windows package-manager shims resolve to the actual executable, and adapter tool probes use a bounded cold-materialization budget with a distinct failure. Windows candidate worktrees use a short root and process-local long-path support, are removed with their Git registration after generated dependency trees, and cleanup errors never mask the primary execution result. Candidate evidence is protected by a tracked byte-preserving Git policy and must match both working-copy hashes and committed Git blobs before it can qualify.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/schemas/adapter-invocation.schema.json", "assets/project-control/runtime/schemas/project-governance-lock.schema.json", "references/evidence-policy.md"],
-      "regressionTests": ["test_windows_resolution_and_argument_boundary", "test_evidence_git_byte_policy_round_trip", "test_execution_worktree_longpaths_and_cleanup", "test_cleanup_failure_does_not_mask_primary_error", "test_cleanup_fails_closed_when_registration_remains"],
+      "regressionTests": ["test_windows_resolution_and_argument_boundary", "test_adapter_tool_probe_has_bounded_cold_start_budget", "test_evidence_git_byte_policy_round_trip", "test_execution_worktree_longpaths_and_cleanup", "test_cleanup_failure_does_not_mask_primary_error", "test_cleanup_fails_closed_when_registration_remains"],
       "independentValidation": "PENDING"
     },
     {
