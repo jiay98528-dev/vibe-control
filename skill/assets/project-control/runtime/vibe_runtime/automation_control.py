@@ -254,7 +254,7 @@ def _current_policy(p: dict[str, Path], lock: dict[str, Any]) -> tuple[dict[str,
 
 def _status_paths(root: Path) -> list[str]:
     values = []
-    for line in clean_status(root):
+    for line in git(root, "status", "--porcelain=v1", "--untracked-files=all").splitlines():
         value = line[3:].split(" -> ")[-1].replace("\\", "/") if len(line) >= 4 else line
         if value:
             values.append(value)
@@ -413,7 +413,11 @@ def automation_action(project: Path, action: str) -> dict[str, Any]:
         if state["phase"] in {"CANDIDATE_FROZEN", "VERIFIED", "AUDITED", "ACCEPTED", "RELEASE_READY"} and product:
             raise ControlError("HC-AUTOMATION-CANDIDATE-DRIFT", "product changes after candidate freeze require a new candidate", status="BLOCKED", details={"paths": product})
         control_changes = [value for value in dirty if value.startswith(".vibe-control/")]
-        unexpected_control = [value for value in control_changes if not any(_path_matches(value, pattern) for pattern in AUTOMATED_CONTROL_OUTPUTS)]
+        active_task_lock = task_lock_path.relative_to(p["root"]).as_posix()
+        unexpected_control = [
+            value for value in control_changes
+            if value != active_task_lock and not any(_path_matches(value, pattern) for pattern in AUTOMATED_CONTROL_OUTPUTS)
+        ]
         if unexpected_control:
             raise ControlError("HC-AUTOMATION-CONTROL-SCOPE", "automatic commit encountered an unowned control-plane path", status="BLOCKED", details={"paths": unexpected_control})
         forbidden = [value for value in product if any(_path_matches(value, pattern) for pattern in contract["forbiddenPaths"])]

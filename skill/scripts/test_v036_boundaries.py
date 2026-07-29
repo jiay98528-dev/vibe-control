@@ -235,6 +235,29 @@ def test_resolved_compiler_metadata_is_rederived() -> None:
         fixture.close()
 
 
+def test_automation_commits_new_active_task_lock_file() -> None:
+    fixture = base.Fixture("AUTO_LOCAL_TO_REVIEW")
+    try:
+        control = fixture.root / ".vibe-control"
+        task_lock = control / "task-locks/TASK-001.json"
+        task_lock.unlink()
+        state_path = control / "stage-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state.update({"phase": "DRAFT", "health": "BLOCKED", "claimLevel": "DIAGNOSTIC", "taskId": None, "candidateId": None, "revision": 0, "phaseHistory": []})
+        base.write_json(state_path, state)
+        base.git(fixture.root, "add", "-A")
+        base.git(fixture.root, "commit", "-m", "return to pre-lock state")
+        contract = control / "tasks/TASK-001.json"
+        locked = base.report(base.run(sys.executable, str(fixture.control), "lock-task", "--project", str(fixture.root), "--contract", str(contract)))
+        assert locked["status"] == "PASS" and task_lock.is_file(), locked
+        _, committed = fixture.command("automation", "--action", "commit")
+        assert committed["status"] == "PASS", committed
+        assert not base.git(fixture.root, "status", "--porcelain=v1")
+        assert task_lock.relative_to(fixture.root).as_posix() in base.git(fixture.root, "show", "--name-only", "--format=", "HEAD").splitlines()
+    finally:
+        fixture.close()
+
+
 def main() -> int:
     tests = [
         test_commit_and_push_are_real_bounded_side_effects,
@@ -244,6 +267,7 @@ def main() -> int:
         test_dashboard_without_task_is_external_and_self_bound,
         test_current_controller_relocks_exact_supported_bound_runtime,
         test_resolved_compiler_metadata_is_rederived,
+        test_automation_commits_new_active_task_lock_file,
     ]
     results = []
     for test in tests:

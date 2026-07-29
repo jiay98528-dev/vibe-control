@@ -79,7 +79,7 @@
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
       "bytes": 8224,
-      "sha256": "e241cefc812e9f9b6c9dda025dd01b16d02f60bdf6bf4b443bf8faef43b8d20f"
+      "sha256": "f5eeec758e9f5a80ca4390471e63cb8ac119f9b46af57952816187379745564f"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
@@ -238,8 +238,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/automation_control.py",
-      "bytes": 26546,
-      "sha256": "a3a4aa7c13901011625750267f56c750ed393a83b3cb784aece0b4aa63ef6301"
+      "bytes": 26743,
+      "sha256": "106e09433a8530ae4e79c0b9c4f30de0617b57ea51e8a82052ad57c8db5ced48"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/checkpoint_control.py",
@@ -763,8 +763,8 @@
     },
     {
       "path": "scripts/test_v036_boundaries.py",
-      "bytes": 13775,
-      "sha256": "a7b89bf21791b8f2253787a080c03a24c882fd0c897787b05ef40bb0491e524d"
+      "bytes": 15194,
+      "sha256": "273ff9d70dab27ee737e6e97dce4b0e14baa336c578c873788df4cf270da6fa2"
     },
     {
       "path": "scripts/test_v2_security.py",
