@@ -1047,17 +1047,83 @@ def candidate_for(p: dict[str, Path], state: dict[str, Any]) -> tuple[Path, dict
     return path, value
 
 
+def _execution_worktree_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    command = ["git"]
+    if os.name == "nt":
+        # This is deliberately process-local. The controller never changes global Git settings.
+        command.extend(["-c", "core.longpaths=true"])
+    command.extend(["-C", str(root), "worktree", *args])
+    return subprocess.run(
+        command, capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+
+
+def _execution_temp_base() -> Path:
+    if os.name != "nt":
+        return Path(tempfile.gettempdir()).resolve()
+    drive = os.environ.get("SystemDrive") or Path.cwd().drive or "C:"
+    preferred = Path(f"{drive}\\vce")
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        return preferred.resolve()
+    except OSError:
+        fallback = Path(tempfile.gettempdir()).resolve() / "vce"
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback.resolve()
+
+
+def _extended_windows_path(path: Path) -> str:
+    resolved = str(path.resolve())
+    if os.name != "nt" or resolved.startswith("\\\\?\\"):
+        return resolved
+    if resolved.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + resolved.lstrip("\\")
+    return "\\\\?\\" + resolved
+
+
+def _remove_tree_longpath(path: Path) -> None:
+    native_path = _extended_windows_path(path)
+    if not os.path.exists(native_path):
+        return
+
+    def make_writable(function: Any, target: str, _error: Any) -> None:
+        try:
+            os.chmod(target, 0o700)
+            function(target)
+        except OSError:
+            return
+
+    shutil.rmtree(native_path, onerror=make_writable)
+
+
+def _path_exists_long(path: Path) -> bool:
+    return os.path.exists(_extended_windows_path(path))
+
+
 def create_execution_worktree(root: Path, candidate_commit: str) -> tuple[Path, Path]:
     """Execute local cases from the immutable candidate tree, never the caller's worktree."""
-    parent = Path(tempfile.mkdtemp(prefix="vibe-control-exec-"))
+    try:
+        parent = Path(tempfile.mkdtemp(prefix="e-", dir=str(_execution_temp_base())))
+    except OSError as exc:
+        raise ControlError(
+            "HC-EXECUTION-WORKTREE", f"unable to allocate candidate execution root: {exc}", status="BLOCKED",
+        ) from exc
     worktree = parent / "candidate"
-    result = subprocess.run(
-        ["git", "-C", str(root), "worktree", "add", "--detach", str(worktree), candidate_commit],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-    )
+    result = _execution_worktree_git(root, "add", "--detach", str(worktree), candidate_commit)
     if result.returncode:
-        shutil.rmtree(parent, ignore_errors=True)
-        raise ControlError("HC-EXECUTION-WORKTREE", result.stderr.strip() or "unable to create immutable candidate execution worktree", status="BLOCKED")
+        cleanup_details = None
+        try:
+            remove_execution_worktree(root, parent, worktree)
+        except ControlError as cleanup_error:
+            cleanup_details = {
+                "id": cleanup_error.check_id, "status": cleanup_error.status,
+                "message": cleanup_error.message, "details": cleanup_error.details,
+            }
+        raise ControlError(
+            "HC-EXECUTION-WORKTREE",
+            result.stderr.strip() or "unable to create immutable candidate execution worktree",
+            status="BLOCKED", details={"cleanup": cleanup_details} if cleanup_details else None,
+        )
     return parent, worktree
 
 
@@ -1106,13 +1172,62 @@ def run_locked_command(command: list[str], execution_root: Path, *, timeout: int
 
 
 def remove_execution_worktree(root: Path, parent: Path, worktree: Path) -> None:
-    result = subprocess.run(
-        ["git", "-C", str(root), "worktree", "remove", "--force", str(worktree)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-    )
-    shutil.rmtree(parent, ignore_errors=True)
+    result = _execution_worktree_git(root, "remove", "--force", str(worktree))
+    cleanup_errors: list[str] = []
     if result.returncode:
-        raise ControlError("HC-EXECUTION-WORKTREE-CLEANUP", result.stderr.strip() or "unable to remove candidate execution worktree", status="BLOCKED")
+        cleanup_errors.append(result.stderr.strip() or "Git could not remove the candidate worktree")
+    try:
+        _remove_tree_longpath(worktree)
+        prune = _execution_worktree_git(root, "prune", "--expire", "now")
+        if prune.returncode:
+            cleanup_errors.append(prune.stderr.strip() or "Git could not prune candidate worktree metadata")
+        _remove_tree_longpath(parent)
+    except OSError as exc:
+        cleanup_errors.append(str(exc))
+    registered = _execution_worktree_git(root, "list", "--porcelain")
+    if registered.returncode:
+        cleanup_errors.append(registered.stderr.strip() or "Git worktree registration could not be verified")
+    normalized = os.path.normcase(str(worktree.absolute()))
+    still_registered = any(
+        line.startswith("worktree ") and os.path.normcase(str(Path(line[9:]).absolute())) == normalized
+        for line in registered.stdout.splitlines()
+    )
+    residue = _path_exists_long(worktree) or _path_exists_long(parent) or still_registered or registered.returncode != 0
+    if residue:
+        cleanup_errors.append("candidate execution worktree or its Git registration remains after cleanup")
+    if cleanup_errors and residue:
+        raise ControlError(
+            "HC-EXECUTION-WORKTREE-CLEANUP", "; ".join(dict.fromkeys(cleanup_errors)), status="BLOCKED",
+        )
+
+
+def attach_execution_cleanup_error(primary_error: BaseException, cleanup_error: ControlError) -> None:
+    if isinstance(primary_error, ControlError):
+        if isinstance(primary_error.details, dict):
+            details = dict(primary_error.details)
+        elif primary_error.details is None:
+            details = {}
+        else:
+            details = {"primaryDetails": primary_error.details}
+        details["executionWorktreeCleanup"] = {
+            "id": cleanup_error.check_id, "status": cleanup_error.status,
+            "message": cleanup_error.message, "details": cleanup_error.details,
+        }
+        primary_error.details = details
+    elif hasattr(primary_error, "add_note"):
+        primary_error.add_note(
+            f"candidate cleanup also failed [{cleanup_error.check_id}]: {cleanup_error.message}"
+        )
+
+
+def execution_result(outputs: list[str], results: list[str], cleanup_error: ControlError | None) -> dict[str, Any]:
+    status = "PASS" if results and all(value == "PASS" for value in results) else "FAIL"
+    if cleanup_error is not None and status == "PASS":
+        raise cleanup_error
+    checks = [check("HC-EXECUTE", status, "controller executed requested cases with conserved results")]
+    if cleanup_error is not None:
+        checks.append(check(cleanup_error.check_id, cleanup_error.status, cleanup_error.message, details=cleanup_error.details))
+    return envelope(status=status, checks=checks, data={"evidence": outputs, "next": "commit evidence and validate"})
 
 
 def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] | None) -> dict[str, Any]:
@@ -1126,6 +1241,8 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
         raise ControlError("HC-TASK-CASE-CLOSURE", "execute cannot expand beyond the task's locked cases", details=unknown)
     outputs = []; results = []
     parent, execution_root = create_execution_worktree(root, candidate["commit"])
+    primary_error: BaseException | None = None
+    cleanup_error: ControlError | None = None
     try:
         for case_id in selected:
             case = get_case(catalog, case_id)
@@ -1205,10 +1322,18 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
             }
             if tool_version is not None: evidence["toolVersion"] = tool_version
             validate_object("execution-evidence", evidence); output = p["evidence"] / f"{evidence_id}.json"; write_json_atomic(output, evidence); outputs.append(str(output)); results.append(evidence["result"])
+    except BaseException as exc:
+        primary_error = exc
     finally:
-        remove_execution_worktree(root, parent, execution_root)
-    status = "PASS" if results and all(value == "PASS" for value in results) else "FAIL"
-    return envelope(status=status, checks=[check("HC-EXECUTE", status, "controller executed requested cases with conserved results")], data={"evidence": outputs, "next": "commit evidence and validate"})
+        try:
+            remove_execution_worktree(root, parent, execution_root)
+        except ControlError as exc:
+            cleanup_error = exc
+    if primary_error is not None:
+        if cleanup_error is not None:
+            attach_execution_cleanup_error(primary_error, cleanup_error)
+        raise primary_error.with_traceback(primary_error.__traceback__)
+    return execution_result(outputs, results, cleanup_error)
 
 
 def trusted_key(lock: dict[str, Any], key_id: str, role: str) -> str:

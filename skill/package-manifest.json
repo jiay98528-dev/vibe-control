@@ -79,7 +79,7 @@
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
       "bytes": 8725,
-      "sha256": "f2b873e77e1c396e44ac354ca4e4ecba57539ecf8c484b8d051c12ca35a76387"
+      "sha256": "cf68c7157a3d56493731ad6126b1baf07778b679b6eba9f23dbc24a95de61e94"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
@@ -268,8 +268,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/controller.py",
-      "bytes": 187000,
-      "sha256": "9c082bf98b2f7dbdbad8e0a88ce9395ce93f2c9afb3dbbbaf37c2d780d3c4c26"
+      "bytes": 192078,
+      "sha256": "5f47f0e000fdf116f221653ee72afad0f4a4fdb4487455953670a448129232bc"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/crypto.py",
@@ -618,8 +618,8 @@
     },
     {
       "path": "references/0.3.7-requirements.md",
-      "bytes": 4674,
-      "sha256": "d0b2b13f162cfa47b9ebb8f9d56c3e954fdf78fafca7100d5b51b660ccdd80eb"
+      "bytes": 5141,
+      "sha256": "db272217dfb284e8879f232580e02399fdd5c3511e29e46af13b0ca1c6188a46"
     },
     {
       "path": "references/adoption.md",
@@ -643,8 +643,8 @@
     },
     {
       "path": "references/controller-assurance-matrix.json",
-      "bytes": 42995,
-      "sha256": "2c7c15f1104ce70c45c1b6417ae6ba35aacf388ce8a3810bcd7df231d4cdb91f"
+      "bytes": 43367,
+      "sha256": "a8913349d690d0e6aed2636763be0ea373096ad7a8c7af2c1043fd027c46273f"
     },
     {
       "path": "references/controller-assurance.md",
@@ -673,8 +673,8 @@
     },
     {
       "path": "references/incident-2026-07-25.md",
-      "bytes": 39400,
-      "sha256": "d2e1f246776fa0b0de2994b2fb5b23944651d47825f9faa7c91d7d8104f0de5a"
+      "bytes": 40045,
+      "sha256": "352669eb010b38cf4a05fe1feb3bd75b86f6c1a178bd3e7358193c215f94edcf"
     },
     {
       "path": "references/key-objectives.md",
@@ -808,8 +808,8 @@
     },
     {
       "path": "scripts/test_v037_runtime_compat.py",
-      "bytes": 5619,
-      "sha256": "d799d28d1c632ddce0252bce8f6754737ef5b8b4ec277427ada225274226db44"
+      "bytes": 10740,
+      "sha256": "0b099ff75f67593af0cea0396eed305fbd2e0e13a317d144d4dc4a23bd0aea94"
     },
     {
       "path": "scripts/test_v037_upgrade.py",
