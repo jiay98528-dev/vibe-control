@@ -79,7 +79,7 @@
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
       "bytes": 8725,
-      "sha256": "a96953166a4f67eedda56c7d94005758141172d49dc947d6f66668cc5429cf42"
+      "sha256": "f2d79483d33479137e5d4846608b1dc775398553d0ffa1d2c5e7b0ce039076a1"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
@@ -303,8 +303,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/upgrade_control.py",
-      "bytes": 24594,
-      "sha256": "78932ee7c151936ee44b6221601206b8dec06acc39b7f3e8b33f930a52dc7c23"
+      "bytes": 44288,
+      "sha256": "623603a547a09db9da65697d58144c20f7750d376c1496e1ddffa2c98833c0cd"
     },
     {
       "path": "assets/project-control/schemas/adapter-descriptor.schema.json",
@@ -813,8 +813,8 @@
     },
     {
       "path": "scripts/test_v037_upgrade.py",
-      "bytes": 15591,
-      "sha256": "cb65d82826a2c4877be36b8da7dab3be583b68b37eb442f7eef26541b40a550e"
+      "bytes": 30807,
+      "sha256": "860715b056d7151cb5b5a76091897189e6ee1b9a8fffcd5bdf268f3cbd2094a4"
     },
     {
       "path": "scripts/test_v2_security.py",

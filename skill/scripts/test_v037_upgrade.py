@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from unittest import mock
 
@@ -18,6 +21,11 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from test_v036_automation import automation_policy, bootstrap_spec  # noqa: E402
+import bounded_test_runner as bounded  # noqa: E402
+
+
+DEFAULT_CASE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_UPGRADE_CASE_TIMEOUT", "250"))
+DEFAULT_SUITE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_UPGRADE_SUITE_TIMEOUT", "280"))
 
 
 def run(*args: str, cwd: Path | None = None, expect: int | None = None, timeout: int = 240) -> subprocess.CompletedProcess[str]:
@@ -437,6 +445,62 @@ def test_staging_failure_preserves_live_control(base: Path, package: Path) -> No
         assert control_snapshot(drift_project) == drift_before
         assert not (drift_project / f".vibe-control.upgrade-{drift_plan['planHash'][:12]}.tmp").exists()
 
+        # Exercise the final directory-exchange race directly.  A second full
+        # package materialization would push this focused suite past the host's
+        # bounded command window without adding coverage to the swap itself.
+        post_swap = base / "transaction-post-swap-head"
+        post_swap.mkdir()
+        git(post_swap, "init")
+        git(post_swap, "config", "user.email", "fixture@example.invalid")
+        git(post_swap, "config", "user.name", "Fixture")
+        post_swap_live = post_swap / ".vibe-control"
+        post_swap_live.mkdir()
+        (post_swap_live / "old.txt").write_text("old\n", encoding="utf-8", newline="\n")
+        git(post_swap, "add", "-A")
+        git(post_swap, "commit", "-m", "old control")
+        approved_head = git(post_swap, "rev-parse", "HEAD")
+        source_sha = hashlib.sha256(
+            upgrade_control.canonical_bytes(upgrade_control._snapshot_files(post_swap_live))
+        ).hexdigest()
+        post_swap_plan_hash = "a" * 64
+        post_swap_staging = post_swap / ".vibe-control.upgrade-head.tmp"
+        post_swap_staging.mkdir()
+        (post_swap_staging / "new.txt").write_text("new\n", encoding="utf-8", newline="\n")
+        post_swap_backup = post_swap / ".vibe-control.upgrade-head.backup"
+        post_swap_journal = post_swap / ".git" / "post-swap.journal.json"
+        real_replace = upgrade_control._replace_path
+
+        def advance_head_after_install(source_path: Path, target_path: Path) -> None:
+            real_replace(source_path, target_path)
+            if source_path == post_swap_staging and target_path == post_swap_live:
+                concurrent = post_swap / "concurrent.txt"
+                concurrent.write_text("concurrent commit\n", encoding="utf-8", newline="\n")
+                git(post_swap, "add", "concurrent.txt")
+                git(post_swap, "commit", "-m", "concurrent head advance")
+
+        with mock.patch.object(upgrade_control, "_replace_path", side_effect=advance_head_after_install):
+            try:
+                upgrade_control._transactional_swap(
+                    root=post_swap,
+                    live=post_swap_live,
+                    staging=post_swap_staging,
+                    backup=post_swap_backup,
+                    journal=post_swap_journal,
+                    plan_hash=post_swap_plan_hash,
+                    approved_git_head=approved_head,
+                    source_snapshot_sha256=source_sha,
+                    archive_relative="unused-after-drift",
+                )
+            except upgrade_control.ControlError as exc:
+                assert exc.check_id == "HC-UPGRADE-TRANSACTION-DRIFT", exc.check_id
+                assert exc.status == "INVALIDATED"
+            else:
+                raise AssertionError("expected post-swap HEAD drift invalidation")
+        assert (post_swap_live / "old.txt").read_text(encoding="utf-8") == "old\n"
+        assert not post_swap_staging.exists() and not post_swap_backup.exists()
+        assert not post_swap_journal.exists()
+        assert git(post_swap, "status", "--porcelain") == ""
+
         for label, injected in (("oserror", OSError("injected swap failure")), ("interrupt", KeyboardInterrupt())):
             project = base / f"transaction-{label}"
             shutil.copytree(source_project, project)
@@ -502,34 +566,92 @@ def test_staging_failure_preserves_live_control(base: Path, package: Path) -> No
         sys.path.remove(str(runtime))
 
 
-def main() -> int:
-    tests = [
-        test_plan_is_read_only_and_apply_invalidates,
-        test_dirty_wrong_hash_untracked_and_plan_drift,
-        test_staging_failure_preserves_live_control,
-    ]
-    results: list[dict[str, str]] = []
+TESTS = [
+    test_plan_is_read_only_and_apply_invalidates,
+    test_dirty_wrong_hash_untracked_and_plan_drift,
+    test_staging_failure_preserves_live_control,
+]
+
+
+def run_worker(test_name: str) -> int:
+    test = {item.__name__: item for item in TESTS}.get(test_name)
+    if test is None:
+        print(json.dumps({"case": test_name, "status": "FAIL", "checkId": "UPGRADE-UNKNOWN-CASE"}, ensure_ascii=False))
+        return 1
+    started = time.monotonic()
     short_root = Path("C:/vc37") if sys.platform == "win32" and Path("C:/vc37").is_dir() else None
     with tempfile.TemporaryDirectory(prefix="u-", dir=short_root, ignore_cleanup_errors=True) as name:
         base = Path(name)
         package = materialize_package(base)
-        for test in tests:
-            try:
-                test(base, package)
-            except Exception as exc:
-                results.append({"id": test.__name__, "status": "FAIL", "error": f"{type(exc).__name__}: {exc}"})
-            else:
-                results.append({"id": test.__name__, "status": "PASS"})
+        try:
+            test(base, package)
+        except Exception as exc:
+            result = {"case": test_name, "status": "FAIL", "checkId": "UPGRADE-CASE-FAIL", "errorType": type(exc).__name__, "error": str(exc)}
+            exit_code = 1
+        else:
+            result = {"case": test_name, "status": "PASS"}
+            exit_code = 0
+    result["durationSeconds"] = round(time.monotonic() - started, 3)
+    print(json.dumps(result, ensure_ascii=False), flush=True)
+    return exit_code
+
+
+class JsonArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ValueError(message)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = JsonArgumentParser(add_help=True)
+    parser.add_argument("--list", action="store_true")
+    parser.add_argument("--case")
+    parser.add_argument("--jobs", type=int, default=min(3, os.cpu_count() or 1))
+    parser.add_argument("--case-timeout", type=int, default=DEFAULT_CASE_TIMEOUT_SECONDS)
+    parser.add_argument("--suite-timeout", type=int, default=DEFAULT_SUITE_TIMEOUT_SECONDS)
+    try:
+        args = parser.parse_args(argv)
+        names = [test.__name__ for test in TESTS]
+        if args.list and args.case:
+            raise ValueError("--list and --case are mutually exclusive")
+        if args.jobs < 1 or args.case_timeout < 1 or args.suite_timeout < 1:
+            raise ValueError("jobs and timeouts must be positive integers")
+        if args.list:
+            print(json.dumps({"status": "PASS", "cases": names}, ensure_ascii=False))
+            return 0
+        if args.case:
+            return run_worker(args.case)
+    except ValueError as exc:
+        print(json.dumps({"status": "FAIL", "checkId": "UPGRADE-INVALID-ARGUMENTS", "error": str(exc)}, ensure_ascii=False))
+        return 1
+
+    with tempfile.TemporaryDirectory(prefix="vibe-control-upgrade-suite-", ignore_cleanup_errors=True) as temp_name:
+        results, duration = bounded.run_suite(
+            names,
+            command_for=lambda name: [sys.executable, str(Path(__file__).resolve()), "--case", name],
+            temp_root=Path(temp_name),
+            jobs=args.jobs,
+            case_timeout=args.case_timeout,
+            suite_timeout=args.suite_timeout,
+            identity_field="case",
+            protocol_id="UPGRADE-CASE-PROTOCOL",
+            timeout_id="UPGRADE-CASE-TIMEOUT",
+            suite_timeout_id="UPGRADE-SUITE-TIMEOUT",
+        )
+    counters = bounded.counters(results)
+    passed = bool(results) and counters["passed"] == len(results)
     value = {
-        "status": "PASS" if all(item["status"] == "PASS" for item in results) else "FAIL",
-        "total": len(results),
-        "passed": sum(item["status"] == "PASS" for item in results),
-        "failed": sum(item["status"] == "FAIL" for item in results),
-        "skipped": 0,
-        "results": results,
+        "status": "PASS" if passed else "FAIL",
+        "test": "vibe-control-0.3.7-upgrade",
+        "jobs": args.jobs,
+        "caseTimeoutSeconds": args.case_timeout,
+        "suiteTimeoutSeconds": args.suite_timeout,
+        "suiteCleanupBudgetSeconds": bounded.SUITE_CLEANUP_BUDGET_SECONDS,
+        "durationSeconds": round(duration, 3),
+        "counters": counters,
+        "cases": results,
     }
     print(json.dumps(value, ensure_ascii=False, indent=2))
-    return 0 if value["status"] == "PASS" else 1
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

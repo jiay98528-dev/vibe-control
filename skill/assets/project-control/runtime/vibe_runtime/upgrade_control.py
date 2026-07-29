@@ -467,7 +467,26 @@ def _porcelain_path(line: str) -> str:
 def _unexpected_status(root: Path, *owned_names: str) -> list[str]:
     prefixes = tuple(f"{name.rstrip('/')}/" for name in owned_names)
     unexpected: list[str] = []
-    for line in clean_status(root):
+    # ``common.git`` intentionally strips command output, which removes the
+    # leading index-status space from the first porcelain record.  Read the
+    # porcelain stream directly here so the first managed path is parsed with
+    # exactly the same two status columns as every subsequent path.
+    result = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain=v1"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        raise ControlError(
+            "HC-UPGRADE-TRANSACTION-DRIFT",
+            result.stderr.strip() or "Git worktree status could not be revalidated",
+            status="INVALIDATED",
+        )
+    for line in result.stdout.splitlines():
+        if not line:
+            continue
         relative = _porcelain_path(line)
         if relative in owned_names or relative.startswith(prefixes):
             continue
@@ -644,6 +663,7 @@ def _transactional_swap(
     backup: Path,
     journal: Path,
     plan_hash: str,
+    approved_git_head: str,
     source_snapshot_sha256: str,
     archive_relative: str,
 ) -> None:
@@ -676,6 +696,19 @@ def _transactional_swap(
             journal, phase="REPLACEMENT_INSTALLED", plan_hash=plan_hash,
             live=live, staging=staging, backup=backup,
         )
+        current_head = git(root, "rev-parse", "HEAD")
+        unexpected = _unexpected_status(root, ".vibe-control", staging.name, backup.name)
+        if current_head != approved_git_head or unexpected:
+            raise ControlError(
+                "HC-UPGRADE-TRANSACTION-DRIFT",
+                "Git HEAD or a non-control worktree path changed during directory exchange",
+                status="INVALIDATED",
+                details={
+                    "approvedGitHead": approved_git_head,
+                    "currentGitHead": current_head,
+                    "unexpectedStatus": unexpected,
+                },
+            )
         _validate_installed_archive(root, live, archive_relative)
     except (Exception, KeyboardInterrupt) as exc:
         try:
@@ -1043,6 +1076,7 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
         backup=backup,
         journal=journal,
         plan_hash=plan_hash,
+        approved_git_head=planned["gitHead"],
         source_snapshot_sha256=planned["sourceSnapshotSha256"],
         archive_relative=archive_relative,
     )
