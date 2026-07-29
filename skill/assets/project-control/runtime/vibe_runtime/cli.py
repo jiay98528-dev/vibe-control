@@ -37,7 +37,7 @@ def parser() -> JsonParser:
     item = sub.add_parser("audit"); item.add_argument("--project", default="."); item.add_argument("--review", required=True); item.add_argument("--output")
     item = sub.add_parser("accept"); item.add_argument("--project", default="."); item.add_argument("--decision", required=True); item.add_argument("--output")
     item = sub.add_parser("handoff"); item.add_argument("--project", default="."); item.add_argument("--handoff-output"); item.add_argument("--output")
-    item = sub.add_parser("automation"); item.add_argument("--project", default="."); item.add_argument("--spec"); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); mode.add_argument("--action", choices=("dispatch", "continue", "commit", "push")); item.add_argument("--output")
+    item = sub.add_parser("automation"); item.add_argument("--project", default="."); item.add_argument("--spec"); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); mode.add_argument("--action", choices=("dispatch", "continue", "commit", "push")); item.add_argument("--message"); item.add_argument("--output")
     item = sub.add_parser("dashboard"); item.add_argument("--project", default="."); item.add_argument("--output-dir"); item.add_argument("--output")
     item = sub.add_parser("migrate"); item.add_argument("--project", default="."); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); item.add_argument("--spec"); item.add_argument("--output")
     item = sub.add_parser("risk"); item.add_argument("--score", required=True, type=int); item.add_argument("--forced-r3", action="store_true"); item.add_argument("--output")
@@ -70,7 +70,11 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
         if args.action:
             if args.spec:
                 raise ControlError("CLI-INVALID-ARGUMENTS", "automation --action does not accept --spec")
-            return automation_action(project, args.action)
+            if args.message is not None and args.action != "commit":
+                raise ControlError("CLI-INVALID-ARGUMENTS", "automation --message is only valid with --action commit")
+            return automation_action(project, args.action, args.message)
+        if args.message is not None:
+            raise ControlError("CLI-INVALID-ARGUMENTS", "automation --message is only valid with --action commit")
         if not args.spec:
             raise ControlError("CLI-INVALID-ARGUMENTS", "automation --plan/--apply requires --spec")
         return automation_plan(project, Path(args.spec)) if args.plan else automation_apply(project, Path(args.spec), args.apply)

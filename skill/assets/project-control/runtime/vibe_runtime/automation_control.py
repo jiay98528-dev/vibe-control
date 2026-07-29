@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import unicodedata
 import urllib.parse
 from pathlib import Path
 from typing import Any
@@ -274,6 +275,23 @@ def _git_result(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
 
 
+def _milestone_commit_subject(task_id: str, requested: str | None) -> str:
+    subject = requested if requested is not None else f"chore(governance): record {task_id} milestone"
+    if not isinstance(subject, str) or not subject.strip():
+        raise ControlError(
+            "HC-AUTOMATION-MILESTONE-MESSAGE",
+            "automatic milestone commit subject must not be empty",
+            status="BLOCKED",
+        )
+    if any(unicodedata.category(character) in {"Cc", "Zl", "Zp"} for character in subject):
+        raise ControlError(
+            "HC-AUTOMATION-MILESTONE-MESSAGE",
+            "automatic milestone commit subject must be one line without control characters",
+            status="BLOCKED",
+        )
+    return subject
+
+
 def _assert_locked_inputs(root: Path, task_lock_path: Path, task_lock: dict[str, Any]) -> None:
     """Reject boundary drift before an automatic side effect.
 
@@ -373,7 +391,7 @@ def _assert_push_history_scope(
     return {"baselineCommit": baseline, "commits": commits, "observed": observed}
 
 
-def automation_action(project: Path, action: str) -> dict[str, Any]:
+def automation_action(project: Path, action: str, message: str | None = None) -> dict[str, Any]:
     if action not in ACTIONS:
         raise ControlError("HC-AUTOMATION-ACTION", f"unknown automation action: {action}")
     p = _paths(project)
@@ -407,6 +425,7 @@ def automation_action(project: Path, action: str) -> dict[str, Any]:
         raise ControlError("HC-AUTOMATION-REVIEW-POINT", "candidate reached the fixed human review point", status="BLOCKED")
     checks = [check("HC-AUTOMATION-POLICY", "PASS", "automation action is authorized by the current task-bound policy", action=action, mode=policy["mode"])]
     if action == "commit":
+        commit_subject = _milestone_commit_subject(task_id, message)
         dirty = _status_paths(p["root"])
         if not dirty:
             raise ControlError("HC-AUTOMATION-MILESTONE-EMPTY", "there are no task changes to commit", status="BLOCKED")
@@ -432,12 +451,23 @@ def automation_action(project: Path, action: str) -> dict[str, Any]:
         staged_result = _git_result(p["root"], "add", "-A")
         if staged_result.returncode != 0:
             raise ControlError("HC-AUTOMATION-MILESTONE-COMMIT", "automatic staging failed", status="BLOCKED")
-        committed = _git_result(p["root"], "commit", "-m", f"vibe-control: milestone {task_id}")
+        committed = _git_result(p["root"], "commit", "-m", commit_subject)
         if committed.returncode != 0:
-            _git_result(p["root"], "reset", "--quiet")
-            raise ControlError("HC-AUTOMATION-MILESTONE-COMMIT", "automatic milestone commit failed", status="BLOCKED")
+            reset = _git_result(p["root"], "reset", "--quiet")
+            raise ControlError(
+                "HC-AUTOMATION-MILESTONE-COMMIT",
+                "automatic milestone commit failed; task files remain in the worktree",
+                status="BLOCKED",
+                details={
+                    "returnCode": committed.returncode,
+                    "stderr": committed.stderr.strip(),
+                    "stdout": committed.stdout.strip(),
+                    "stagingCleared": reset.returncode == 0,
+                    "resetStderr": reset.stderr.strip(),
+                },
+            )
         milestone = git(p["root"], "rev-parse", "HEAD")
-        checks.append(check("HC-AUTOMATION-MILESTONE-COMMIT", "PASS", "task-scoped milestone commit created", commit=milestone))
+        checks.append(check("HC-AUTOMATION-MILESTONE-COMMIT", "PASS", "task-scoped milestone commit created", commit=milestone, subject=commit_subject))
     if action == "push":
         if policy["pushPolicy"] != "EXISTING_UPSTREAM_MILESTONES":
             raise ControlError("HC-AUTOMATION-PUSH-POLICY", "current automation mode does not authorize push", status="BLOCKED")
@@ -469,6 +499,7 @@ def automation_action(project: Path, action: str) -> dict[str, Any]:
     data = {"action": action, "mode": policy["mode"], "policyId": policy["policyId"], "authorized": True}
     if action == "commit":
         data["milestoneCommit"] = git(p["root"], "rev-parse", "HEAD")
+        data["commitSubject"] = commit_subject
     if action == "push":
         data["pushedCommit"] = git(p["root"], "rev-parse", "HEAD")
     return envelope(status="PASS", checks=checks, data=data)
