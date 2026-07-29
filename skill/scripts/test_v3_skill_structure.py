@@ -199,7 +199,7 @@ def test_automation_dashboard_surface_and_assurance_controls_exist() -> None:
 
     matrix = json.loads((ROOT / "references" / "controller-assurance-matrix.json").read_text(encoding="utf-8-sig"))
     controls = {item["id"]: item for item in matrix["confirmedControls"]}
-    for control_id in ("CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032"):
+    for control_id in ("CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"):
         item = controls[control_id]
         assert item["implementationStatus"] == "IMPLEMENTED"
         assert item["independentValidation"] == "PENDING"

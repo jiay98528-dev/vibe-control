@@ -27,7 +27,7 @@
 
 运行只读 `resolve-rules` 展示 Profile AND、adapter 证明边界、Skill bindings、人工门禁、warning、investigation、冲突和安装请求：
 
-- 0.3.6 只实现 `generic-command`、`browser-runtime`、`godot-runtime`；
+- 0.3.6 实现 `generic-command`、`browser-runtime`、`browser-webgl-game-runtime`、`godot-runtime`；其中 WebGL 游戏 Adapter 只在已确认 `GAMEPLAY` 与显式 WebGL target 同时成立时激活；
 - Tauri、Electron、Unreal 与 Capacitor 信号只产生 investigation；
 - required Skill 缺失或漂移会阻断对应任务，advisory 缺失只告警；
 - 缺失 Skill 的安装必须获得用户明确批准，安装后重新发现、哈希并解析；安装不使用私钥。

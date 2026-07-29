@@ -120,7 +120,8 @@ def _control_snapshot(root: Path) -> dict[str, str]:
 
 def _baseline_project(parent: Path, name: str) -> Path:
     project = parent / name
-    _run(["git", "clone", "--quiet", "--no-local", str(ROOT), str(project)])
+    source_repository = Path(_run(["git", "-C", str(ROOT), "rev-parse", "--show-toplevel"]).stdout.strip())
+    _run(["git", "clone", "--quiet", "--no-local", str(source_repository), str(project)])
     _git(project, "checkout", "--quiet", "--detach", BASELINE)
     _git(project, "config", "user.email", "fixture@example.invalid")
     _git(project, "config", "user.name", "Fixture")

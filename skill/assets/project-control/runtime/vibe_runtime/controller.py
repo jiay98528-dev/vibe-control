@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from . import VERSION
@@ -59,7 +59,7 @@ REQUIRED_ASSURANCE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-022", "CTRL-CONFIRMED-023", "CTRL-CONFIRMED-024",
     "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
-    "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032",
+    "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
 })
 
 
@@ -385,6 +385,114 @@ def _adapter_binding(compiled: dict[str, Any], requested: Any) -> dict[str, Any]
     return {"id": adapter_id, "version": descriptor["version"], "sha256": sha256_bytes(canonical_bytes(descriptor))}
 
 
+def adapter_requires_artifacts(descriptor: dict[str, Any] | None) -> bool:
+    return isinstance(descriptor, dict) and descriptor.get("localExecution", {}).get("mode") == "playwright"
+
+
+def command_invokes_playwright(command: Any) -> bool:
+    if not isinstance(command, list) or not command:
+        return False
+    executable_names = {"playwright", "playwright.cmd", "playwright.exe"}
+    package_manager_names = {
+        "pnpm": "pnpm", "pnpm.cmd": "pnpm", "pnpm.exe": "pnpm",
+        "npm": "npm", "npm.cmd": "npm", "npm.exe": "npm",
+        "npx": "npx", "npx.cmd": "npx", "npx.exe": "npx",
+        "yarn": "yarn", "yarn.cmd": "yarn", "yarn.exe": "yarn",
+        "bunx": "bunx", "bunx.exe": "bunx",
+    }
+    executable = Path(command[0]).name.lower() if isinstance(command[0], str) else ""
+    if executable in executable_names:
+        return True
+    manager = package_manager_names.get(executable)
+    if manager == "pnpm":
+        return len(command) > 2 and command[1] == "exec" and Path(command[2]).name.lower() in executable_names
+    if manager == "npm":
+        index = 2 if len(command) > 2 and command[1] == "exec" else -1
+        if index >= 0 and command[index] == "--":
+            index += 1
+        return index >= 0 and index < len(command) and Path(command[index]).name.lower() in executable_names
+    if manager in {"npx", "yarn", "bunx"}:
+        return len(command) > 1 and Path(command[1]).name.lower() in executable_names
+    return False
+
+
+def validate_adapter_case_contract(case_id: str, case: dict[str, Any], descriptor: dict[str, Any]) -> None:
+    """Fail closed before execution when a runtime case exceeds its adapter contract."""
+    if not adapter_requires_artifacts(descriptor):
+        return
+    if not case.get("artifacts"):
+        raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright case {case_id} must declare screenshot/report/trace/log artifacts")
+    if not command_invokes_playwright(case.get("command")):
+        raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright case {case_id} must execute a locked Playwright command")
+
+
+def _artifact_ref_matches_requirement(ref: Any, requirement: dict[str, Any], evidence_id: str) -> bool:
+    if not isinstance(ref, dict) or not isinstance(ref.get("path"), str) or not isinstance(ref.get("bytes"), int):
+        return False
+    declared_path = requirement.get("path")
+    if not isinstance(declared_path, str) or not isinstance(requirement.get("minBytes"), int):
+        return False
+    relative = declared_path.replace("\\", "/")
+    normalized = PurePosixPath(relative)
+    expected_parts = normalized.parts
+    canonical_relative = "/".join(expected_parts)
+    expected_path = f".vibe-control/evidence/artifacts/{evidence_id}/{canonical_relative}"
+    return (
+        bool(expected_parts)
+        and ".." not in expected_parts
+        and not normalized.is_absolute()
+        and not PureWindowsPath(declared_path).drive
+        and ref["path"].replace("\\", "/") == expected_path
+        and ref["bytes"] >= requirement["minBytes"]
+    )
+
+
+def evidence_adapter_contract_matches(
+    evidence: dict[str, Any], case: dict[str, Any], descriptor: dict[str, Any] | None,
+    invocation: dict[str, Any] | None,
+) -> bool:
+    if descriptor is None:
+        return False
+    declared_capabilities = set(case.get("capabilities", []))
+    observed_capabilities = set(evidence.get("capabilitiesObserved", []))
+    descriptor_capabilities = set(descriptor.get("provesCaseCapabilities", []))
+    requirements = case.get("artifacts", [])
+    artifact_refs = evidence.get("artifacts", [])
+    invocation_ok = (
+        isinstance(invocation, dict)
+        and invocation.get("schemaVersion") == SCHEMA_VERSION
+        and invocation.get("candidateCommit") == evidence.get("candidateCommit")
+        and invocation.get("caseId") == case.get("id") == evidence.get("caseId")
+        and invocation.get("adapter") == case.get("adapter") == evidence.get("adapter")
+        and invocation.get("command") == case.get("command") == evidence.get("command")
+        and invocation.get("requestedArtifacts") == requirements
+    )
+    if evidence.get("observation") == "runtime-observed":
+        oracle = invocation.get("oracleObservation") if isinstance(invocation, dict) else None
+        invocation_ok = invocation_ok and (
+            invocation.get("operation") == "execute-locked-case"
+            and invocation.get("executionRoot") == "detached-candidate-worktree"
+            and isinstance(oracle, dict)
+            and oracle.get("expectedExitCode") == case.get("oracle", {}).get("exitCode")
+            and oracle.get("observedExitCode") == evidence.get("exitCode")
+            and (evidence.get("result") != "PASS" or not any(oracle.get(key) for key in ("missingStdout", "forbiddenStderr", "artifactFailures")))
+        )
+    else:
+        invocation_ok = invocation_ok and invocation.get("operation") == evidence.get("operation") and invocation.get("toolVersion") == evidence.get("toolVersion")
+    return (
+        evidence.get("adapter") == case.get("adapter")
+        and case["adapter"].get("version") == descriptor.get("version")
+        and case["adapter"].get("sha256") == sha256_bytes(canonical_bytes(descriptor))
+        and evidence.get("command") == case.get("command")
+        and observed_capabilities == declared_capabilities
+        and observed_capabilities.issubset(descriptor_capabilities)
+        and len(artifact_refs) == len(requirements)
+        and isinstance(evidence.get("evidenceId"), str)
+        and all(_artifact_ref_matches_requirement(ref, requirement, evidence["evidenceId"]) for ref, requirement in zip(artifact_refs, requirements))
+        and invocation_ok
+    )
+
+
 def _catalog_from_spec(spec: dict[str, Any], compiled: dict[str, Any]) -> dict[str, Any]:
     cases = []
     for raw in spec["cases"]:
@@ -393,6 +501,8 @@ def _catalog_from_spec(spec: dict[str, Any], compiled: dict[str, Any]) -> dict[s
         item = dict(raw)
         item["adapter"] = _adapter_binding(compiled, raw.get("adapter", raw.get("adapterId", "generic-command")))
         item.pop("adapterId", None)
+        descriptor = next(value for value in compiled["canonical"]["runtimeAdapters"] if value.get("id") == item["adapter"]["id"])
+        validate_adapter_case_contract(str(item.get("id", "unknown")), item, descriptor)
         item.setdefault("satisfiesRuleIds", [])
         item.setdefault("capabilities", [])
         cases.append(item)
@@ -765,10 +875,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
             descriptor = next((item for item in resolved["canonical"]["runtimeAdapters"] if item.get("id") == adapter["id"]), None)
             if descriptor is None or adapter["version"] != descriptor.get("version") or adapter["sha256"] != sha256_bytes(canonical_bytes(descriptor)):
                 raise ControlError("HC-ADAPTER-CAPABILITY", f"case {case_id} adapter binding drifted", status="INVALIDATED")
-            if adapter["id"] == "browser-runtime" and not case.get("artifacts"):
-                raise ControlError("HC-ADAPTER-CAPABILITY", f"browser case {case_id} must declare screenshot/trace/log artifacts")
-            if adapter["id"] == "browser-runtime" and "playwright" not in " ".join(case["command"]).lower():
-                raise ControlError("HC-ADAPTER-CAPABILITY", f"browser case {case_id} must execute a locked Playwright command")
+            validate_adapter_case_contract(case_id, case, descriptor)
             tool_version = None
             if adapter["id"] == "godot-runtime":
                 if not (execution_root / "project.godot").is_file() or "godot" not in Path(case["command"][0]).name.lower():
@@ -792,7 +899,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
                 artifact_sizes[relative] = source.stat().st_size if source.is_file() else None
                 if artifact_sizes[relative] is None or artifact_sizes[relative] < artifact["minBytes"]:
                     continue
-                target = p["evidence"] / "artifacts" / evidence_id / Path(relative).name
+                target = p["evidence"] / "artifacts" / evidence_id / Path(relative)
                 target.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(source, target); artifact_refs.append(content_ref(root, target))
             passed, oracle_observation = evaluate_case_oracle(
                 case, exit_code=run.returncode, stdout=run.stdout, stderr=run.stderr,
@@ -1404,11 +1511,16 @@ def validate(project: Path) -> dict[str, Any]:
                 observation_ok = evidence["observation"] in {"runtime-observed", "blackbox-observed"} and evidence["observation"] == case["observation"]
                 ref_ok = verify_ref(root, evidence["transcript"], f"HC-TRANSCRIPT-{evidence['evidenceId']}"); checks.append(ref_ok)
                 invocation_ok = verify_ref(root, evidence["adapterInvocation"], f"HC-ADAPTER-INVOCATION-{evidence['evidenceId']}"); checks.append(invocation_ok)
+                invocation = None
+                if invocation_ok["status"] == "PASS":
+                    try:
+                        invocation = load_json(safe_relative(root, evidence["adapterInvocation"]["path"]))
+                    except ControlError:
+                        invocation = None
                 artifact_results = [verify_ref(root, ref, f"HC-ARTIFACT-{evidence['evidenceId']}-{index+1}") for index, ref in enumerate(evidence["artifacts"])]
                 checks.extend(artifact_results)
                 descriptor = next((item for item in resolved["canonical"]["runtimeAdapters"] if item.get("id") == case["adapter"]["id"]), None)
-                adapter_ok = descriptor is not None and evidence["adapter"] == case["adapter"] and case["adapter"]["sha256"] == sha256_bytes(canonical_bytes(descriptor)) and set(evidence["capabilitiesObserved"]) >= set(case["capabilities"])
-                if case["adapter"]["id"] == "browser-runtime": adapter_ok = adapter_ok and bool(evidence["artifacts"])
+                adapter_ok = evidence_adapter_contract_matches(evidence, case, descriptor, invocation)
                 checks.append(check("HC-ADAPTER-CAPABILITY", "PASS" if adapter_ok else "FAIL", "evidence stays inside the locked adapter proof boundary" if adapter_ok else "adapter identity, capabilities or required browser artifacts do not close", caseId=evidence["caseId"]))
                 signature_ok = True
                 external_attestation_required = evidence["observation"] == "blackbox-observed"

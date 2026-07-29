@@ -20,8 +20,8 @@
     },
     {
       "path": "rules/v1/adapters.json",
-      "bytes": 2690,
-      "sha256": "dcd2f1acb08afc151d0ac133dd3fe916c59bfce47bb51b791d2240a5857e508c"
+      "bytes": 4029,
+      "sha256": "bde8d1dee0bc2395bf147806189ba1ead36244eab96d631d0c1604f535da29ec"
     },
     {
       "path": "rules/v1/core.json",
@@ -40,8 +40,8 @@
     },
     {
       "path": "schemas/adapter-descriptor.schema.json",
-      "bytes": 1392,
-      "sha256": "14a238f4a345524947dd4c2a11a2b6f2d2d4784d2b251dfcef8134477854fc8b"
+      "bytes": 1422,
+      "sha256": "739dd05a62b046dd447d73d16eb6bb157c40bfff5cd32a0dc56485475dcce09b"
     },
     {
       "path": "schemas/approval-signature.schema.json",
@@ -210,8 +210,8 @@
     },
     {
       "path": "vibe_runtime/controller.py",
-      "bytes": 159910,
-      "sha256": "bbdb79cc4f4c1d8d87d41aff534782dfb9476c7404a2cdce790c262217a0d0a6"
+      "bytes": 165545,
+      "sha256": "2ea331bfb315d733c7a61418c624f4036aecce0736601af0f4ffc8ed1e35c149"
     },
     {
       "path": "vibe_runtime/crypto.py",
@@ -225,8 +225,8 @@
     },
     {
       "path": "vibe_runtime/package_release.py",
-      "bytes": 42191,
-      "sha256": "8a1c91c8e57c2a0c3b09210094edf9c40bbd82a43eb37873f89f1eabf30a431a"
+      "bytes": 42213,
+      "sha256": "739c7f4efcc9c0e37addd1e5b6c3db4ab5b79c53bfdce82abb99ce414a6ea3fb"
     },
     {
       "path": "vibe_runtime/positioning_control.py",
@@ -235,8 +235,8 @@
     },
     {
       "path": "vibe_runtime/project_rules.py",
-      "bytes": 19871,
-      "sha256": "e025691b911d32c26570938b0feebb7c0d19fa0bca69aae974701e2c62997c7b"
+      "bytes": 21468,
+      "sha256": "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"
     },
     {
       "path": "vibe_runtime/schema.py",

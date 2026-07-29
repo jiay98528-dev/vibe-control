@@ -92,13 +92,14 @@ Bootstrap 的目标不是套用一个粗糙“项目类型”，而是先把产�
 
 Profile 的选择由定位轴确定：`GAMEPLAY` 或 `REALTIME_ENGINE` 激活 `game`；`USER_INTERFACE` 激活 `ui-desktop`；`BACKEND_API` 激活 `backend-api`；`DATA_PIPELINE` 或 `LLM` 激活 `data-llm`。多项适用时全部生效。
 
-0.3.6 只有三种正式 adapter descriptor：
+0.3.6 有四种已实现 adapter descriptor：
 
 - `generic-command`：只证明锁定命令、原始 transcript、counters 与明确产物；
 - `browser-runtime`：证明真实浏览器/Playwright 运行及其截图、trace、日志和逐 case counters；
+- `browser-webgl-game-runtime`：只在已确认 `GAMEPLAY` 与显式 WebGL target 同时成立时，以锁定 Playwright 命令和候选绑定产物证明浏览器玩法切片；
 - `godot-runtime`：绑定 `project.godot`、Godot 可执行文件与精确版本，并在候选 detached worktree 中执行。
 
-Browser 证据不能证明原生壳、安装包、目标设备或主观视觉质量；Godot headless 不能证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在本版只有发现和 investigation，不得被描述为已实现 adapter。MCP 结果只能按外部证据导入并绑定工具版本、操作、原始 transcript、adapter、candidate 与 case。
+Browser 与 Browser WebGL 证据不能证明原生壳、安装包、目标设备、GPU/热稳定或主观游戏感；WebGL 玩法结论仍需锁定人工体验门。Godot headless 不能证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在本版只有发现和 investigation，不得被描述为已实现 adapter。MCP 结果只能按外部证据导入并绑定工具版本、操作、原始 transcript、adapter、candidate 与 case。
 
 Skill binding 分为 `required` 和 `advisory`。required Skill 必须能绑定路径、版本和确定性 tree hash，缺失或漂移会阻断对应任务；advisory Skill 不可寻址或缺失时只产生 warning。所有 Skill 都必须 `canApprove=false`。安装计划不是授权：只有用户明确批准后才能从本地受管包或 Codex 策展/推荐源安装；随后必须重新发现、哈希并解析规则。Skill 安装、版本或 Git tag 不要求也不得索取私钥。
 

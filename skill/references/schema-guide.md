@@ -35,7 +35,7 @@ Schema 位于 `assets/project-control/schemas/`，模板位于 `assets/project-c
 
 ## Adapter 与 Skill binding
 
-Adapter descriptor 绑定 ID、版本、内容哈希、runtime family、发现来源、执行模式、机器可接受的 `provesCaseCapabilities[]`、明确非证明事项及环境限制。Case 自报能力必须是该集合的子集；超界声明不能形成规则覆盖。0.3.6 仅实现 `generic-command`、`browser-runtime`、`godot-runtime`；Tauri、Electron、Unreal 与 Capacitor 只能产生 investigation。
+Adapter descriptor 绑定 ID、版本、内容哈希、runtime family、发现来源、执行模式、机器可接受的 `provesCaseCapabilities[]`、明确非证明事项及环境限制。Case 自报能力必须是该集合的子集；超界声明不能形成规则覆盖。0.3.6 实现 `generic-command`、`browser-runtime`、`browser-webgl-game-runtime`、`godot-runtime`；WebGL 游戏 Adapter 还要求 `GAMEPLAY`、显式 WebGL target、Playwright 命令和候选绑定产物。Tauri、Electron、Unreal 与 Capacitor 只能产生 investigation。
 
 Skill binding 固定 Skill ID、`required | advisory`、`producer | heuristic-reviewer`、触发条件、写权限、`canApprove=false`、路径、版本和确定性 tree hash。required 缺失或漂移阻断任务；advisory 缺失只告警；无法内容寻址的 Skill 只能 advisory。安装需要单独人工批准，完成后必须重新发现和解析。任何 Skill 安装均不需要私钥。
 

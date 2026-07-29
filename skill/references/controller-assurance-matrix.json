@@ -498,6 +498,26 @@
       "implementationRefs": ["assets/project-control/runtime/vibe_runtime/dashboard.py", "assets/project-control/runtime/vibe_runtime/cli.py", "references/automation-advancement.md"],
       "regressionTests": ["test_dashboard_is_offline_escaped_and_non_authoritative", "test_dashboard_without_task_is_external_and_self_bound"],
       "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-033",
+      "statement": "Browser WebGL gameplay proof is available only for confirmed GAMEPLAY positioning with an explicit WebGL target; it requires a locked Playwright command and candidate-bound artifacts, stays within the descriptor capability set, and cannot qualify Capacitor, native packaging, target hardware, game feel, human approval or release readiness.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": [
+        "assets/project-control/runtime/rules/v1/adapters.json",
+        "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
+        "assets/project-control/runtime/vibe_runtime/project_rules.py",
+        "assets/project-control/runtime/vibe_runtime/controller.py"
+      ],
+      "regressionTests": [
+        "test_webgl_game_adapter_requires_explicit_gameplay_target",
+        "test_webgl_game_adapter_closes_gameplay_without_native_overclaim",
+        "test_playwright_adapter_contract_is_mode_driven_and_fail_closed",
+        "test_evidence_binds_command_invocation_capabilities_and_each_artifact",
+        "test_validate_rejects_substituted_evidence_command_and_capabilities",
+        "test_nested_capacitor_and_named_playwright_configs_are_discovered_without_native_adapter"
+      ],
+      "independentValidation": "PENDING"
     }
   ]
 }

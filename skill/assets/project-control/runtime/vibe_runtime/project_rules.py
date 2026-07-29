@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import fnmatch
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -138,21 +140,38 @@ def _discover_project(project_root: Path) -> tuple[list[dict[str, Any]], list[di
     facts: list[dict[str, Any]] = []
     investigations: list[dict[str, Any]] = []
     candidates = (
-        ("Browser", ("playwright.config.ts", "playwright.config.js", "playwright.config.mjs", "selenium"), "browser-runtime"),
+        ("Browser", (
+            "playwright.config.ts", "playwright.config.js", "playwright.config.mjs", "playwright.config.cjs",
+            "**/playwright.*.config.ts", "**/playwright.*.config.js", "**/playwright.*.config.mjs", "**/playwright.*.config.cjs",
+            "selenium",
+        ), "browser-runtime"),
         ("Godot", ("project.godot",), "godot-runtime"),
         ("Tauri", ("src-tauri/tauri.conf.json", "src-tauri/tauri.conf.json5", "src-tauri/tauri.conf.toml"), None),
         ("Electron", ("electron-builder.yml", "electron-builder.yaml", "electron-builder.json"), None),
         ("Unreal", ("*.uproject",), None),
-        ("Capacitor", ("capacitor.config.ts", "capacitor.config.js", "capacitor.config.json"), None),
+        ("Capacitor", (
+            "capacitor.config.ts", "capacitor.config.js", "capacitor.config.json",
+            "**/capacitor.config.ts", "**/capacitor.config.js", "**/capacitor.config.mjs",
+            "**/capacitor.config.cjs", "**/capacitor.config.json",
+        ), None),
     )
     if not project_root.is_dir():
         investigations.append(_issue("investigation", "PROJECT-ROOT-UNAVAILABLE", "project root cannot be inspected", path=str(project_root)))
         return facts, investigations
+    excluded = {".git", ".vibe-control", "node_modules", "archive", "tmp"}
+    project_files: list[str] = []
+    for directory, child_directories, filenames in os.walk(project_root):
+        child_directories[:] = sorted(value for value in child_directories if value not in excluded)
+        current = Path(directory)
+        project_files.extend((current / filename).relative_to(project_root).as_posix() for filename in sorted(filenames))
     for name, patterns, adapter in candidates:
-        matches: list[str] = []
-        for pattern in patterns:
-            matches.extend(path.relative_to(project_root).as_posix() for path in project_root.glob(pattern) if path.is_file())
-        matches = sorted(set(matches))
+        matches = sorted({
+            relative
+            for relative in project_files
+            for pattern in patterns
+            if fnmatch.fnmatchcase(relative, pattern)
+            or (pattern.startswith("**/") and fnmatch.fnmatchcase(relative, pattern[3:]))
+        })
         if matches:
             facts.append({"signal": name, "paths": matches, "adapter": adapter})
             if adapter is None:
@@ -286,15 +305,28 @@ def compile_positioning(spec: Any, project_root: str | Path, runtime_root: str |
     adapter_ids = {"generic-command"}
     adapter_ids.update(item if isinstance(item, str) else item.get("id") for item in requested_adapters if isinstance(item, str) or isinstance(item, dict) and isinstance(item.get("id"), str))
     adapter_ids.update(item["adapter"] for item in facts if item.get("adapter"))
-    targets = " ".join(str(value).lower() for value in positioning.get("runtimeTargets", []))
+    normalized_targets = {str(value).strip().lower() for value in positioning.get("runtimeTargets", [])}
+    targets = " ".join(sorted(normalized_targets))
     if "browser" in targets or "web" in targets: adapter_ids.add("browser-runtime")
+    webgl_game_adapter = "browser-webgl-game-runtime"
+    webgl_game_targets = {"browser-webgl", "browser-webgl2", "webgl", "webgl2"}
+    webgl_game_applicable = primary == "GAMEPLAY" and bool(normalized_targets & webgl_game_targets)
+    if webgl_game_applicable:
+        adapter_ids.add(webgl_game_adapter)
+    elif webgl_game_adapter in adapter_ids:
+        adapter_ids.remove(webgl_game_adapter)
+        investigations.append(_issue(
+            "investigation", "ADAPTER-POSITIONING-MISMATCH",
+            "browser WebGL gameplay proof requires GAMEPLAY positioning and an explicit WebGL runtime target",
+            adapter=webgl_game_adapter,
+        ))
     if "godot" in targets: adapter_ids.add("godot-runtime")
     adapter_ids = sorted(adapter_ids)
     adapter_descriptors: list[dict[str, Any]] = []
     for adapter_id in adapter_ids:
         descriptor = catalog["adapters"].get(adapter_id)
         if descriptor is None:
-            investigations.append(_issue("investigation", "ADAPTER-UNRESOLVED", "adapter is not a versioned generic/browser/godot descriptor", adapter=adapter_id))
+            investigations.append(_issue("investigation", "ADAPTER-UNRESOLVED", "adapter is not a registered versioned descriptor", adapter=adapter_id))
         else:
             adapter_descriptors.append(descriptor)
             rule = {
