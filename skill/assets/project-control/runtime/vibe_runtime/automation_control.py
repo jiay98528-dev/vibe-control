@@ -254,7 +254,10 @@ def _current_policy(p: dict[str, Path], lock: dict[str, Any]) -> tuple[dict[str,
 
 def _status_paths(root: Path) -> list[str]:
     values = []
-    for line in git(root, "status", "--porcelain=v1", "--untracked-files=all").splitlines():
+    result = _git_result(root, "status", "--porcelain=v1", "--untracked-files=all")
+    if result.returncode != 0:
+        raise ControlError("HC-AUTOMATION-WORKTREE-STATUS", "automatic advancement could not read exact Git status", status="BLOCKED")
+    for line in result.stdout.splitlines():
         value = line[3:].split(" -> ")[-1].replace("\\", "/") if len(line) >= 4 else line
         if value:
             values.append(value)

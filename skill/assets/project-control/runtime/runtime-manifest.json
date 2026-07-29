@@ -195,8 +195,8 @@
     },
     {
       "path": "vibe_runtime/automation_control.py",
-      "bytes": 26882,
-      "sha256": "c1b7add4f3b5ee6c43734e1ffe1012a1c3e3d3294bf758360a31e59c6fb88e07"
+      "bytes": 27083,
+      "sha256": "de962679a54e9de78d43d745197dfd63e038c6758f3a07782d911f0ac92345b6"
     },
     {
       "path": "vibe_runtime/checkpoint_control.py",

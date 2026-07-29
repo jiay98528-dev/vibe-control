@@ -79,7 +79,7 @@
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
       "bytes": 8224,
-      "sha256": "aa895f170896ef0a6edfbd19b814a27bc46b741bc500fd40a603398f092cda2f"
+      "sha256": "897bc5bb667bb28c1afbfc00c6fbd9672089a918a55bfc21dffd25cdc2f1e6be"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
@@ -238,8 +238,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/automation_control.py",
-      "bytes": 26882,
-      "sha256": "c1b7add4f3b5ee6c43734e1ffe1012a1c3e3d3294bf758360a31e59c6fb88e07"
+      "bytes": 27083,
+      "sha256": "de962679a54e9de78d43d745197dfd63e038c6758f3a07782d911f0ac92345b6"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/checkpoint_control.py",
