@@ -36,10 +36,10 @@
       "discoverySource": "confirmed GAMEPLAY positioning with an explicit WebGL runtime target",
       "localExecution": {"mode": "playwright"},
       "evidenceCapabilities": ["real browser WebGL gameplay navigation and interaction", "candidate-bound screenshots, reports, traces and logs", "rendered gameplay observation paired with the locked human experience gate"],
-      "doesNotProve": ["Capacitor or another native shell", "Android package installation or target hardware behavior", "GPU, thermal or battery stability", "game feel without the locked human gate", "release intent or human approval"],
+      "doesNotProve": ["Capacitor or another native shell", "Android package installation or target hardware behavior", "GPU, thermal or battery stability", "browser, viewport or WebGL details absent from locked artifacts", "game feel without the locked human gate", "release intent or human approval"],
       "requiredCaseCapabilities": ["browser-webgl-gameplay-observation"],
       "provesCaseCapabilities": ["candidate-integrity", "failure-conservation", "browser-runtime-observation", "browser-webgl-gameplay-observation", "ui-runtime-interaction", "gameplay-vertical-slice", "api-contract-runtime"],
-      "environmentLimits": ["browser, operating system, viewport and WebGL capability must be recorded"],
+      "environmentLimits": ["the controller records the host platform and observed Playwright version; browser, viewport and WebGL details are covered only when recorded by locked artifacts"],
       "degradationLimits": ["browser WebGL evidence cannot qualify a native shell or target device", "headless automation cannot replace the locked human experience gate"],
       "canApprove": false
     },

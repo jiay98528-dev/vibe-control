@@ -58,8 +58,8 @@
     },
     {
       "path": "assets/project-control/runtime/rules/v1/adapters.json",
-      "bytes": 4029,
-      "sha256": "bde8d1dee0bc2395bf147806189ba1ead36244eab96d631d0c1604f535da29ec"
+      "bytes": 4183,
+      "sha256": "36b447f09b0bcd00153b9a30ab8403adeceba6d4c9d026e7af3601294df60ce6"
     },
     {
       "path": "assets/project-control/runtime/rules/v1/core.json",
@@ -78,13 +78,18 @@
     },
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
-      "bytes": 8050,
-      "sha256": "6fd392c2b521c1be45e03207f6dc94b4178ef561c01dfb7dacf4a9989b77288a"
+      "bytes": 8223,
+      "sha256": "f5b73621fde9d233777dfba471d3d1e46149f633ff4062056c7a87d48d12359c"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
       "bytes": 1422,
       "sha256": "739dd05a62b046dd447d73d16eb6bb157c40bfff5cd32a0dc56485475dcce09b"
+    },
+    {
+      "path": "assets/project-control/runtime/schemas/adapter-invocation.schema.json",
+      "bytes": 2184,
+      "sha256": "dc5e9fcee2ad8d6fd25c2cf27d7cc93d4f47f116929f207a26f377ebd36cdba9"
     },
     {
       "path": "assets/project-control/runtime/schemas/approval-signature.schema.json",
@@ -253,8 +258,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/controller.py",
-      "bytes": 165545,
-      "sha256": "2ea331bfb315d733c7a61418c624f4036aecce0736601af0f4ffc8ed1e35c149"
+      "bytes": 172010,
+      "sha256": "6f8495ea66aaadee485949e2977cd69a9a842c6fa7a605f20523cb8407cc5451"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/crypto.py",
@@ -278,18 +283,23 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/project_rules.py",
-      "bytes": 21468,
-      "sha256": "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"
+      "bytes": 21590,
+      "sha256": "95badd00860946382ed3ff9fa737ff91e1f925c63cbc0282ae9fbfebd82a9055"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/schema.py",
-      "bytes": 1982,
-      "sha256": "2d580b4e11fb5920a60f0e2c26c7b5eac1425b38b25803a9107fe7d07758ac98"
+      "bytes": 2041,
+      "sha256": "c0d12f83d9f54917404110482e17241f661cef1fa4b86605b88ea1e3563ad990"
     },
     {
       "path": "assets/project-control/schemas/adapter-descriptor.schema.json",
       "bytes": 1422,
       "sha256": "739dd05a62b046dd447d73d16eb6bb157c40bfff5cd32a0dc56485475dcce09b"
+    },
+    {
+      "path": "assets/project-control/schemas/adapter-invocation.schema.json",
+      "bytes": 2184,
+      "sha256": "dc5e9fcee2ad8d6fd25c2cf27d7cc93d4f47f116929f207a26f377ebd36cdba9"
     },
     {
       "path": "assets/project-control/schemas/approval-signature.schema.json",
@@ -593,8 +603,8 @@
     },
     {
       "path": "references/bootstrap.md",
-      "bytes": 17617,
-      "sha256": "812230bd9da64e84a6dc6bbd1c859ec25723ec929dd4115109ed6ad1f6af51e7"
+      "bytes": 17744,
+      "sha256": "e4ae0d5f27e959a19e3617caa46acdfa8d43ca4dc4c48c602d8d246b2a5a3cc2"
     },
     {
       "path": "references/checkpoint-contract.md",
@@ -603,8 +613,8 @@
     },
     {
       "path": "references/controller-assurance-matrix.json",
-      "bytes": 39637,
-      "sha256": "89b9ff8b3ec9d0fa6b68884918f5485bcb5fb3e32686ae7d21d0ebf75649469e"
+      "bytes": 40042,
+      "sha256": "fea921c3588916e289b29a1d4d86a0ef68c5593507c156b4b57b6bff7b2145c3"
     },
     {
       "path": "references/controller-assurance.md",
@@ -613,8 +623,8 @@
     },
     {
       "path": "references/evidence-policy.md",
-      "bytes": 10119,
-      "sha256": "7c0f6bb39cefa64dd076540ba6b2f328f81af360733245658ff0d3f6c80d93c9"
+      "bytes": 10309,
+      "sha256": "dc182bb06b7411e70e854963a7444581dcb105dc1134749ba3da4592df7abf15"
     },
     {
       "path": "references/forward-test-0.3.0-results.json",
@@ -653,8 +663,8 @@
     },
     {
       "path": "references/profiles.md",
-      "bytes": 6512,
-      "sha256": "5f3f27fe2c5b17480546e1ab5542f8663a2a646388b692d5104e70af2c972852"
+      "bytes": 6642,
+      "sha256": "64623eb4ac96fc5e3611348bf6ff039e311466c0d8ec497d775c8ec4f2c84903"
     },
     {
       "path": "references/project-positioning.md",
@@ -663,13 +673,13 @@
     },
     {
       "path": "references/schema-guide.md",
-      "bytes": 9097,
-      "sha256": "d59ea665f2df3d7a1ed0122556b5924f417324491da4f21386181f6481699105"
+      "bytes": 9290,
+      "sha256": "e5d5a3c8344183440c967cf0869ede5fd0f81c4eef70e2e46e8885a7ade4e267"
     },
     {
       "path": "references/task-control.md",
-      "bytes": 9218,
-      "sha256": "56dfaa6a7c83d731f37c0791e9022b43b9311b42b27bc96e56476652d9d71a7d"
+      "bytes": 9321,
+      "sha256": "004ff9f2fdc19261778dbc9c4d20001b3b4c1e3f22c0714a82ce1026e0020ead"
     },
     {
       "path": "scripts/bounded_test_runner.py",
@@ -758,8 +768,8 @@
     },
     {
       "path": "scripts/test_v2_security.py",
-      "bytes": 15318,
-      "sha256": "56c6118a575b388a3f62fcd111059395b9b33e3e93fd938a69a078e37cdcab75"
+      "bytes": 15853,
+      "sha256": "fc44acf9bd9d29efc213c78750f0abe55abc137cc9ac583095b709b63e96bf67"
     },
     {
       "path": "scripts/test_v2_support.py",
@@ -768,13 +778,13 @@
     },
     {
       "path": "scripts/test_v3_adapters.py",
-      "bytes": 16679,
-      "sha256": "75c55876cf71ec96f5b23a6003ead1f4fd22bfe995140a2504e1e4766c28b68a"
+      "bytes": 19245,
+      "sha256": "37f1565495bc1c90041b915d3c4cbb9b4f7a848ed83f6b94c4ad9e1b42e00dc6"
     },
     {
       "path": "scripts/test_v3_controller.py",
-      "bytes": 25294,
-      "sha256": "f37dd60ec1f54eca57bcebdbba026db04200ba555da3400b6ded5f80db36529c"
+      "bytes": 26184,
+      "sha256": "8aad54d9dfac6910e86544e2bed2ee8aa1a74de15925a3db4f48584da740a5c6"
     },
     {
       "path": "scripts/test_v3_regression_suite.py",
@@ -808,8 +818,8 @@
     },
     {
       "path": "scripts/validate_schema_mirror.py",
-      "bytes": 2414,
-      "sha256": "4313f75021f5fe9d22e0891fd20658e97bf885fb2084f6ac244119b5f6cf87f5"
+      "bytes": 2447,
+      "sha256": "c13fbf3ec24382426f21ab90109d4504d85de97c2a7903efea2a9574d647ebee"
     },
     {
       "path": "scripts/vibe_control.py",
@@ -818,8 +828,8 @@
     },
     {
       "path": "SKILL.md",
-      "bytes": 30199,
-      "sha256": "1485e6a88001b8a3310fafdfd72a6634fa592aa3a9ca2c6b75fc28464a23145d"
+      "bytes": 30274,
+      "sha256": "e98eeec5dd167fed4e818fd2ce4a63de7664c18b651eaf3c0b35447fefa5ba95"
     },
     {
       "path": "VERSION",

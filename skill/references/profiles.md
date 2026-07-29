@@ -24,7 +24,7 @@ Profile 不得覆盖项目目标、事实源优先级、架构、合法性判断
 
 `browser-runtime` 可以证明真实浏览器/Playwright 路径及其产物，但不能证明 Tauri/Electron/Capacitor 原生壳、安装包、目标硬件或主观质量。这些原生 runtime 在 0.3.6 只产生 investigation。
 
-`browser-webgl-game-runtime` 只有在 `GAMEPLAY` 与显式 WebGL target 同时成立时才进入规则集。它用锁定 Playwright 命令、候选绑定截图/报告/trace 与人工体验门共同闭合浏览器玩法切片；不能外推原生壳、目标设备、GPU/热稳定或游戏感。
+`browser-webgl-game-runtime` 只有在 `GAMEPLAY` 与显式 WebGL target 同时成立时才进入规则集。它用直接锁定的 `playwright test`、实际工具版本、执行前清理后生成的候选绑定截图/报告/trace 与人工体验门共同闭合浏览器玩法切片；浏览器、视口和 WebGL 细节必须由锁定产物实际记录，且不能外推原生壳、目标设备、GPU/热稳定或游戏感。
 
 ## `game`
 

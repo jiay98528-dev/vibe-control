@@ -16,7 +16,10 @@ sys.path.insert(0, str(RUNTIME))
 
 from vibe_runtime.project_rules import compile_positioning  # noqa: E402
 from vibe_runtime.positioning_control import coverage_check  # noqa: E402
-from vibe_runtime.controller import evidence_adapter_contract_matches, validate_adapter_case_contract  # noqa: E402
+from vibe_runtime.controller import (  # noqa: E402
+    clear_declared_artifacts, evidence_adapter_contract_matches,
+    evidence_id_binding_matches, validate_adapter_case_contract,
+)
 from vibe_runtime.common import ControlError, canonical_bytes, sha256_bytes  # noqa: E402
 
 
@@ -116,6 +119,11 @@ def test_playwright_adapter_contract_is_mode_driven_and_fail_closed() -> None:
         ({**valid, "command": ["pnpm", "run", "test:e2e"]}, "Playwright command"),
         ({**valid, "command": ["node", "not-playwright.js"]}, "Playwright command"),
         ({**valid, "command": ["cmd.exe", "/d", "/c", "echo NON_PLAYWRIGHT", "playwright"]}, "Playwright command"),
+        ({**valid, "command": ["playwright", "--version"]}, "Playwright command"),
+        ({**valid, "command": ["playwright", "install"]}, "Playwright command"),
+        ({**valid, "command": ["npx", "playwright", "show-report"]}, "Playwright command"),
+        ({**valid, "command": ["C:\\tmp\\playwright.exe", "test"]}, "Playwright command"),
+        ({**valid, "command": ["pnpm", "exec", "C:\\tmp\\playwright.exe", "test"]}, "Playwright command"),
     ]
     for case, fragment in mutations:
         try:
@@ -147,9 +155,15 @@ def test_evidence_binds_command_invocation_capabilities_and_each_artifact() -> N
         ],
     }
     invocation = {
-        "schemaVersion": "3.2", "candidateCommit": evidence["candidateCommit"], "caseId": case["id"],
+        "schemaVersion": "3.2", "evidenceId": evidence["evidenceId"], "candidateCommit": evidence["candidateCommit"], "caseId": case["id"],
         "adapter": adapter, "command": case["command"], "requestedArtifacts": case["artifacts"],
         "operation": "execute-locked-case", "executionRoot": "detached-candidate-worktree",
+        "toolVersion": "Version 1.2.3",
+        "runtimeObservation": {
+            "mode": "playwright", "commandKind": "playwright-test", "hostPlatform": "fixture",
+            "artifactProvenance": "fresh-after-pre-execution-cleanup",
+            "environmentBoundary": "browser, viewport and WebGL details are covered only when recorded by locked artifacts",
+        },
         "oracleObservation": {"expectedExitCode": 0, "observedExitCode": 0, "missingStdout": [], "forbiddenStderr": [], "artifactFailures": []},
     }
     assert evidence_adapter_contract_matches(evidence, case, descriptor, invocation)
@@ -157,6 +171,7 @@ def test_evidence_binds_command_invocation_capabilities_and_each_artifact() -> N
         ({**evidence, "command": ["cmd.exe", "/c", "exit", "0"]}, invocation),
         ({**evidence, "capabilitiesObserved": [*case["capabilities"], "game-feel"]}, invocation),
         (evidence, {**invocation, "candidateCommit": "b" * 40}),
+        (evidence, {**invocation, "evidenceId": "evidence-OLD"}),
         (evidence, {**invocation, "command": ["cmd.exe", "/c", "exit", "0"]}),
         (evidence, {**invocation, "requestedArtifacts": case["artifacts"][:-1]}),
         ({**evidence, "artifacts": evidence["artifacts"][:-1]}, invocation),
@@ -171,11 +186,41 @@ def test_evidence_binds_command_invocation_capabilities_and_each_artifact() -> N
         assert not evidence_adapter_contract_matches(evidence, invalid_case, descriptor, invalid_invocation), invalid_path
 
 
-def test_nested_capacitor_and_named_playwright_configs_are_discovered_without_native_adapter() -> None:
+def test_playwright_artifacts_must_be_created_by_the_locked_execution() -> None:
+    with tempfile.TemporaryDirectory(prefix="vibe-control-v3-artifact-freshness-") as temp:
+        root = Path(temp)
+        stale = root / "out" / "report.json"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("stale", encoding="utf-8")
+        clear_declared_artifacts(root, [{"path": "out/report.json", "minBytes": 1}])
+        assert not stale.exists()
+        directory = root / "out" / "not-a-file"
+        directory.mkdir()
+        try:
+            clear_declared_artifacts(root, [{"path": "out/not-a-file", "minBytes": 1}])
+        except ControlError as exc:
+            assert exc.check_id == "HC-ADAPTER-CAPABILITY"
+        else:
+            raise AssertionError("non-file artifact target was accepted")
+
+
+def test_evidence_id_binds_filename_and_invocation_namespace() -> None:
+    evidence = {
+        "evidenceId": "EXT-001",
+        "adapterInvocation": {"path": ".vibe-control/evidence/EXT-001.adapter-invocation.json"},
+    }
+    assert evidence_id_binding_matches(Path("EXT-001.json"), evidence)
+    assert not evidence_id_binding_matches(Path("EXT-OLD.json"), evidence)
+    assert not evidence_id_binding_matches(None, {**evidence, "evidenceId": "EXT-NEW"})
+
+
+def test_nested_capacitor_and_playwright_configs_are_discovered_without_native_adapter() -> None:
     with tempfile.TemporaryDirectory(prefix="vibe-control-v3-nested-signals-") as temp:
         project = Path(temp)
         (project / "configs").mkdir(parents=True)
         (project / "configs" / "playwright.mobile.config.cjs").write_text("module.exports = {};\n", encoding="utf-8")
+        (project / "apps" / "web").mkdir(parents=True)
+        (project / "apps" / "web" / "playwright.config.ts").write_text("export default {};\n", encoding="utf-8")
         (project / "packages" / "mobile" / "native").mkdir(parents=True)
         (project / "packages" / "mobile" / "native" / "capacitor.config.ts").write_text("export default {};\n", encoding="utf-8")
         result = _compile({}, project)
@@ -269,8 +314,10 @@ TESTS = [
     test_webgl_game_adapter_requires_explicit_gameplay_target,
     test_webgl_game_adapter_closes_gameplay_without_native_overclaim,
     test_playwright_adapter_contract_is_mode_driven_and_fail_closed,
+    test_playwright_artifacts_must_be_created_by_the_locked_execution,
     test_evidence_binds_command_invocation_capabilities_and_each_artifact,
-    test_nested_capacitor_and_named_playwright_configs_are_discovered_without_native_adapter,
+    test_evidence_id_binds_filename_and_invocation_namespace,
+    test_nested_capacitor_and_playwright_configs_are_discovered_without_native_adapter,
     test_godot_descriptor_binds_runtime_and_limits_headless_proof,
     test_tauri_electron_unreal_and_capacitor_are_investigation_only,
     test_mcp_is_never_treated_as_a_runtime_adapter,

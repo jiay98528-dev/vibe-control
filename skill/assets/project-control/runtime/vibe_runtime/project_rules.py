@@ -142,6 +142,7 @@ def _discover_project(project_root: Path) -> tuple[list[dict[str, Any]], list[di
     candidates = (
         ("Browser", (
             "playwright.config.ts", "playwright.config.js", "playwright.config.mjs", "playwright.config.cjs",
+            "**/playwright.config.ts", "**/playwright.config.js", "**/playwright.config.mjs", "**/playwright.config.cjs",
             "**/playwright.*.config.ts", "**/playwright.*.config.js", "**/playwright.*.config.mjs", "**/playwright.*.config.cjs",
             "selenium",
         ), "browser-runtime"),

@@ -52,7 +52,7 @@ Release receipt 不是包级“曾审过”的通行证，也不能单独授权�
 
 - `generic-command` 只证明精确锁定命令、退出码、原始 transcript、逐 case counters 和明确产物；它不自动证明真实 UI、部署、性能或安全充分性。
 - `browser-runtime` 可以证明真实浏览器/Playwright 路径及截图、trace、日志和 counters；它不能证明 Tauri/Electron/Capacitor 原生壳、安装包、目标设备、GPU/能耗或主观视觉质量。
-- `browser-webgl-game-runtime` 只在 `GAMEPLAY` 与显式 WebGL target 同时成立时，以锁定 Playwright 命令和候选绑定产物证明浏览器玩法切片；它不能证明原生壳、Android 真机、目标硬件、GPU/热稳定、游戏感、人工批准或发行资格。
+- `browser-webgl-game-runtime` 只在 `GAMEPLAY` 与显式 WebGL target 同时成立时，以直接锁定的 `playwright test`、执行前清理后新生成的候选绑定产物证明浏览器玩法切片；控制器只记录宿主平台和实际 Playwright 版本，浏览器、视口和 WebGL 细节仅在锁定产物实际记录时才进入证明范围。它不能证明原生壳、Android 真机、目标硬件、GPU/热稳定、游戏感、人工批准或发行资格。
 - `godot-runtime` 必须绑定 `project.godot`、Godot 可执行文件和精确版本；headless smoke 不能证明渲染玩法、目标硬件表现或游戏感。
 - Tauri、Electron、Unreal 与 Capacitor 在 0.3.6 没有正式 adapter；发现它们只能产生 investigation。已闭合的 Browser/generic 证据只在其原有范围内有效。
 - MCP 不由 Python runtime 直连。其结果只能作为 external evidence 导入，且必须绑定 adapter、工具版本、操作、原始 transcript、产物、candidate、case、positioning 与 rule-set；命令返回文本或工具自报成功不能覆盖 required case。

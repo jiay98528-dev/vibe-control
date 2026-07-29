@@ -36,6 +36,7 @@ def validate_object(kind: str, value: Any) -> None:
             "project-positioning": "HC-POSITIONING-SCHEMA",
             "resolved-rule-set": "HC-RULESET-BINDING",
             "adapter-descriptor": "HC-ADAPTER-CAPABILITY",
+            "adapter-invocation": "HC-ADAPTER-INVOCATION",
             "skill-binding": "HC-SKILL-BINDING",
         }
         raise ControlError(stable_ids.get(kind, f"HC-SCHEMA-{kind.upper().replace('-', '_')}"), f"{kind} schema violation at {location}: {first.message}")

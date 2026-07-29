@@ -20,8 +20,8 @@
     },
     {
       "path": "rules/v1/adapters.json",
-      "bytes": 4029,
-      "sha256": "bde8d1dee0bc2395bf147806189ba1ead36244eab96d631d0c1604f535da29ec"
+      "bytes": 4183,
+      "sha256": "36b447f09b0bcd00153b9a30ab8403adeceba6d4c9d026e7af3601294df60ce6"
     },
     {
       "path": "rules/v1/core.json",
@@ -42,6 +42,11 @@
       "path": "schemas/adapter-descriptor.schema.json",
       "bytes": 1422,
       "sha256": "739dd05a62b046dd447d73d16eb6bb157c40bfff5cd32a0dc56485475dcce09b"
+    },
+    {
+      "path": "schemas/adapter-invocation.schema.json",
+      "bytes": 2184,
+      "sha256": "dc5e9fcee2ad8d6fd25c2cf27d7cc93d4f47f116929f207a26f377ebd36cdba9"
     },
     {
       "path": "schemas/approval-signature.schema.json",
@@ -210,8 +215,8 @@
     },
     {
       "path": "vibe_runtime/controller.py",
-      "bytes": 165545,
-      "sha256": "2ea331bfb315d733c7a61418c624f4036aecce0736601af0f4ffc8ed1e35c149"
+      "bytes": 172010,
+      "sha256": "6f8495ea66aaadee485949e2977cd69a9a842c6fa7a605f20523cb8407cc5451"
     },
     {
       "path": "vibe_runtime/crypto.py",
@@ -235,13 +240,13 @@
     },
     {
       "path": "vibe_runtime/project_rules.py",
-      "bytes": 21468,
-      "sha256": "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"
+      "bytes": 21590,
+      "sha256": "95badd00860946382ed3ff9fa737ff91e1f925c63cbc0282ae9fbfebd82a9055"
     },
     {
       "path": "vibe_runtime/schema.py",
-      "bytes": 1982,
-      "sha256": "2d580b4e11fb5920a60f0e2c26c7b5eac1425b38b25803a9107fe7d07758ac98"
+      "bytes": 2041,
+      "sha256": "c0d12f83d9f54917404110482e17241f661cef1fa4b86605b88ea1e3563ad990"
     }
   ]
 }

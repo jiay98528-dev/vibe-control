@@ -400,6 +400,24 @@ def test_validate_rejects_substituted_evidence_command_and_capabilities() -> Non
         package_temp.cleanup()
 
 
+def test_validate_rejects_rebound_evidence_id() -> None:
+    import test_v2_support as fixture
+    package_temp, project, _ = fixture.setup_project()
+    try:
+        fixture.command(project, "execute", "--actor", "executor", "--session", "evidence-id-binding")
+        fixture.commit(project, "record valid execution evidence")
+        evidence_path = fixture.main_evidence_path(project)
+        evidence = fixture.load(evidence_path)
+        evidence["evidenceId"] = "evidence-rebound"
+        fixture.write(evidence_path, evidence)
+        fixture.commit(project, "rebind evidence ID only")
+        _, report = fixture.command(project, "validate", expect=3)
+        assert "HC-EVIDENCE-ID-BINDING" in fixture.failing_ids(report)
+        assert report["state"]["derived"]["phase"] != "VERIFIED"
+    finally:
+        package_temp.cleanup()
+
+
 TESTS = [
     test_cli_surface_and_envelope_are_schema3,
     test_inspect_handles_an_unborn_git_repository,
@@ -411,6 +429,7 @@ TESTS = [
     test_reposition_invalidates_downstream,
     test_execute_aggregate_fails_when_any_case_fails,
     test_validate_rejects_substituted_evidence_command_and_capabilities,
+    test_validate_rejects_rebound_evidence_id,
 ]
 
 

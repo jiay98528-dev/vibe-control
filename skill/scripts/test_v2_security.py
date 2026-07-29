@@ -9,8 +9,8 @@ import test_v2_support as fx
 def external_attestation(root, key=None, *, signer=None, observation="blackbox-observed"):
     candidate=fx.load(next((root/".vibe-control"/"candidates").glob("*.json"))); catalog=fx.load(root/".vibe-control"/"case-catalog.json"); case=catalog["cases"][0]
     evidence_dir=root/".vibe-control"/"evidence"; evidence_dir.mkdir(parents=True,exist_ok=True)
-    transcript=evidence_dir/"external-transcript.txt"; transcript.write_text("external PASS\n",encoding="utf-8")
-    invocation=evidence_dir/"external-adapter-invocation.json"; fx.write(invocation,{"schemaVersion":"3.2","candidateCommit":candidate["commit"],"caseId":case["id"],"adapter":case["adapter"],"command":case["command"],"requestedArtifacts":case.get("artifacts",[]),"operation":"fixture-blackbox","toolVersion":"external-fixture-1.0","status":"PASS"})
+    transcript=evidence_dir/"EXT-001.transcript.txt"; transcript.write_text("external PASS\n",encoding="utf-8")
+    invocation=evidence_dir/"EXT-001.adapter-invocation.json"; fx.write(invocation,{"schemaVersion":"3.2","evidenceId":"EXT-001","candidateCommit":candidate["commit"],"caseId":case["id"],"adapter":case["adapter"],"command":case["command"],"requestedArtifacts":case.get("artifacts",[]),"operation":"fixture-blackbox","toolVersion":"external-fixture-1.0","status":"PASS"})
     fx.commit(root,"external raw evidence")
     evidence={"schemaVersion":"3.2","evidenceId":"EXT-001","taskId":"TASK-001","candidateId":candidate["candidateId"],"candidateCommit":candidate["commit"],"checkpointSetSha256":candidate["checkpointSetSha256"],"checkpointIds":["CP-001"],"positioning":candidate["positioning"],"resolvedRuleSet":candidate["resolvedRuleSet"],"caseId":"CASE-001","caseHash":fx.hashlib.sha256(fx.canonical(case)).hexdigest(),"oracleHash":fx.hashlib.sha256(fx.canonical(case["oracle"])).hexdigest(),"inputHash":fx.hashlib.sha256(fx.canonical(candidate["inputBindings"])).hexdigest(),"executor":{"actorId":"executor","sessionId":"external-1"},"observation":observation,"adapter":case["adapter"],"capabilitiesObserved":case["capabilities"],"adapterInvocation":fx.ref(root,invocation),"externalTranscript":fx.ref(root,transcript),"toolVersion":"external-fixture-1.0","operation":"fixture-blackbox","command":case["command"],"startedAt":"2026-07-25T00:00:00+08:00","finishedAt":"2026-07-25T00:00:01+08:00","exitCode":0,"counters":{"executed":1,"passed":1,"failed":0,"skipped":0},"transcript":fx.ref(root,transcript),"artifacts":[],"result":"PASS"}
     att={"schemaVersion":"3.2","evidence":evidence}
@@ -58,6 +58,14 @@ def test_private_blackbox_attestation_does_not_require_key():
         path=root.parent/"att.json"; fx.write(path,external_attestation(root))
         result,_=fx.command(root,"ingest","--attestation",str(path)); assert result.returncode==0; fx.commit(root,"private blackbox attestation")
         _,report=fx.command(root,"validate",expect=2); assert report["state"]["derived"]["phase"]=="VERIFIED" and "HC-EXECUTOR-SIGNATURE" not in fx.failing_ids(report)
+    finally: temp.cleanup()
+def test_external_evidence_id_rebinding_is_rejected():
+    temp,root,_=fx.setup_project(observation="blackbox-observed",include_keys=False)
+    try:
+        att=external_attestation(root); att["evidence"]["evidenceId"]="EXT-REBOUND"
+        path=root.parent/"att-rebound.json"; fx.write(path,att)
+        _,report=fx.command(root,"ingest","--attestation",str(path),expect=3)
+        assert report["error"]["id"]=="HC-EVIDENCE-ID-BINDING"
     finally: temp.cleanup()
 def test_wrong_auditor_signature():
     temp,root,keys=setup_r3_release_project()
@@ -165,7 +173,7 @@ def test_product_change_invalidates_candidate():
         (root/"fixture.py").write_text("print('changed')\n",encoding="utf-8"); fx.commit(root,"product drift"); _,report=fx.command(root,"validate",expect=4); assert "HC-CANDIDATE-HEAD" in fx.failing_ids(report)
     finally: temp.cleanup()
 
-TESTS=[test_r3_signed_path,test_wrong_executor_key,test_r3_controller_local_execution_is_eligible,test_private_blackbox_attestation_does_not_require_key,test_wrong_auditor_signature,test_r3_unsigned_review_and_decision_rejected,test_expired_approval,test_dependency_mismatch_blocks,test_missing_dependencies_emit_stable_json,test_external_contract_path_returns_stable_path_safety,test_receipt_binding_drift,test_receipt_cannot_replay_for_new_candidate,test_cross_role_key_reuse_rejected_at_bootstrap,test_ignored_runner_is_not_executed_from_project_worktree,test_release_auditor_cannot_reuse_review_auditor_role,test_schema32_is_not_migrated_again,test_handoff_binds_current_objects,test_authority_hash_drift,test_product_change_invalidates_candidate]
+TESTS=[test_r3_signed_path,test_wrong_executor_key,test_r3_controller_local_execution_is_eligible,test_private_blackbox_attestation_does_not_require_key,test_external_evidence_id_rebinding_is_rejected,test_wrong_auditor_signature,test_r3_unsigned_review_and_decision_rejected,test_expired_approval,test_dependency_mismatch_blocks,test_missing_dependencies_emit_stable_json,test_external_contract_path_returns_stable_path_safety,test_receipt_binding_drift,test_receipt_cannot_replay_for_new_candidate,test_cross_role_key_reuse_rejected_at_bootstrap,test_ignored_runner_is_not_executed_from_project_worktree,test_release_auditor_cannot_reuse_review_auditor_role,test_schema32_is_not_migrated_again,test_handoff_binds_current_objects,test_authority_hash_drift,test_product_change_invalidates_candidate]
 def main():
     out=[]
     for test in TESTS:

@@ -501,11 +501,12 @@
     },
     {
       "id": "CTRL-CONFIRMED-033",
-      "statement": "Browser WebGL gameplay proof is available only for confirmed GAMEPLAY positioning with an explicit WebGL target; it requires a locked Playwright command and candidate-bound artifacts, stays within the descriptor capability set, and cannot qualify Capacitor, native packaging, target hardware, game feel, human approval or release readiness.",
+      "statement": "Browser WebGL gameplay proof is available only for confirmed GAMEPLAY positioning with an explicit WebGL target; it requires a direct locked Playwright test command, an observed tool version, pre-execution artifact cleanup, fresh candidate-bound artifacts and one evidence-ID namespace across the record and invocation. It stays within the descriptor capability set and cannot qualify unrecorded browser, viewport or WebGL details, Capacitor, native packaging, target hardware, game feel, human approval or release readiness.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": [
         "assets/project-control/runtime/rules/v1/adapters.json",
         "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
+        "assets/project-control/runtime/schemas/adapter-invocation.schema.json",
         "assets/project-control/runtime/vibe_runtime/project_rules.py",
         "assets/project-control/runtime/vibe_runtime/controller.py"
       ],
@@ -513,9 +514,11 @@
         "test_webgl_game_adapter_requires_explicit_gameplay_target",
         "test_webgl_game_adapter_closes_gameplay_without_native_overclaim",
         "test_playwright_adapter_contract_is_mode_driven_and_fail_closed",
+        "test_playwright_artifacts_must_be_created_by_the_locked_execution",
         "test_evidence_binds_command_invocation_capabilities_and_each_artifact",
+        "test_evidence_id_binds_filename_and_invocation_namespace",
         "test_validate_rejects_substituted_evidence_command_and_capabilities",
-        "test_nested_capacitor_and_named_playwright_configs_are_discovered_without_native_adapter"
+        "test_nested_capacitor_and_playwright_configs_are_discovered_without_native_adapter"
       ],
       "independentValidation": "PENDING"
     }

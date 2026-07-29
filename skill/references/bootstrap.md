@@ -96,7 +96,7 @@ Profile 的选择由定位轴确定：`GAMEPLAY` 或 `REALTIME_ENGINE` 激活 `g
 
 - `generic-command`：只证明锁定命令、原始 transcript、counters 与明确产物；
 - `browser-runtime`：证明真实浏览器/Playwright 运行及其截图、trace、日志和逐 case counters；
-- `browser-webgl-game-runtime`：只在已确认 `GAMEPLAY` 与显式 WebGL target 同时成立时，以锁定 Playwright 命令和候选绑定产物证明浏览器玩法切片；
+- `browser-webgl-game-runtime`：只在已确认 `GAMEPLAY` 与显式 WebGL target 同时成立时，以直接锁定的 `playwright test`、实际工具版本和执行前清理后生成的候选绑定产物证明浏览器玩法切片；浏览器、视口和 WebGL 细节仅在锁定产物记录时有效；
 - `godot-runtime`：绑定 `project.godot`、Godot 可执行文件与精确版本，并在候选 detached worktree 中执行。
 
 Browser 与 Browser WebGL 证据不能证明原生壳、安装包、目标设备、GPU/热稳定或主观游戏感；WebGL 玩法结论仍需锁定人工体验门。Godot headless 不能证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在本版只有发现和 investigation，不得被描述为已实现 adapter。MCP 结果只能按外部证据导入并绑定工具版本、操作、原始 transcript、adapter、candidate 与 case。
