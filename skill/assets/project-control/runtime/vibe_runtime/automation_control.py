@@ -277,8 +277,9 @@ def _assert_locked_inputs(root: Path, task_lock_path: Path, task_lock: dict[str,
     The controller may advance state and evidence, but automation never gets to
     rewrite the task's contract, oracle, objectives, policy, or authority files.
     """
-    if task_lock_path.relative_to(root).as_posix() in _status_paths(root):
-        raise ControlError("HC-AUTOMATION-BOUNDARY-CHANGE", "task lock changed after authorization", status="BLOCKED")
+    task_lock_relative = task_lock_path.relative_to(root).as_posix()
+    if task_lock_relative in _status_paths(root) and git(root, "ls-files", "--error-unmatch", "--", task_lock_relative, required=False):
+        raise ControlError("HC-AUTOMATION-BOUNDARY-CHANGE", "tracked task lock changed after authorization", status="BLOCKED")
     refs = [
         task_lock["contract"], task_lock["governanceLock"], task_lock["keyObjectives"],
         task_lock["caseCatalog"], task_lock["positioning"], task_lock["resolvedRuleSet"],
