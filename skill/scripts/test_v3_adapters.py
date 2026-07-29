@@ -174,6 +174,7 @@ def test_evidence_binds_command_invocation_capabilities_and_each_artifact() -> N
         "adapter": adapter, "command": case["command"], "requestedArtifacts": case["artifacts"],
         "operation": "execute-locked-case", "executionRoot": "detached-candidate-worktree",
         "toolVersion": "Version 1.2.3",
+        "executableResolution": {"requestedExecutable": case["command"][0], "resolvedExecutable": str(Path(sys.executable).resolve()), "hostPlatform": sys.platform},
         "runtimeObservation": {
             "mode": "playwright", "commandKind": "playwright-test", "hostPlatform": "fixture",
             "artifactProvenance": "fresh-after-pre-execution-cleanup",

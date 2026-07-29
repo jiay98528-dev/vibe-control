@@ -4,13 +4,14 @@ from __future__ import annotations
 import json
 import sys
 from datetime import datetime
+from pathlib import Path
 import test_v2_support as fx
 
 def external_attestation(root, key=None, *, signer=None, observation="blackbox-observed"):
     candidate=fx.load(next((root/".vibe-control"/"candidates").glob("*.json"))); catalog=fx.load(root/".vibe-control"/"case-catalog.json"); case=catalog["cases"][0]
     evidence_dir=root/".vibe-control"/"evidence"; evidence_dir.mkdir(parents=True,exist_ok=True)
     transcript=evidence_dir/"EXT-001.transcript.txt"; transcript.write_text("external PASS\n",encoding="utf-8")
-    invocation=evidence_dir/"EXT-001.adapter-invocation.json"; fx.write(invocation,{"schemaVersion":"3.2","evidenceId":"EXT-001","candidateCommit":candidate["commit"],"caseId":case["id"],"adapter":case["adapter"],"command":case["command"],"requestedArtifacts":case.get("artifacts",[]),"operation":"fixture-blackbox","toolVersion":"external-fixture-1.0","status":"PASS"})
+    invocation=evidence_dir/"EXT-001.adapter-invocation.json"; fx.write(invocation,{"schemaVersion":"3.2","evidenceId":"EXT-001","candidateCommit":candidate["commit"],"caseId":case["id"],"adapter":case["adapter"],"command":case["command"],"requestedArtifacts":case.get("artifacts",[]),"operation":"fixture-blackbox","toolVersion":"external-fixture-1.0","executableResolution":{"requestedExecutable":case["command"][0],"resolvedExecutable":str(Path(sys.executable).resolve()),"hostPlatform":sys.platform},"status":"PASS"})
     fx.commit(root,"external raw evidence")
     evidence={"schemaVersion":"3.2","evidenceId":"EXT-001","taskId":"TASK-001","candidateId":candidate["candidateId"],"candidateCommit":candidate["commit"],"checkpointSetSha256":candidate["checkpointSetSha256"],"checkpointIds":["CP-001"],"positioning":candidate["positioning"],"resolvedRuleSet":candidate["resolvedRuleSet"],"caseId":"CASE-001","caseHash":fx.hashlib.sha256(fx.canonical(case)).hexdigest(),"oracleHash":fx.hashlib.sha256(fx.canonical(case["oracle"])).hexdigest(),"inputHash":fx.hashlib.sha256(fx.canonical(candidate["inputBindings"])).hexdigest(),"executor":{"actorId":"executor","sessionId":"external-1"},"observation":observation,"adapter":case["adapter"],"capabilitiesObserved":case["capabilities"],"adapterInvocation":fx.ref(root,invocation),"externalTranscript":fx.ref(root,transcript),"toolVersion":"external-fixture-1.0","operation":"fixture-blackbox","command":case["command"],"startedAt":"2026-07-25T00:00:00+08:00","finishedAt":"2026-07-25T00:00:01+08:00","exitCode":0,"counters":{"executed":1,"passed":1,"failed":0,"skipped":0},"transcript":fx.ref(root,transcript),"artifacts":[],"result":"PASS"}
     att={"schemaVersion":"3.2","evidence":evidence}

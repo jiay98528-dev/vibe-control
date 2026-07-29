@@ -263,10 +263,13 @@ def test_automation_commits_new_active_task_lock_file() -> None:
 
 def test_assurance_requirements_follow_bound_package_version() -> None:
     legacy = required_assurance_control_ids("0.3.4")
-    current = required_assurance_control_ids("0.3.6")
+    previous = required_assurance_control_ids("0.3.6")
+    current = required_assurance_control_ids("0.3.7")
     assert "CTRL-CONFIRMED-029" in legacy
     assert not {"CTRL-CONFIRMED-030", "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"} & legacy
-    assert {"CTRL-CONFIRMED-030", "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"} <= current
+    assert {"CTRL-CONFIRMED-030", "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"} <= previous
+    assert not {"CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036"} & previous
+    assert {"CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036"} <= current
 
 
 def main() -> int:

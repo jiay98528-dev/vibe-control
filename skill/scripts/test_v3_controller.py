@@ -201,7 +201,7 @@ def test_cli_surface_and_envelope_are_schema3() -> None:
     result, report = _run(sys.executable, str(CONTROL), "risk", "--score", "10", expect=0)
     assert result.stderr == ""
     assert report["schemaVersion"] == "3.2"
-    assert report["runtimeVersion"] == RUNTIME_VERSION == "0.3.6"
+    assert report["runtimeVersion"] == RUNTIME_VERSION == "0.3.7"
     assert set(report) >= {"status", "integrity", "formal", "state"}
 
 

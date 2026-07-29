@@ -1077,6 +1077,11 @@ def run_locked_command(command: list[str], execution_root: Path, *, timeout: int
             resolved_command, cwd=execution_root, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout, shell=False,
         )
+    except subprocess.TimeoutExpired as exc:
+        raise ControlError(
+            "HC-EXECUTION-TIMEOUT", f"locked executable exceeded its timeout: {resolution['requestedExecutable']}",
+            status="BLOCKED", details={**resolution, "timeoutSeconds": timeout},
+        ) from exc
     except (FileNotFoundError, OSError) as exc:
         raise ControlError(
             "HC-EXECUTABLE-RESOLUTION", f"resolved executable could not be started: {resolution['resolvedExecutable']}",
@@ -1208,6 +1213,7 @@ def require_key_actor(lock: dict[str, Any], key_id: str, role: str, actor_id: st
 def ingest(project: Path, attestation_path: Path) -> dict[str, Any]:
     assert_dependencies(); p = paths(project); state, lock, catalog, _, contract = current_objects(p); _, candidate = candidate_for(p, state)
     root = git_root(p["root"])
+    require_evidence_byte_policy(root, p)
     resolved = load_json(p["resolved_rules"]); validate_object("resolved-rule-set", resolved)
     attestation = load_json(attestation_path.resolve()); validate_object("external-evidence-attestation", attestation)
     evidence = attestation["evidence"]; validate_object("execution-evidence", evidence)
@@ -1222,6 +1228,7 @@ def ingest(project: Path, attestation_path: Path) -> dict[str, Any]:
             raise ControlError("HC-EXECUTOR-SIGNATURE", "keyId and signature must be supplied together when an optional signature is present")
         verify_signature(attestation, require_key_actor(lock, attestation["keyId"], "executor", evidence["executor"]["actorId"]), "HC-EXECUTOR-SIGNATURE")
     case = get_case(catalog, evidence["caseId"])
+    assert_candidate_case_lifecycle([case])
     if case["observation"] != "blackbox-observed" or evidence["observation"] != "blackbox-observed":
         raise ControlError("HC-CASE-OBSERVATION-ELIGIBILITY", "external evidence must cover a blackbox-observed case")
     if evidence["taskId"] != contract["taskId"] or evidence["candidateId"] != candidate["candidateId"] or evidence["candidateCommit"] != candidate["commit"] or ref_key(evidence["positioning"]) != ref_key(candidate["positioning"]) or ref_key(evidence["resolvedRuleSet"]) != ref_key(candidate["resolvedRuleSet"]):
