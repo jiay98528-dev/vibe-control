@@ -758,8 +758,8 @@
     },
     {
       "path": "scripts/test_package_release_audit.py",
-      "bytes": 27095,
-      "sha256": "ae11aa204ec6166495bda60a383bdaf0db1ba8d66f0ceeb870ab0ab841610dc5"
+      "bytes": 27243,
+      "sha256": "2efb51edc0d02075dc659c323d9d34aec43a0a611b1ad410c6b8082d087e5557"
     },
     {
       "path": "scripts/test_template_interfaces.py",
