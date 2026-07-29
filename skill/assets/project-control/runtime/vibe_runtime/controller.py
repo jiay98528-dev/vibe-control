@@ -61,17 +61,14 @@ REQUIRED_ASSURANCE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
     "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
+    "CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036",
 })
-LEGACY_034_ASSURANCE_CONTROL_IDS = frozenset(
-    item for item in REQUIRED_ASSURANCE_CONTROL_IDS
-    if not any(item == f"CTRL-CONFIRMED-{number:03d}" for number in range(30, 34))
-)
-
-
 def required_assurance_control_ids(package_version: str) -> frozenset[str]:
-    if package_version == "0.3.4":
-        return LEGACY_034_ASSURANCE_CONTROL_IDS
-    return REQUIRED_ASSURANCE_CONTROL_IDS
+    confirmed_ceiling = {"0.3.4": 29, "0.3.5": 30, "0.3.6": 33}.get(package_version, 36)
+    return frozenset(
+        item for item in REQUIRED_ASSURANCE_CONTROL_IDS
+        if not item.startswith("CTRL-CONFIRMED-") or int(item.rsplit("-", 1)[1]) <= confirmed_ceiling
+    )
 
 
 def paths(project: Path) -> dict[str, Path]:
@@ -93,11 +90,88 @@ def paths(project: Path) -> dict[str, Path]:
         "legacy": control / "legacy", "governance": control / "governance",
         "package_receipt": control / "governance" / "package-audit-receipt.json",
         "objective_revisions": control / "governance" / "objective-revisions",
+        "evidence_byte_policy": control / ".gitattributes",
     }
+
+
+EVIDENCE_BYTE_POLICY = b"evidence/** -text -filter -working-tree-encoding\n"
+EVIDENCE_ATTRIBUTE_PROBE = ".vibe-control/evidence/.byte-policy-probe"
 
 
 def content_ref(root: Path, path: Path) -> dict[str, Any]:
     return {"path": path.resolve().relative_to(root.resolve()).as_posix(), "bytes": path.stat().st_size, "sha256": sha256_file(path), "tracked": True}
+
+
+def write_evidence_byte_policy(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(EVIDENCE_BYTE_POLICY)
+
+
+def evidence_byte_policy_check(root: Path, p: dict[str, Path]) -> dict[str, Any]:
+    policy_path = p["evidence_byte_policy"]
+    relative_policy = policy_path.resolve().relative_to(root.resolve()).as_posix()
+    content_ok = policy_path.is_file() and policy_path.read_bytes() == EVIDENCE_BYTE_POLICY
+    tracked = bool(git(root, "ls-files", "--error-unmatch", "--", relative_policy, required=False))
+    attr_run = subprocess.run(
+        ["git", "-C", str(root), "check-attr", "text", "filter", "working-tree-encoding", "--", EVIDENCE_ATTRIBUTE_PROBE],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    attributes: dict[str, str] = {}
+    if attr_run.returncode == 0:
+        for line in attr_run.stdout.splitlines():
+            parts = line.split(": ", 2)
+            if len(parts) == 3:
+                attributes[parts[1]] = parts[2]
+    effective = all(attributes.get(name) == "unset" for name in ("text", "filter", "working-tree-encoding"))
+    valid = content_ok and tracked and attr_run.returncode == 0 and effective
+    return check(
+        "HC-EVIDENCE-GIT-BYTE-POLICY", "PASS" if valid else "BLOCKED",
+        "evidence subtree has a tracked byte-preserving Git policy" if valid else "evidence Git byte policy is missing, untracked or ineffective",
+        path=relative_policy, contentMatches=content_ok, tracked=tracked, attributes=attributes,
+    )
+
+
+def require_evidence_byte_policy(root: Path, p: dict[str, Path]) -> None:
+    result = evidence_byte_policy_check(root, p)
+    if result["status"] != "PASS":
+        raise ControlError(result["id"], result["message"], status=result["status"], details=result.get("details"))
+
+
+def git_blob_ref_check(root: Path, ref: dict[str, Any]) -> dict[str, Any]:
+    path = safe_relative(root, ref["path"])
+    relative = path.resolve().relative_to(root.resolve()).as_posix()
+    result = subprocess.run(
+        ["git", "-C", str(root), "show", f"HEAD:{relative}"],
+        capture_output=True,
+    )
+    blob = result.stdout if result.returncode == 0 else b""
+    valid = (
+        result.returncode == 0
+        and len(blob) == ref.get("bytes")
+        and sha256_bytes(blob) == ref.get("sha256")
+        and path.is_file()
+        and path.read_bytes() == blob
+    )
+    return check(
+        "HC-EVIDENCE-GIT-BYTE-POLICY", "PASS" if valid else "FAIL",
+        "working-copy evidence bytes equal the committed Git blob" if valid else "working-copy evidence bytes differ from the committed Git blob",
+        path=relative, workingSha256=sha256_file(path) if path.is_file() else None,
+        blobSha256=sha256_bytes(blob) if result.returncode == 0 else None,
+    )
+
+
+def case_lifecycle(case: dict[str, Any]) -> str:
+    return case.get("lifecycle", "CANDIDATE_EXECUTION")
+
+
+def assert_candidate_case_lifecycle(cases: list[dict[str, Any]]) -> None:
+    invalid = sorted(item.get("id", "unknown") for item in cases if case_lifecycle(item) != "CANDIDATE_EXECUTION")
+    if invalid:
+        raise ControlError(
+            "HC-CASE-LIFECYCLE-SCOPE",
+            "bootstrap diagnostic cases cannot enter a candidate task",
+            status="BLOCKED", details=invalid,
+        )
 
 
 def require_identifier(value: Any, field: str) -> str:
@@ -549,6 +623,7 @@ def evidence_adapter_contract_matches(
     descriptor_capabilities = set(descriptor.get("provesCaseCapabilities", []))
     requirements = case.get("artifacts", [])
     artifact_refs = evidence.get("artifacts", [])
+    executable_resolution = invocation.get("executableResolution") if isinstance(invocation, dict) else None
     invocation_ok = (
         isinstance(invocation, dict)
         and invocation.get("schemaVersion") == SCHEMA_VERSION
@@ -558,6 +633,13 @@ def evidence_adapter_contract_matches(
         and invocation.get("adapter") == case.get("adapter") == evidence.get("adapter")
         and invocation.get("command") == case.get("command") == evidence.get("command")
         and invocation.get("requestedArtifacts") == requirements
+        and isinstance(executable_resolution, dict)
+        and executable_resolution.get("requestedExecutable") == case.get("command", [None])[0]
+        and isinstance(executable_resolution.get("resolvedExecutable"), str)
+        and bool(executable_resolution["resolvedExecutable"].strip())
+        and Path(executable_resolution["resolvedExecutable"]).is_absolute()
+        and isinstance(executable_resolution.get("hostPlatform"), str)
+        and bool(executable_resolution["hostPlatform"].strip())
     )
     if evidence.get("observation") == "runtime-observed":
         oracle = invocation.get("oracleObservation") if isinstance(invocation, dict) else None
@@ -613,6 +695,8 @@ def _catalog_from_spec(spec: dict[str, Any], compiled: dict[str, Any]) -> dict[s
         item = dict(raw)
         item["adapter"] = _adapter_binding(compiled, raw.get("adapter", raw.get("adapterId", "generic-command")))
         item.pop("adapterId", None)
+        if item.get("lifecycle", "CANDIDATE_EXECUTION") not in {"CANDIDATE_EXECUTION", "BOOTSTRAP_DIAGNOSTIC"}:
+            raise ControlError("HC-CASE-LIFECYCLE-SCOPE", f"case {item.get('id', 'unknown')} has an unsupported lifecycle")
         descriptor = next(value for value in compiled["canonical"]["runtimeAdapters"] if value.get("id") == item["adapter"]["id"])
         validate_adapter_case_contract(str(item.get("id", "unknown")), item, descriptor)
         item.setdefault("satisfiesRuleIds", [])
@@ -704,6 +788,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
     compile_checks = compiler_checks(compiled); fail_on_compile_issues(compile_checks)
     catalog = _catalog_from_spec(spec, compiled)
     p["control"].mkdir(parents=True)
+    write_evidence_byte_policy(p["evidence_byte_policy"])
     copy_runtime_bundle(p["runtime"])
     p["governance"].mkdir(parents=True)
     shutil.copy2(skill_root / "package-manifest.json", p["governance"] / "package-manifest.json")
@@ -749,6 +834,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
         "packageMode": package_mode, "packageBinding": package_binding,
         "skill": content_ref(root, p["governance"] / "package-manifest.json"), "runtime": content_ref(root, p["runtime"] / "runtime-manifest.json"),
         "keyObjectives": content_ref(root, p["key_objectives"]), "automationPolicy": content_ref(root, p["automation_policy"]), "caseCatalog": content_ref(root, p["cases"]),
+        "evidenceBytePolicy": content_ref(root, p["evidence_byte_policy"]),
         "authorityFiles": authorities, "ruleInputs": content_ref(root, p["rule_inputs"]), "positioning": content_ref(root, p["positioning"]),
         "resolvedRuleSet": content_ref(root, p["resolved_rules"]), "ruleCompiler": content_ref(root, p["runtime"] / "vibe_runtime" / "project_rules.py"),
         "profileDirectory": content_ref(root, p["runtime"] / "rules" / "v1" / "profiles.json"),
@@ -811,6 +897,7 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
     if missing:
         raise ControlError("HC-TASK-CASE-CLOSURE", "task references unknown cases", details=missing)
     selected_cases = [get_case(catalog, case_id) for case_id in contract["requiredCaseIds"]]
+    assert_candidate_case_lifecycle(selected_cases)
     checkpoint_checks = checkpoint_contract_checks(contract, positioning, catalog, intent_cap)
     task_coverage = coverage_check(compiled, selected_cases)
     if task_coverage["status"] != "PASS":
@@ -926,6 +1013,7 @@ def current_objects(p: dict[str, Path]) -> tuple[dict[str, Any], dict[str, Any],
             raise ControlError(result["id"], result["message"], status=result["status"])
         verify_policy(p["root"], load_json(safe_relative(p["root"], automation_ref["path"])), project_id=lock["projectId"], expected_scope_binding=policy_scope_binding(load_json(p["key_objectives"]), load_json(p["positioning"])))
     contract = load_json(safe_relative(p["root"], task_lock["contract"]["path"])); validate_object("task-contract", contract)
+    assert_candidate_case_lifecycle([get_case(catalog, case_id) for case_id in contract["requiredCaseIds"]])
     assert_objective_refs(contract, objective_lock)
     positioning = load_json(p["positioning"]); validate_object("project-positioning", positioning)
     positioning_checkpoint_source_checks(positioning)
@@ -958,6 +1046,45 @@ def create_execution_worktree(root: Path, candidate_commit: str) -> tuple[Path, 
     return parent, worktree
 
 
+def resolve_executable(command: list[str], execution_root: Path) -> tuple[list[str], dict[str, str]]:
+    if not command or not all(isinstance(item, str) and item for item in command):
+        raise ControlError("HC-EXECUTABLE-RESOLUTION", "locked command must be a nonempty string array", status="BLOCKED")
+    requested = command[0]
+    requested_path = Path(requested)
+    if requested_path.is_absolute():
+        resolved = shutil.which(str(requested_path)) or (str(requested_path) if requested_path.is_file() else None)
+    elif any(separator in requested for separator in ("/", "\\")):
+        candidate = (execution_root / requested_path).resolve()
+        resolved = shutil.which(str(candidate)) or (str(candidate) if candidate.is_file() else None)
+    else:
+        resolved = shutil.which(requested)
+    if not resolved:
+        raise ControlError(
+            "HC-EXECUTABLE-RESOLUTION", f"locked executable cannot be resolved: {requested}",
+            status="BLOCKED", details={"requestedExecutable": requested, "hostPlatform": platform.platform()},
+        )
+    return [str(Path(resolved).resolve()), *command[1:]], {
+        "requestedExecutable": requested,
+        "resolvedExecutable": str(Path(resolved).resolve()),
+        "hostPlatform": platform.platform(),
+    }
+
+
+def run_locked_command(command: list[str], execution_root: Path, *, timeout: int | None = None) -> tuple[subprocess.CompletedProcess[str], dict[str, str]]:
+    resolved_command, resolution = resolve_executable(command, execution_root)
+    try:
+        result = subprocess.run(
+            resolved_command, cwd=execution_root, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout, shell=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        raise ControlError(
+            "HC-EXECUTABLE-RESOLUTION", f"resolved executable could not be started: {resolution['resolvedExecutable']}",
+            status="BLOCKED", details={**resolution, "error": str(exc)},
+        ) from exc
+    return result, resolution
+
+
 def remove_execution_worktree(root: Path, parent: Path, worktree: Path) -> None:
     result = subprocess.run(
         ["git", "-C", str(root), "worktree", "remove", "--force", str(worktree)],
@@ -971,6 +1098,7 @@ def remove_execution_worktree(root: Path, parent: Path, worktree: Path) -> None:
 def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] | None) -> dict[str, Any]:
     assert_dependencies()
     p = paths(project); root = git_root(p["root"]); state, _, catalog, _, contract = current_objects(p); _, candidate = candidate_for(p, state)
+    require_evidence_byte_policy(root, p)
     resolved = load_json(p["resolved_rules"]); validate_object("resolved-rule-set", resolved)
     selected = case_ids or contract["requiredCaseIds"]
     unknown = sorted(set(selected) - set(contract["requiredCaseIds"]))
@@ -981,6 +1109,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
     try:
         for case_id in selected:
             case = get_case(catalog, case_id)
+            assert_candidate_case_lifecycle([case])
             if case["observation"] != "runtime-observed":
                 raise ControlError("HC-CASE-OBSERVATION-ELIGIBILITY", f"case {case_id} requires external ingest")
             adapter = case["adapter"]
@@ -993,7 +1122,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
             if adapter["id"] == "godot-runtime":
                 if not (execution_root / "project.godot").is_file() or "godot" not in Path(case["command"][0]).name.lower():
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Godot case {case_id} must bind project.godot and a Godot executable")
-                version_run = subprocess.run([case["command"][0], "--version"], cwd=execution_root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, shell=False)
+                version_run, _ = run_locked_command([case["command"][0], "--version"], execution_root, timeout=20)
                 tool_version = (version_run.stdout or version_run.stderr).strip()
                 if version_run.returncode or not tool_version:
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Godot executable/version cannot be observed for {case_id}", status="BLOCKED")
@@ -1001,13 +1130,13 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
                 version_command = _playwright_version_command(case["command"])
                 if version_command is None:
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright case {case_id} must execute a locked Playwright test command")
-                version_run = subprocess.run(version_command, cwd=execution_root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, shell=False)
+                version_run, _ = run_locked_command(version_command, execution_root, timeout=20)
                 tool_version = (version_run.stdout or version_run.stderr).strip()
                 if version_run.returncode or not tool_version:
                     raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright executable/version cannot be observed for {case_id}", status="BLOCKED")
                 clear_declared_artifacts(execution_root, case.get("artifacts", []))
             started = now_iso()
-            run = subprocess.run(case["command"], cwd=execution_root, capture_output=True, text=True, encoding="utf-8", errors="replace", shell=False)
+            run, executable_resolution = run_locked_command(case["command"], execution_root)
             finished = now_iso()
             transcript_path = p["evidence"] / f"{evidence_id}.transcript.txt"
             transcript_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1030,6 +1159,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
             invocation = {
                 "schemaVersion": SCHEMA_VERSION, "evidenceId": evidence_id, "candidateCommit": candidate["commit"], "caseId": case_id,
                 "adapter": adapter, "command": case["command"], "operation": "execute-locked-case",
+                "executableResolution": executable_resolution,
                 "requestedArtifacts": case.get("artifacts", []), "executionRoot": "detached-candidate-worktree", "toolVersion": tool_version,
                 "oracleObservation": oracle_observation,
             }
@@ -1528,6 +1658,8 @@ def validate(project: Path) -> dict[str, Any]:
     except ControlError as exc:
         checks.append(check(exc.check_id, exc.status, exc.message)); status = exc.status
         return envelope(status=status, checks=checks, formal={"eligible": False, "maxClaimLevel": "DIAGNOSTIC", "blockers": [exc.check_id]})
+    byte_policy = evidence_byte_policy_check(root, p)
+    checks.append(byte_policy)
     positioning: dict[str, Any] = {"deliveryObjective": "UNKNOWN"}
     resolved: dict[str, Any] = {"warnings": [], "investigations": []}
     try:
@@ -1572,6 +1704,10 @@ def validate(project: Path) -> dict[str, Any]:
     if lock["packageMode"] == "SEALED":
         checks.append(verify_ref(root, lock["packageAuditReceipt"], "HC-PACKAGE-AUDIT-RECEIPT"))
     checks.append(verify_ref(root, lock["caseCatalog"], "HC-GOVERNANCE-CASE-CATALOG"))
+    if "evidenceBytePolicy" in lock:
+        checks.append(verify_ref(root, lock["evidenceBytePolicy"], "HC-EVIDENCE-GIT-BYTE-POLICY"))
+    else:
+        checks.append(check("HC-EVIDENCE-GIT-BYTE-POLICY", "BLOCKED", "governance lock does not bind the evidence Git byte policy"))
     checks.append(verify_ref(root, lock["ruleInputs"], "HC-RULESET-BINDING"))
     checks.append(verify_ref(root, lock["positioning"], "HC-POSITIONING-CONFIRMED"))
     checks.append(verify_ref(root, lock["resolvedRuleSet"], "HC-RULESET-BINDING"))
@@ -1659,6 +1795,8 @@ def validate(project: Path) -> dict[str, Any]:
                 ))
                 tracked_evidence = bool(git(root, "ls-files", "--error-unmatch", "--", evidence_path.relative_to(root).as_posix(), required=False))
                 checks.append(check("HC-EVIDENCE-TRACKED", "PASS" if tracked_evidence else "BLOCKED", "evidence record is tracked" if tracked_evidence else "evidence record is not tracked", path=str(evidence_path)))
+                evidence_blob_check = git_blob_ref_check(root, content_ref(root, evidence_path))
+                checks.append(evidence_blob_check)
                 case = get_case(catalog, evidence["caseId"]); expected_case_hash = sha256_bytes(canonical_bytes(case)); expected_oracle_hash = sha256_bytes(canonical_bytes(case["oracle"])); expected_input_hash = sha256_bytes(canonical_bytes(candidate["inputBindings"]))
                 identity_ok = evidence["taskId"] == contract["taskId"] and evidence["candidateId"] == candidate["candidateId"] and evidence["candidateCommit"] == candidate["commit"] and ref_key(evidence["positioning"]) == ref_key(candidate["positioning"]) and ref_key(evidence["resolvedRuleSet"]) == ref_key(candidate["resolvedRuleSet"])
                 expected_checkpoint_ids = checkpoint_ids_for_case(contract, evidence["caseId"])
@@ -1667,6 +1805,11 @@ def validate(project: Path) -> dict[str, Any]:
                 observation_ok = evidence["observation"] in {"runtime-observed", "blackbox-observed"} and evidence["observation"] == case["observation"]
                 ref_ok = verify_ref(root, evidence["transcript"], f"HC-TRANSCRIPT-{evidence['evidenceId']}"); checks.append(ref_ok)
                 invocation_ok = verify_ref(root, evidence["adapterInvocation"], f"HC-ADAPTER-INVOCATION-{evidence['evidenceId']}"); checks.append(invocation_ok)
+                byte_refs = [evidence["transcript"], evidence["adapterInvocation"], *evidence["artifacts"]]
+                if evidence.get("externalTranscript"):
+                    byte_refs.append(evidence["externalTranscript"])
+                byte_ref_checks = [git_blob_ref_check(root, ref) for ref in byte_refs]
+                checks.extend(byte_ref_checks)
                 invocation = None
                 invocation_schema_ok = False
                 if invocation_ok["status"] == "PASS":
@@ -1707,7 +1850,8 @@ def validate(project: Path) -> dict[str, Any]:
                 checks.append(check("HC-CASE-PROVENANCE", "PASS" if identity_ok and provenance_ok else "FAIL", "case provenance binds candidate/oracle/input" if identity_ok and provenance_ok else "case provenance mismatch", caseId=evidence["caseId"]))
                 checks.append(check("HC-CASE-OBSERVATION-ELIGIBILITY", "PASS" if observation_ok else "FAIL", "observation source is eligible" if observation_ok else "declared/derived/human or mismatched observation is ineligible", caseId=evidence["caseId"]))
                 checks.append(check("HC-CASE-COUNTERS", "PASS" if count_ok else "FAIL", "per-case counters qualify" if count_ok else "zero/skip/failure/non-conservation", caseId=evidence["caseId"]))
-                if identity_ok and provenance_ok and count_ok and observation_ok and signature_ok and evidence_id_ok and tracked_evidence and ref_ok["status"] == "PASS" and invocation_ok["status"] == "PASS" and invocation_schema_ok and all(item["status"] == "PASS" for item in artifact_results) and adapter_ok:
+                byte_closed = byte_policy["status"] == "PASS" and evidence_blob_check["status"] == "PASS" and all(item["status"] == "PASS" for item in byte_ref_checks)
+                if identity_ok and provenance_ok and count_ok and observation_ok and signature_ok and evidence_id_ok and tracked_evidence and ref_ok["status"] == "PASS" and invocation_ok["status"] == "PASS" and invocation_schema_ok and all(item["status"] == "PASS" for item in artifact_results) and adapter_ok and byte_closed:
                     evidence_by_case[evidence["caseId"]] = evidence
                     evidence_refs_by_case[evidence["caseId"]] = content_ref(root, evidence_path)
                 executors.add((evidence["executor"]["actorId"], evidence["executor"]["sessionId"]))

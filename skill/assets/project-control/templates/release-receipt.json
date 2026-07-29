@@ -1,6 +1,6 @@
 {
   "schemaVersion": "3.2",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "taskId": "TASK-001",
   "candidateId": "replace-with-candidate-id",
   "candidateCommit": "replace-with-40-char-commit",

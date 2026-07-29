@@ -203,19 +203,20 @@ def compiler_checks(compiled: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def coverage_check(compiled: dict[str, Any], cases: list[dict[str, Any]]) -> dict[str, Any]:
+    candidate_cases = [case for case in cases if case.get("lifecycle", "CANDIDATE_EXECUTION") == "CANDIDATE_EXECUTION"]
     rule_ids = {item["id"] for item in compiled["canonical"]["layers"]}
-    covered_ids = {rule_id for case in cases for rule_id in case.get("satisfiesRuleIds", [])}
+    covered_ids = {rule_id for case in candidate_cases for rule_id in case.get("satisfiesRuleIds", [])}
     required_capabilities = {
         capability
         for item in compiled["canonical"]["layers"]
         for capability in item["rule"].get("caseCapabilities", [])
     }
-    covered_capabilities = {capability for case in cases for capability in case.get("capabilities", [])}
+    covered_capabilities = {capability for case in candidate_cases for capability in case.get("capabilities", [])}
     missing_rules = sorted(rule_ids - covered_ids)
     missing_capabilities = sorted(required_capabilities - covered_capabilities)
     descriptors = {item.get("id"): item for item in compiled["canonical"].get("runtimeAdapters", [])}
     unsupported_capabilities = []
-    for case in cases:
+    for case in candidate_cases:
         adapter = case.get("adapter", {})
         adapter_id = adapter.get("id") if isinstance(adapter, dict) else adapter
         descriptor = descriptors.get(adapter_id)

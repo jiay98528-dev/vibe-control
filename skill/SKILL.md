@@ -22,7 +22,7 @@ Build a project-local, version-pinned control plane before broad implementation.
 - Before creating a project control plane, ask the user for that **project's expected release intent**. Do not infer it from project size, user count, repository name, or a template; do not write bootstrap files until one intent is explicitly selected.
 - `releaseIntent` describes the product's delivery boundary, never installation, licensing, payment, public distribution, or Git tagging of this Skill. `LOCAL_EXPERIMENT` caps at `VERIFIED`; `PRIVATE_OPERATION` caps at `ACCEPTED`; only `EXTERNAL_RELEASE` can use the `RELEASE_READY` path.
 - Candidate-bound R2 review and owner decisions are tracked human attestations, not cryptographic licensing. Ed25519 public-key verification, the external release audit, and the receipt are required only for an actual `EXTERNAL_RELEASE` R3 task. A private key is never required to install, use, version, or locally tag this Skill, and it must remain outside the Skill and project control directory.
-- Version `0.3.6` is installed in `DEVELOPMENT_DIAGNOSTIC` mode while Schema 3.2 enforcement, automation-policy 1.0 and orchestration compatibility remain unsealed. Its package manifest and assurance matrix can never self-grant `FORMAL_GATE_READY`; `formalClaimsAllowed` remains false and an unsealed package is capped at `DEVELOPMENT_CHECKED`. Diagnostic development remains available, but formal acceptance, release readiness, and package sealing are fail-closed until an exact future candidate completes independent package-audit closure.
+- Version `0.3.7` is installed in `DEVELOPMENT_DIAGNOSTIC` mode while Schema 3.2 enforcement, automation-policy 1.0, same-schema runtime upgrade and orchestration compatibility remain unsealed. Its package manifest and assurance matrix can never self-grant `FORMAL_GATE_READY`; `formalClaimsAllowed` remains false and an unsealed package is capped at `DEVELOPMENT_CHECKED`. Diagnostic development remains available, but formal acceptance, release readiness, and package sealing are fail-closed until an exact future candidate completes independent package-audit closure.
 - Browser WebGL gameplay uses the separate `browser-webgl-game-runtime` proof boundary. It activates only for confirmed `GAMEPLAY` positioning with an explicit WebGL runtime target, requires a direct locked `playwright test` command and freshly generated candidate-bound artifacts, and never proves unrecorded browser/viewport/WebGL details, a native shell, target hardware, game feel, human approval, or release readiness.
 - A new project must explicitly select `MANUAL_STAGE_CONFIRMATION`, `AUTO_LOCAL_TO_REVIEW`, or `AUTO_PUSH_TO_REVIEW` in the consolidated startup confirmation. An unanswered automation choice blocks bootstrap. A legacy Schema 3.2 project without an automation policy remains manual-compatible and gains no automatic side-effect authority until a content-bound `automation --plan` / `--apply` opt-in completes. See [automation-advancement.md](references/automation-advancement.md).
 - A Schema 3.1 project may use the content-bound `migrate --plan [--spec]` / `--apply <plan-hash> --spec` path. Migration archives the complete old control plane, invalidates every downstream fact, and returns to `DRAFT / BLOCKED / DIAGNOSTIC`; it never rebinds old evidence. Schema 2.0 remains pinned to runtime 0.2.2 and returns `VC-REINSTALL-REQUIRED` instead of being converted.
@@ -166,15 +166,15 @@ python <skill-root>/scripts/vibe_control.py migrate --project <root> --apply <pl
 Run the pinned project controller after bootstrap:
 
 ```text
-python .vibe-control/runtime/0.3.6/control.py lock-task --project . --contract <contract.json>
-python .vibe-control/runtime/0.3.6/control.py freeze --project . --actor <implementer> --session <session>
-python .vibe-control/runtime/0.3.6/control.py execute --project . --actor <actor> --session <session> [--case <case-id>]
-python .vibe-control/runtime/0.3.6/control.py ingest --project . --attestation <external-evidence-attestation.json>
-python .vibe-control/runtime/0.3.6/control.py validate --project .
-python .vibe-control/runtime/0.3.6/control.py audit --project . --review <review.json>
-python .vibe-control/runtime/0.3.6/control.py accept --project . --decision <decision.json>
-python .vibe-control/runtime/0.3.6/control.py release-check --project .
-python .vibe-control/runtime/0.3.6/control.py handoff --project .
+python .vibe-control/runtime/0.3.7/control.py lock-task --project . --contract <contract.json>
+python .vibe-control/runtime/0.3.7/control.py freeze --project . --actor <implementer> --session <session>
+python .vibe-control/runtime/0.3.7/control.py execute --project . --actor <actor> --session <session> [--case <case-id>]
+python .vibe-control/runtime/0.3.7/control.py ingest --project . --attestation <external-evidence-attestation.json>
+python .vibe-control/runtime/0.3.7/control.py validate --project .
+python .vibe-control/runtime/0.3.7/control.py audit --project . --review <review.json>
+python .vibe-control/runtime/0.3.7/control.py accept --project . --decision <decision.json>
+python .vibe-control/runtime/0.3.7/control.py release-check --project .
+python .vibe-control/runtime/0.3.7/control.py handoff --project .
 ```
 
 Interpret exit codes as:

@@ -14,7 +14,7 @@
       }
     },
     "skill": {"$ref": "#/$defs/ref"}, "runtime": {"$ref": "#/$defs/ref"}, "packageAuditReceipt": {"$ref": "#/$defs/ref"},
-    "keyObjectives": {"$ref": "#/$defs/ref"}, "automationPolicy": {"$ref": "#/$defs/ref"}, "caseCatalog": {"$ref": "#/$defs/ref"}, "authorityFiles": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "keyObjectives": {"$ref": "#/$defs/ref"}, "automationPolicy": {"$ref": "#/$defs/ref"}, "caseCatalog": {"$ref": "#/$defs/ref"}, "evidenceBytePolicy": {"$ref": "#/$defs/ref"}, "authorityFiles": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
     "ruleInputs": {"$ref": "#/$defs/ref"}, "positioning": {"$ref": "#/$defs/ref"}, "resolvedRuleSet": {"$ref": "#/$defs/ref"}, "ruleCompiler": {"$ref": "#/$defs/ref"},
     "profileDirectory": {"$ref": "#/$defs/ref"}, "adapterDirectory": {"$ref": "#/$defs/ref"}, "skillBindings": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
     "releaseIntent": {"enum": ["LOCAL_EXPERIMENT", "PRIVATE_OPERATION", "EXTERNAL_RELEASE"]}, "trustedKeys": {"type": "object"}, "lockedAt": {"type": "string", "format": "date-time"}
@@ -31,10 +31,14 @@
       "if": {
         "properties": {
           "packageMode": {"const": "DEVELOPMENT"},
-          "packageBinding": {"properties": {"version": {"enum": ["0.3.5", "0.3.6"]}}}
+          "packageBinding": {"properties": {"version": {"enum": ["0.3.5", "0.3.6", "0.3.7"]}}}
         }
       },
       "then": {"properties": {"packageBinding": {"required": ["sourceKind"]}}}
+    },
+    {
+      "if": {"properties": {"packageBinding": {"properties": {"version": {"const": "0.3.7"}}}}},
+      "then": {"required": ["evidenceBytePolicy"]}
     },
     {
       "if": {

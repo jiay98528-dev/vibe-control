@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pinned entry shim for vibe-control 0.3.6 development runtime."""
+"""Pinned entry shim for vibe-control 0.3.7 development runtime."""
 
 import datetime as dt
 import importlib.metadata
