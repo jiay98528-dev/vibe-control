@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import test_assurance_regressions as suite
@@ -48,6 +49,7 @@ def test_assurance_runner_protocol() -> None:
         if all_pass["formalClaimsAllowed"] is not suite.fx.package_formal_enabled():
             raise AssertionError(f"package readiness was not reflected in the suite report: {all_pass}")
 
+        suite_timeout_started = time.monotonic()
         suite_results, _ = suite.bounded.run_suite(
             ["suite-timeout-a", "suite-timeout-b"],
             command_for=lambda name: [sys.executable, "-c", "import time; time.sleep(30)"],
@@ -65,6 +67,9 @@ def test_assurance_runner_protocol() -> None:
             raise AssertionError(f"suite timeout counters do not conserve results: {suite_results}")
         if not all(item.get("checkId") == "ASSURANCE-SUITE-TIMEOUT" for item in suite_results):
             raise AssertionError(f"suite timeout did not use its stable ID: {suite_results}")
+        suite_timeout_elapsed = time.monotonic() - suite_timeout_started
+        if suite_timeout_elapsed > suite.bounded.SUITE_CLEANUP_BUDGET_SECONDS + 5:
+            raise AssertionError(f"suite timeout exceeded bounded cleanup budget: {suite_timeout_elapsed:.3f}s")
 
 
 def main() -> int:

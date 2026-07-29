@@ -539,6 +539,7 @@ def main(argv: list[str] | None = None) -> int:
         "jobs": args.jobs,
         "caseTimeoutSeconds": args.case_timeout,
         "suiteTimeoutSeconds": args.suite_timeout,
+        "suiteCleanupBudgetSeconds": bounded.SUITE_CLEANUP_BUDGET_SECONDS,
         "durationSeconds": round(duration, 3),
         "counters": result_counters,
         "cases": results,

@@ -215,8 +215,8 @@
     },
     {
       "path": "vibe_runtime/controller.py",
-      "bytes": 172010,
-      "sha256": "6f8495ea66aaadee485949e2977cd69a9a842c6fa7a605f20523cb8407cc5451"
+      "bytes": 173093,
+      "sha256": "c537cb89025b89d41ebb58f58f96ff5031463dacdb2eb391fba96b55d5f303b1"
     },
     {
       "path": "vibe_runtime/crypto.py",

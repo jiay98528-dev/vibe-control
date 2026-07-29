@@ -230,7 +230,11 @@ def main(argv: list[str] | None = None) -> int:
             suite_timeout_id="ASSURANCE-SUITE-TIMEOUT",
         )
     report = build_report(out, duration)
-    report.update({"jobs": args.jobs, "caseTimeoutSeconds": args.case_timeout, "suiteTimeoutSeconds": args.suite_timeout})
+    report.update({
+        "jobs": args.jobs, "caseTimeoutSeconds": args.case_timeout,
+        "suiteTimeoutSeconds": args.suite_timeout,
+        "suiteCleanupBudgetSeconds": bounded.SUITE_CLEANUP_BUDGET_SECONDS,
+    })
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["status"] == "PASS" else 1
 

@@ -124,6 +124,12 @@ def test_playwright_adapter_contract_is_mode_driven_and_fail_closed() -> None:
         ({**valid, "command": ["npx", "playwright", "show-report"]}, "Playwright command"),
         ({**valid, "command": ["C:\\tmp\\playwright.exe", "test"]}, "Playwright command"),
         ({**valid, "command": ["pnpm", "exec", "C:\\tmp\\playwright.exe", "test"]}, "Playwright command"),
+        ({**valid, "command": ["playwright", "test", "--help"]}, "Playwright command"),
+        ({**valid, "command": ["playwright", "test", "--version"]}, "Playwright command"),
+        ({**valid, "command": ["playwright", "test", "--list"]}, "Playwright command"),
+        ({**valid, "command": ["playwright", "test", "--ui"]}, "Playwright command"),
+        ({**valid, "command": ["playwright", "test", "--pass-with-no-tests"]}, "Playwright command"),
+        ({**valid, "command": ["pnpm", "exec", "playwright", "test", "--help"]}, "Playwright command"),
     ]
     for case, fragment in mutations:
         try:
@@ -132,6 +138,15 @@ def test_playwright_adapter_contract_is_mode_driven_and_fail_closed() -> None:
             assert exc.check_id == "HC-ADAPTER-CAPABILITY" and fragment in exc.message
         else:
             raise AssertionError(f"mutation was accepted: {case}")
+    for invalid_path in ("../report.json", "out/../report.json", "/tmp/report.json", "C:\\tmp\\report.json", "C:report.json"):
+        try:
+            validate_adapter_case_contract(
+                "CASE-BAD-PATH", {**valid, "artifacts": [{"path": invalid_path, "minBytes": 1}]}, descriptor,
+            )
+        except ControlError as exc:
+            assert exc.check_id == "HC-PATH-SAFETY", (invalid_path, exc.check_id)
+        else:
+            raise AssertionError(f"unsafe artifact path was accepted: {invalid_path}")
 
 
 def test_evidence_binds_command_invocation_capabilities_and_each_artifact() -> None:

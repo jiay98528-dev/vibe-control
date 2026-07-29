@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-import concurrent.futures
 import json
 import os
+import queue
 import signal
 import subprocess
 import sys
@@ -16,6 +16,16 @@ from typing import Callable
 
 
 _OUTPUT_LOCK = threading.Lock()
+SUITE_CLEANUP_BUDGET_SECONDS = 30
+
+
+def suite_execution_budget(suite_timeout: int) -> float:
+    """Reserve a fixed cleanup window inside normal suite deadlines.
+
+    Very small synthetic deadlines still receive the same explicit cleanup
+    allowance, so their total wall-clock contract is timeout + cleanup budget.
+    """
+    return max(0.1, float(suite_timeout - SUITE_CLEANUP_BUDGET_SECONDS))
 
 
 def emit_progress(event: dict) -> None:
@@ -23,27 +33,33 @@ def emit_progress(event: dict) -> None:
         print(json.dumps(event, ensure_ascii=False), file=sys.stderr, flush=True)
 
 
-def terminate_process_tree(process: subprocess.Popen[str]) -> None:
+def terminate_process_tree(process: subprocess.Popen[str], *, cleanup_timeout: float = 5.0) -> None:
     if process.poll() is not None:
         return
     if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                timeout=cleanup_timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            process.kill()
     else:
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
     try:
-        process.communicate(timeout=10)
+        process.communicate(timeout=cleanup_timeout)
     except subprocess.TimeoutExpired:
         process.kill()
-        process.communicate()
+        try:
+            process.communicate(timeout=cleanup_timeout)
+        except subprocess.TimeoutExpired:
+            pass
 
 
 def parse_worker_output(
@@ -108,6 +124,7 @@ def run_supervised_command(
     timeout_id: str = "BOUNDED-CASE-TIMEOUT",
     active: dict[str, subprocess.Popen[str]] | None = None,
     active_lock: threading.Lock | None = None,
+    cancelled: threading.Event | None = None,
 ) -> dict:
     case_temp = temp_root / case_id
     case_temp.mkdir(parents=True, exist_ok=True)
@@ -130,6 +147,12 @@ def run_supervised_command(
     if active is not None and active_lock is not None:
         with active_lock:
             active[case_id] = process
+            cancellation_observed = cancelled is not None and cancelled.is_set()
+        if cancellation_observed:
+            terminate_process_tree(process)
+            with active_lock:
+                active.pop(case_id, None)
+            return {identity_field: case_id, "status": "TIMEOUT", "checkId": timeout_id, "timeoutSeconds": timeout_seconds}
     try:
         stdout, stderr = process.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
@@ -164,12 +187,22 @@ def run_suite(
     suite_timeout_id: str,
 ) -> tuple[list[dict], float]:
     started = time.monotonic()
+    execution_budget = suite_execution_budget(suite_timeout)
     active: dict[str, subprocess.Popen[str]] = {}
     active_lock = threading.Lock()
+    cancelled = threading.Event()
     by_id: dict[str, dict] = {}
+    results_lock = threading.Lock()
+    work: queue.Queue[str] = queue.Queue()
+    for case_id in case_ids:
+        work.put(case_id)
 
     def execute(case_id: str) -> dict:
         emit_progress({"event": "case-start", identity_field: case_id, "total": len(case_ids)})
+        if cancelled.is_set():
+            result = {identity_field: case_id, "status": "TIMEOUT", "checkId": suite_timeout_id, "timeoutSeconds": suite_timeout}
+            emit_progress({"event": "case-complete", **result})
+            return result
         result = run_supervised_command(
             case_id,
             temp_root,
@@ -180,38 +213,65 @@ def run_suite(
             timeout_id=timeout_id,
             active=active,
             active_lock=active_lock,
+            cancelled=cancelled,
         )
         emit_progress({"event": "case-complete", **result})
         return result
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(jobs, len(case_ids)))) as pool:
-        futures = {pool.submit(execute, case_id): case_id for case_id in case_ids}
-        pending = set(futures)
-        last_heartbeat = started
-        while pending:
-            remaining = suite_timeout - (time.monotonic() - started)
-            if remaining <= 0:
-                with active_lock:
-                    processes = list(active.values())
-                for process in processes:
-                    terminate_process_tree(process)
-                for future in pending:
-                    future.cancel()
-                for future in pending:
-                    case_id = futures[future]
-                    by_id.setdefault(case_id, {identity_field: case_id, "status": "TIMEOUT", "checkId": suite_timeout_id, "timeoutSeconds": suite_timeout})
-                emit_progress({"event": "suite-timeout", "remainingCases": sorted(futures[item] for item in pending), "timeoutSeconds": suite_timeout})
-                break
-            done, pending = concurrent.futures.wait(pending, timeout=min(1.0, remaining), return_when=concurrent.futures.FIRST_COMPLETED)
-            for future in done:
-                case_id = futures[future]
-                try:
-                    by_id[case_id] = future.result()
-                except Exception as exc:
-                    by_id[case_id] = {identity_field: case_id, "status": "FAIL", "checkId": protocol_id, "errorType": type(exc).__name__, "error": str(exc)}
-            now = time.monotonic()
-            if pending and now - last_heartbeat >= 10:
-                emit_progress({"event": "heartbeat", "completed": len(by_id), "total": len(case_ids), "elapsedSeconds": round(now - started, 3)})
-                last_heartbeat = now
+    def worker() -> None:
+        while not cancelled.is_set():
+            try:
+                case_id = work.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                result = execute(case_id)
+            except Exception as exc:
+                result = {identity_field: case_id, "status": "FAIL", "checkId": protocol_id, "errorType": type(exc).__name__, "error": str(exc)}
+            with results_lock:
+                by_id.setdefault(case_id, result)
+            work.task_done()
+
+    workers = [
+        threading.Thread(target=worker, name=f"bounded-suite-{index + 1}", daemon=True)
+        for index in range(max(1, min(jobs, len(case_ids))))
+    ]
+    for thread in workers:
+        thread.start()
+    last_heartbeat = started
+    while True:
+        with results_lock:
+            completed = len(by_id)
+        if completed == len(case_ids):
+            break
+        remaining = execution_budget - (time.monotonic() - started)
+        if remaining <= 0:
+            cancelled.set()
+            with results_lock:
+                incomplete_at_timeout = [case_id for case_id in case_ids if case_id not in by_id]
+            with active_lock:
+                processes = list(active.values())
+            cleanup_threads = [threading.Thread(target=terminate_process_tree, args=(process,), daemon=True) for process in processes]
+            for thread in cleanup_threads:
+                thread.start()
+            cleanup_deadline = time.monotonic() + 8.0
+            for thread in cleanup_threads:
+                thread.join(timeout=max(0.0, cleanup_deadline - time.monotonic()))
+            with results_lock:
+                for case_id in incomplete_at_timeout:
+                    by_id[case_id] = {identity_field: case_id, "status": "TIMEOUT", "checkId": suite_timeout_id, "timeoutSeconds": suite_timeout}
+            emit_progress({
+                "event": "suite-timeout", "remainingCases": sorted(incomplete_at_timeout),
+                "timeoutSeconds": suite_timeout, "cleanupBudgetSeconds": SUITE_CLEANUP_BUDGET_SECONDS,
+            })
+            break
+        now = time.monotonic()
+        if now - last_heartbeat >= 10:
+            emit_progress({"event": "heartbeat", "completed": completed, "total": len(case_ids), "elapsedSeconds": round(now - started, 3)})
+            last_heartbeat = now
+        time.sleep(min(0.1, remaining))
+    join_deadline = time.monotonic() + 8.0
+    for thread in workers:
+        thread.join(timeout=max(0.0, join_deadline - time.monotonic()))
     results = [by_id.get(case_id, {identity_field: case_id, "status": "TIMEOUT", "checkId": suite_timeout_id}) for case_id in case_ids]
     return results, time.monotonic() - started

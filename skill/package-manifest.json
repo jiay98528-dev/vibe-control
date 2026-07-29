@@ -79,7 +79,7 @@
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
       "bytes": 8223,
-      "sha256": "f5b73621fde9d233777dfba471d3d1e46149f633ff4062056c7a87d48d12359c"
+      "sha256": "cd9d344afdbcf0d53e81e059f0162befbcc7ed2991b7c4d53a913638f0adbae9"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
@@ -258,8 +258,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/controller.py",
-      "bytes": 172010,
-      "sha256": "6f8495ea66aaadee485949e2977cd69a9a842c6fa7a605f20523cb8407cc5451"
+      "bytes": 173093,
+      "sha256": "c537cb89025b89d41ebb58f58f96ff5031463dacdb2eb391fba96b55d5f303b1"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/crypto.py",
@@ -613,8 +613,8 @@
     },
     {
       "path": "references/controller-assurance-matrix.json",
-      "bytes": 40042,
-      "sha256": "fea921c3588916e289b29a1d4d86a0ef68c5593507c156b4b57b6bff7b2145c3"
+      "bytes": 40231,
+      "sha256": "d7be7811fa2701d594b716c0bb1ba20afa87a0d4fdd5a4b9f2471aa0cb4d8ebb"
     },
     {
       "path": "references/controller-assurance.md",
@@ -623,8 +623,8 @@
     },
     {
       "path": "references/evidence-policy.md",
-      "bytes": 10309,
-      "sha256": "dc182bb06b7411e70e854963a7444581dcb105dc1134749ba3da4592df7abf15"
+      "bytes": 10450,
+      "sha256": "de53c8735e321f649f7e9d98da4afdb90650025acd9af10e701233c1870fe41e"
     },
     {
       "path": "references/forward-test-0.3.0-results.json",
@@ -683,8 +683,8 @@
     },
     {
       "path": "scripts/bounded_test_runner.py",
-      "bytes": 7960,
-      "sha256": "b92d2a659cfdf6832e4c37117c66398401b80278e7c547e2455ec759f08a97e1"
+      "bytes": 10276,
+      "sha256": "7d1c5cc43be58bd6c6d2794236257cb93c0cd81927a00693c6880c78f8c216be"
     },
     {
       "path": "scripts/build_manifest.py",
@@ -698,8 +698,8 @@
     },
     {
       "path": "scripts/test_assurance_harness.py",
-      "bytes": 3773,
-      "sha256": "0c41dd5a67ece59291644822784eb2fef5f1d9c0025b25662bcb3df02cd9a350"
+      "bytes": 4103,
+      "sha256": "ef183b47896d9cc2d965700b1e68eee719b933ed062c2be651c0da66fdc3ff92"
     },
     {
       "path": "scripts/test_assurance_matrix_fail_closed.py",
@@ -708,8 +708,8 @@
     },
     {
       "path": "scripts/test_assurance_regressions.py",
-      "bytes": 15237,
-      "sha256": "89010e5a330a1106677777de85fa74d50fca00cdf5072dc8c81593e96720e792"
+      "bytes": 15335,
+      "sha256": "f2118f8a4f0cf8eda1fa57a2fb7b95760a0afd99628ace6e7656fe752f3cfade"
     },
     {
       "path": "scripts/test_crlf_checkout.py",
@@ -728,8 +728,8 @@
     },
     {
       "path": "scripts/test_package_release_audit.py",
-      "bytes": 27020,
-      "sha256": "9dc0a6719ee971bba0e13c837351584178f4c62ad5088f8fd068c18779a1b5db"
+      "bytes": 27095,
+      "sha256": "ae11aa204ec6166495bda60a383bdaf0db1ba8d66f0ceeb870ab0ab841610dc5"
     },
     {
       "path": "scripts/test_template_interfaces.py",
@@ -778,8 +778,8 @@
     },
     {
       "path": "scripts/test_v3_adapters.py",
-      "bytes": 19245,
-      "sha256": "37f1565495bc1c90041b915d3c4cbb9b4f7a848ed83f6b94c4ad9e1b42e00dc6"
+      "bytes": 20331,
+      "sha256": "7c2430315c406e6a20da555a5d2a7aa7a944cb7c233991bc648da4ef137b9e38"
     },
     {
       "path": "scripts/test_v3_controller.py",

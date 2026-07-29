@@ -307,7 +307,7 @@
     {
       "id": "CTRL-CONFIRMED-009",
       "findingIds": ["F-REL-002"],
-      "statement": "The adversarial assurance suite runs each case in a bounded child process, emits flushed JSONL progress, reports stable timeout/protocol failures, and finishes with conserved nonzero counters.",
+      "statement": "The adversarial assurance suite runs each case in a bounded child process, emits flushed JSONL progress, reserves an explicit 30-second process-tree cleanup budget, reports stable timeout/protocol failures, and finishes with conserved nonzero counters.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["scripts/test_assurance_regressions.py", "scripts/test_assurance_harness.py", "scripts/test_v2_support.py", "references/controller-assurance.md"],
       "regressionTests": ["test_assurance_runner_protocol"],
@@ -477,10 +477,10 @@
     },
     {
       "id": "CTRL-CONFIRMED-030",
-      "statement": "Normal installation self-check is separate from formal package sealing, and both deep regression suites expose leaf listing/execution, bounded parallel workers, per-case and suite timeouts, flushed JSONL progress, process-tree termination and conserved final counters with zero skip required for PASS.",
+      "statement": "Normal installation self-check is separate from formal package sealing, and both deep regression suites expose leaf listing/execution, bounded daemon workers, per-case and suite timeouts, an explicit 30-second process-tree cleanup budget, flushed JSONL progress and conserved final counters with zero skip required for PASS.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["scripts/validate_installation.py", "scripts/bounded_test_runner.py", "scripts/test_package_release_audit.py", "scripts/test_assurance_regressions.py"],
-      "regressionTests": ["test_installation_and_formal_validation_are_separate", "test_bounded_deep_suite_protocol"],
+      "regressionTests": ["test_installation_and_formal_validation_are_separate", "test_bounded_deep_suite_protocol", "test_assurance_runner_protocol"],
       "independentValidation": "PENDING"
     },
     {
@@ -501,7 +501,7 @@
     },
     {
       "id": "CTRL-CONFIRMED-033",
-      "statement": "Browser WebGL gameplay proof is available only for confirmed GAMEPLAY positioning with an explicit WebGL target; it requires a direct locked Playwright test command, an observed tool version, pre-execution artifact cleanup, fresh candidate-bound artifacts and one evidence-ID namespace across the record and invocation. It stays within the descriptor capability set and cannot qualify unrecorded browser, viewport or WebGL details, Capacitor, native packaging, target hardware, game feel, human approval or release readiness.",
+      "statement": "Browser WebGL gameplay proof is available only for confirmed GAMEPLAY positioning with an explicit WebGL target; it requires a direct locked Playwright test command with non-executing modes rejected, lexically safe artifact declarations, an observed tool version, pre-execution artifact cleanup, fresh candidate-bound artifacts and one evidence-ID namespace across the record and invocation. It stays within the descriptor capability set and cannot qualify unrecorded browser, viewport or WebGL details, Capacitor, native packaging, target hardware, game feel, human approval or release readiness.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": [
         "assets/project-control/runtime/rules/v1/adapters.json",

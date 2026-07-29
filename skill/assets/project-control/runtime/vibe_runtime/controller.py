@@ -404,6 +404,10 @@ def _playwright_version_command(command: Any) -> list[str] | None:
     if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
         return None
     executable_names = {"playwright", "playwright.cmd", "playwright.exe"}
+    non_executing_arguments = {
+        "--help", "-h", "--version", "-v", "--list", "--ui", "--ui-host",
+        "--pass-with-no-tests",
+    }
     package_manager_names = {
         "pnpm": "pnpm", "pnpm.cmd": "pnpm", "pnpm.exe": "pnpm",
         "npm": "npm", "npm.cmd": "npm", "npm.exe": "npm",
@@ -412,22 +416,29 @@ def _playwright_version_command(command: Any) -> list[str] | None:
         "bunx": "bunx", "bunx.exe": "bunx",
     }
     executable = command[0].lower()
+    def is_test(index: int) -> bool:
+        tail = [item.lower() for item in command[index + 1 :]]
+        return command[index].lower() == "test" and not any(
+            item in non_executing_arguments or any(item.startswith(f"{flag}=") for flag in non_executing_arguments if flag.startswith("--"))
+            for item in tail
+        )
+
     if executable in executable_names:
-        return [command[0], "--version"] if len(command) > 1 and command[1].lower() == "test" else None
+        return [command[0], "--version"] if len(command) > 1 and is_test(1) else None
     manager = package_manager_names.get(executable)
     if manager == "pnpm":
-        if len(command) > 3 and command[1].lower() == "exec" and command[2].lower() in executable_names and command[3].lower() == "test":
+        if len(command) > 3 and command[1].lower() == "exec" and command[2].lower() in executable_names and is_test(3):
             return [command[0], command[1], command[2], "--version"]
         return None
     if manager == "npm":
         index = 2 if len(command) > 2 and command[1].lower() == "exec" else -1
         if index >= 0 and command[index] == "--":
             index += 1
-        if index >= 0 and index + 1 < len(command) and command[index].lower() in executable_names and command[index + 1].lower() == "test":
+        if index >= 0 and index + 1 < len(command) and command[index].lower() in executable_names and is_test(index + 1):
             return [*command[: index + 1], "--version"]
         return None
     if manager in {"npx", "yarn", "bunx"}:
-        if len(command) > 2 and command[1].lower() in executable_names and command[2].lower() == "test":
+        if len(command) > 2 and command[1].lower() in executable_names and is_test(2):
             return [command[0], command[1], "--version"]
     return None
 
@@ -452,6 +463,15 @@ def validate_adapter_case_contract(case_id: str, case: dict[str, Any], descripto
         return
     if not case.get("artifacts"):
         raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright case {case_id} must declare screenshot/report/trace/log artifacts")
+    for requirement in case["artifacts"]:
+        value = requirement.get("path") if isinstance(requirement, dict) else None
+        if not isinstance(value, str) or not value:
+            raise ControlError("HC-PATH-SAFETY", f"Playwright case {case_id} has an invalid artifact path")
+        normalized_value = value.replace("\\", "/")
+        posix_path = PurePosixPath(normalized_value)
+        windows_path = PureWindowsPath(value)
+        if posix_path.is_absolute() or windows_path.is_absolute() or windows_path.drive or ".." in posix_path.parts:
+            raise ControlError("HC-PATH-SAFETY", f"Playwright case {case_id} has an unsafe artifact path: {value}")
     if not command_invokes_playwright(case.get("command")):
         raise ControlError("HC-ADAPTER-CAPABILITY", f"Playwright case {case_id} must execute a locked Playwright command")
 
