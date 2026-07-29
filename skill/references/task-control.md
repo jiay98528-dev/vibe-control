@@ -35,7 +35,7 @@ Skill 的安装、更新、Git commit 或 tag 不是项目 `EXTERNAL_RELEASE`，
 
 合同只能增加限制或缩小工作范围，不能删除、覆盖或降低派生值。每个 applicable rule 必须由 lifecycle 为 `CANDIDATE_EXECUTION` 的 required case 的 `satisfiesRuleIds[]` 覆盖；总 case 数、测试文件名、一个万能 case 或 `BOOTSTRAP_DIAGNOSTIC` 接入自检不能替代逐规则覆盖。后者进入任务时由 `HC-CASE-LIFECYCLE-SCOPE` 阻断，其余覆盖缺口由 `HC-RULE-CASE-COVERAGE` 阻断 lock。
 
-Adapter 只可支持 descriptor 明确列出的证据能力：generic command 不证明真实 UI/部署，Browser 不证明原生壳/安装包/目标硬件，Browser WebGL 只在 `GAMEPLAY` 与显式 WebGL target 下通过直接 `playwright test` 和执行后新产物证明候选绑定的浏览器玩法切片；未被锁定产物记录的环境事实及游戏感仍不在证明范围。Godot headless 不证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在 0.3.6 只能形成 investigation。MCP transcript 按外部证据导入，不由 runtime 自报为本地执行。
+Adapter 只可支持 descriptor 明确列出的证据能力：generic command 不证明真实 UI/部署，Browser 不证明原生壳/安装包/目标硬件，Browser WebGL 只在 `GAMEPLAY` 与显式 WebGL target 下通过直接 `playwright test` 和执行后新产物证明候选绑定的浏览器玩法切片；未被锁定产物记录的环境事实及游戏感仍不在证明范围。Godot headless 不证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在 0.3.7 只能形成 investigation。MCP transcript 按外部证据导入，不由 runtime 自报为本地执行。
 
 Required Skill 缺失、不可寻址或 tree hash 漂移会阻断其任务；advisory Skill 缺失只产生 warning。安装 required Skill 必须获得当前人工批准，安装后重新发现、哈希和解析；所有 Skill 均 `canApprove=false`。
 

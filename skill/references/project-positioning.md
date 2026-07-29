@@ -30,7 +30,7 @@ Before accepting a blocker, planning a repair, changing architecture/cases/oracl
 - `generic-command` proves only its exact candidate-bound command, transcript, counters, and declared artifacts.
 - `browser-runtime` requires a real Playwright command plus artifacts. It cannot prove a native shell, installer, target hardware, or subjective visual quality.
 - `godot-runtime` binds `project.godot`, the executable, and observed version. Headless smoke does not prove rendered gameplay or game feel.
-- Tauri, Electron, Unreal, and Capacitor signals create investigations in 0.3.6. Covered browser/generic evidence may be reused only for what those adapters explicitly prove.
+- Tauri, Electron, Unreal, and Capacitor signals create investigations in 0.3.7. Covered browser/generic evidence may be reused only for what those adapters explicitly prove.
 - MCP output is external evidence. It needs tool version, operation, raw transcript, artifact references, adapter identity, candidate, case, positioning, and rule-set bindings.
 
 ## Repositioning and legacy

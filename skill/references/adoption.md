@@ -27,7 +27,7 @@
 
 运行只读 `resolve-rules` 展示 Profile AND、adapter 证明边界、Skill bindings、人工门禁、warning、investigation、冲突和安装请求：
 
-- 0.3.6 实现 `generic-command`、`browser-runtime`、`browser-webgl-game-runtime`、`godot-runtime`；其中 WebGL 游戏 Adapter 只在已确认 `GAMEPLAY` 与显式 WebGL target 同时成立时激活；
+- 0.3.7 实现 `generic-command`、`browser-runtime`、`browser-webgl-game-runtime`、`godot-runtime`；其中 WebGL 游戏 Adapter 只在已确认 `GAMEPLAY` 与显式 WebGL target 同时成立时激活；
 - Tauri、Electron、Unreal 与 Capacitor 信号只产生 investigation；
 - required Skill 缺失或漂移会阻断对应任务，advisory 缺失只告警；
 - 缺失 Skill 的安装必须获得用户明确批准，安装后重新发现、哈希并解析；安装不使用私钥。
@@ -67,6 +67,6 @@
 
 ## Schema 2.0：只允许全新接入提案
 
-0.3.6 **不迁移、不转换、不继承** Schema 2.0 的机器对象或证据。旧项目可以继续使用固定 0.2.2 runtime；一旦用 0.3.6 操作，必须返回 `VC-REINSTALL-REQUIRED` 且不写入。
+0.3.7 **不迁移、不转换、不继承** Schema 2.0 的机器对象或证据。旧项目可以继续使用固定 0.2.2 runtime；一旦用 0.3.7 操作，必须返回 `VC-REINSTALL-REQUIRED` 且不写入。
 
 用户批准可恢复归档后，重新运行 discovery、目标推导、positioning、checkpoint 确认、resolve-rules 和 Schema 3.2 bootstrap。旧证据不得通过复制、改 `schemaVersion`、重算哈希或 narrative summary 获得 3.2 资格。
