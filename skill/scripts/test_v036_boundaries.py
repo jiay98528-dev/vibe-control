@@ -27,7 +27,7 @@ def _file_ref(root: Path, path: Path) -> dict:
 
 def _materialize_034_runtime(fixture: base.Fixture) -> Path:
     control = fixture.root / ".vibe-control"
-    source = control / "runtime/0.3.6"
+    source = control / "runtime" / base.RUNTIME_VERSION
     target = control / "runtime/0.3.4"
     source.rename(target)
     compiler = target / "vibe_runtime/project_rules.py"
@@ -194,7 +194,7 @@ def test_current_controller_relocks_exact_supported_bound_runtime() -> None:
         assert result.returncode == 0 and value["status"] == "PASS", value
         state = json.loads((fixture.root / ".vibe-control/stage-state.json").read_text(encoding="utf-8"))
         assert state["phase"] == "CONTRACT_LOCKED" and state["taskId"] == "TASK-001"
-        assert not (fixture.root / ".vibe-control/runtime/0.3.6").exists()
+        assert not (fixture.root / ".vibe-control/runtime" / base.RUNTIME_VERSION).exists()
         assert legacy_runtime.is_dir(), "the compatibility controller must not migrate or replace the bound runtime"
 
         compiler = legacy_runtime / "vibe_runtime/project_rules.py"

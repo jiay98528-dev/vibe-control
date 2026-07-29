@@ -788,13 +788,13 @@
     },
     {
       "path": "scripts/test_v036_automation.py",
-      "bytes": 19723,
-      "sha256": "7eba783d33da91006f27a8e43330c895aaa2cf572ee0538402e30c5ccb273f0c"
+      "bytes": 19822,
+      "sha256": "68df22984a9904afeaabdd87bd2f18078183ab05ffa11229db93a7d535ccbb79"
     },
     {
       "path": "scripts/test_v036_boundaries.py",
-      "bytes": 16109,
-      "sha256": "934c3e4ddc3194a89a31c55ff9fd469ce5a52db28550c25baa8a575dedfb03ea"
+      "bytes": 16143,
+      "sha256": "fe8d542784b83556a89644c0324c7221c31f5141ea0092264770e2c4c3824d02"
     },
     {
       "path": "scripts/test_v037_automation_commit.py",

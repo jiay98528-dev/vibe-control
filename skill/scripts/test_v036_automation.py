@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTROL = ROOT / "assets" / "project-control" / "runtime" / "control.py"
+RUNTIME_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 STOP_CONDITIONS = [
     "AUTOMATED_CHECKPOINTS_COMPLETE",
     "HUMAN_CHECKPOINT",
@@ -212,13 +213,13 @@ class Fixture:
         contract = task_contract(risk=risk)
         contract_path = self.root / ".vibe-control/tasks/TASK-001.json"; write_json(contract_path, contract)
         git(self.root, "add", "-A"); git(self.root, "commit", "-m", "contract")
-        value = report(run(sys.executable, str(self.root / ".vibe-control/runtime/0.3.6/control.py"), "lock-task", "--project", str(self.root), "--contract", str(contract_path)))
+        value = report(run(sys.executable, str(self.root / f".vibe-control/runtime/{RUNTIME_VERSION}/control.py"), "lock-task", "--project", str(self.root), "--contract", str(contract_path)))
         assert value["status"] == "PASS", value
         git(self.root, "add", "-A"); git(self.root, "commit", "-m", "lock task")
 
     @property
     def control(self) -> Path:
-        return self.root / ".vibe-control/runtime/0.3.6/control.py"
+        return self.root / f".vibe-control/runtime/{RUNTIME_VERSION}/control.py"
 
     def command(self, *args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
         result = run(sys.executable, str(self.control), *args, "--project", str(self.root))
