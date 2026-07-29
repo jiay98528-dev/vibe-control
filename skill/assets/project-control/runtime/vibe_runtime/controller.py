@@ -542,8 +542,23 @@ def _playwright_version_command(command: Any) -> list[str] | None:
         return [command[0], "--version"] if len(command) > 1 and is_test(1) else None
     manager = package_manager_names.get(executable)
     if manager == "pnpm":
-        if len(command) > 3 and command[1].lower() == "exec" and command[2].lower() in executable_names and is_test(3):
-            return [command[0], command[1], command[2], "--version"]
+        index = 1
+        while index < len(command) and command[index].lower() != "exec":
+            argument = command[index]
+            lowered = argument.lower()
+            if argument in {"--filter", "-F"}:
+                if index + 1 >= len(command) or not command[index + 1].strip() or command[index + 1].startswith("-"):
+                    return None
+                index += 2
+                continue
+            if lowered.startswith("--filter=") and argument.partition("=")[2].strip():
+                index += 1
+                continue
+            return None
+        tool_index = index + 1
+        test_index = index + 2
+        if test_index < len(command) and command[tool_index].lower() in executable_names and is_test(test_index):
+            return [*command[: tool_index + 1], "--version"]
         return None
     if manager == "npm":
         index = 2 if len(command) > 2 and command[1].lower() == "exec" else -1

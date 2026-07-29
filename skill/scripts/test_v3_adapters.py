@@ -108,6 +108,8 @@ def test_playwright_adapter_contract_is_mode_driven_and_fail_closed() -> None:
     descriptor = {"localExecution": {"mode": "playwright"}}
     valid_commands = [
         ["playwright", "test"], ["pnpm", "exec", "playwright", "test"],
+        ["pnpm", "--filter", "@jotluck/app", "exec", "playwright", "test"],
+        ["pnpm", "--filter=@jotluck/app", "exec", "playwright", "test"],
         ["npm", "exec", "--", "playwright", "test"], ["npx", "playwright", "test"],
         ["yarn", "playwright", "test"], ["bunx", "playwright", "test"],
     ]
@@ -117,6 +119,8 @@ def test_playwright_adapter_contract_is_mode_driven_and_fail_closed() -> None:
     mutations = [
         ({**valid, "artifacts": []}, "artifacts"),
         ({**valid, "command": ["pnpm", "run", "test:e2e"]}, "Playwright command"),
+        ({**valid, "command": ["pnpm", "--filter", "exec", "playwright", "test"]}, "Playwright command"),
+        ({**valid, "command": ["pnpm", "--workspace-root", "exec", "playwright", "test"]}, "Playwright command"),
         ({**valid, "command": ["node", "not-playwright.js"]}, "Playwright command"),
         ({**valid, "command": ["cmd.exe", "/d", "/c", "echo NON_PLAYWRIGHT", "playwright"]}, "Playwright command"),
         ({**valid, "command": ["playwright", "--version"]}, "Playwright command"),
