@@ -6,7 +6,7 @@
 
 Observable control planes for VibeCoding and multi-agent software development.
 
-![Version](https://img.shields.io/badge/version-0.3.5-2563eb)
+![Version](https://img.shields.io/badge/version-0.3.6-2563eb)
 ![Maturity](https://img.shields.io/badge/maturity-DEVELOPMENT__DIAGNOSTIC-f59e0b)
 ![Schema](https://img.shields.io/badge/schema-3.2-7c3aed)
 ![Python](https://img.shields.io/badge/python-3.12-3776ab)
@@ -14,7 +14,7 @@ Observable control planes for VibeCoding and multi-agent software development.
 </div>
 
 > [!WARNING]
-> 当前公开包是 `0.3.5 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
+> 当前公开包是 `0.3.6 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
 
 ## 它解决什么问题
 
@@ -32,6 +32,9 @@ VibeCoding 的典型失败往往不是“模型完全不会写代码”，而是
 | 有界审核 | 先审核预设检查点；普通探索发现有候选级预算，达到停止条件后结束审核。 |
 | 多智能体边界 | 单一控制面写入者、隔离写入、无答案泄漏审核；Worker 回报不能自行批准。 |
 | 跨宿主兼容 | 按实际能力选择 `CODEX_THREADS → SUBAGENTS → SERIAL`，不伪造宿主不存在的功能。 |
+| 一次授权自动推进 | 启动时显式选择手动、自动本地或自动推送；普通阶段持续推进，只在固定人工复核点停止。 |
+| 有界 Git 副作用 | 自动 commit/push 绑定任务、完整提交历史、既有 upstream 与非强制 fast-forward；越界历史不能借“工作树干净”绕过。 |
+| 离线复核仪表盘 | 在人工复核点生成同源 `index.html`、`status.json` 和 `summary.md`，明确区分已证明与未证明。 |
 | 发行意图分级 | 区分本地实验、私有运行和外部发行，避免把同一套高强度门禁施加给所有项目。 |
 | 便携安装身份 | 区分 Git 根、Git 子目录和无 Git 副本；普通下载不再被正式封印所需的 Git 前置误伤。 |
 | 有界深度测试 | 长回归按叶级 case 并发执行，提供独立超时、实时进度和守恒的最终计数。 |
@@ -80,7 +83,13 @@ python "$env:USERPROFILE\.codex\skills\vibe-control\scripts\validate_installatio
 使用 $vibe-control 启动这个项目。先建立关键目标、发行意图和验收检查点，再进入实现。
 ```
 
-Skill 会先询问项目的预期发行状态，然后建立项目本地 `.vibe-control/` 控制面。它不会仅根据仓库名称、技术栈或项目体量替用户推断发行意图。
+Skill 会先询问项目的预期发行状态，并在需求、关键目标和项目定位确认后要求选择一种推进模式：
+
+- `MANUAL_STAGE_CONFIRMATION`：逐阶段等待确认；
+- `AUTO_LOCAL_TO_REVIEW`：自动推进并创建任务范围内的本地里程碑提交，不推送；
+- `AUTO_PUSH_TO_REVIEW`：在上一模式基础上，只向已存在且精确绑定的 upstream 分支做非强制推送。
+
+新项目未明确选择时不会写入控制面；旧 Schema 3.2 项目缺少策略时保持手动。自动模式仍会在候选闭合、人工检查点、边界变化、R3／不可逆操作、硬失败、推送冲突或用户中断时停止，并生成本地复核仪表盘。它不会仅根据仓库名称、技术栈或项目体量替用户推断发行意图或自动接受候选。
 
 ### 3. 非 Codex Agent
 
@@ -94,13 +103,13 @@ Skill 不设置固定子智能体数量上限，但仍服从宿主容量、任�
 
 ## 当前成熟度
 
-- 版本：`0.3.5`
+- 版本：`0.3.6`
 - Schema：`3.2`
 - 首个真实运行环境：Windows + Python 3.12
-- 包清单：150 个受管条目、runtime 44 个受管条目，SHA-256 内容寻址
+- 包清单：162 个受管条目、runtime 47 个受管条目，SHA-256 内容寻址
 - 姿态：`DEVELOPMENT_DIAGNOSTIC`
 - 正式声明：`formalClaimsAllowed=false`
-- 当前没有 `v0.3.5` release tag 或对应 package audit tag
+- 当前没有 `v0.3.6` release tag 或对应 package audit tag
 
 公开仓库可以用于研究、诊断开发和本地试用；它目前不能作为 `FORMAL_GATE_READY` 的证明。
 
@@ -131,6 +140,7 @@ Skill 不设置固定子智能体数量上限，但仍服从宿主容量、任�
 - [关键目标机制](skill/references/key-objectives.md)
 - [检查点契约](skill/references/checkpoint-contract.md)
 - [任务控制](skill/references/task-control.md)
+- [自动推进与 Git 副作用边界](skill/references/automation-advancement.md)
 - [跨宿主多智能体路由](skill/references/multi-session-routing.md)
 - [证据政策](skill/references/evidence-policy.md)
 - [控制器保证闭包](skill/references/controller-assurance.md)

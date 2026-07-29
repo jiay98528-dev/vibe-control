@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "3.2",
+  "positioningId": "positioning-vibe-control-self-036-eaebd39aa47f",
+  "primaryExperience": "SERVICE",
+  "capabilityDomains": [
+    "BACKEND_API"
+  ],
+  "deliveryObjective": "VERTICAL_SLICE",
+  "releaseIntent": "PRIVATE_OPERATION",
+  "runtimeTargets": [
+    "python-3.12-cli",
+    "offline-html-dashboard"
+  ],
+  "targetEnvironments": [
+    {
+      "id": "maintainer-windows",
+      "operatingSystem": "Windows",
+      "deviceClass": "desktop",
+      "architecture": "x86_64"
+    },
+    {
+      "id": "local-review-browser",
+      "operatingSystem": "cross-platform",
+      "deviceClass": "desktop-tablet-mobile",
+      "architecture": "browser"
+    }
+  ],
+  "distributionChannels": [
+    "local-codex-skill",
+    "github-development-package",
+    "standard-skill-installer"
+  ],
+  "humanQualityGates": [
+    {
+      "id": "HG-4e22e1e099ed",
+      "statement": "owner confirms any KEY_OBJECTIVES.md revision and affected claim"
+    },
+    {
+      "id": "HG-0bffd5de8fe1",
+      "statement": "owner reviews the generated dashboard and product outcome before acceptance or release"
+    }
+  ],
+  "nonGoals": [
+    "formal package sealing in 0.3.6",
+    "automatic merge, rebase, pull request, tag, release, or acceptance",
+    "live hosted dashboard or external telemetry service",
+    "migration of existing Schema 3.2 control planes",
+    "private-key custody",
+    "Pulse or VibeCodingGovernance changes"
+  ],
+  "firstVerticalSlice": {
+    "outcome": "A project can explicitly authorize bounded automatic advancement, progress without stage-by-stage approval, stop at a deterministic human review point, and present a truthful offline dashboard",
+    "included": [
+      "explicit automation mode selection",
+      "legacy Schema 3.2 manual compatibility and opt-in",
+      "multi-session, subagent, and serial routing",
+      "bounded milestone commits and optional existing-upstream pushes",
+      "deterministic human review stops",
+      "offline dashboard and text summary"
+    ],
+    "excluded": [
+      "formal package seal",
+      "release or audit tags",
+      "GitHub Release",
+      "automatic acceptance",
+      "hosted dashboard",
+      "malicious maintainer collusion"
+    ],
+    "successSignals": [
+      {
+        "id": "SIG-89caa882a21b",
+        "statement": "a new project cannot bootstrap until one automation advancement mode is explicitly confirmed"
+      },
+      {
+        "id": "SIG-4595b0c16e75",
+        "statement": "an authorized automatic run advances through ordinary stages without blocking prompts and stops before a fixed human review point"
+      },
+      {
+        "id": "SIG-97a05e903623",
+        "statement": "automatic commit and push actions remain bound to the authorized Git target and never perform force push, merge, rebase, tag, release, or acceptance"
+      },
+      {
+        "id": "SIG-86d4d7b1290e",
+        "statement": "the human review point produces an offline dashboard and text summary derived from current control and Git state without granting claims"
+      }
+    ]
+  },
+  "confirmation": {
+    "actorId": "product-owner",
+    "summary": "Keep PRIVATE_OPERATION self-governance and DEVELOPMENT_DIAGNOSTIC package posture while adding one-time automation authorization, bounded milestone commits and optional non-force upstream pushes, fixed human review stops, and an offline read-only dashboard; existing Schema 3.2 projects remain manual until an explicit compatible opt-in.",
+    "summarySha256": "eaebd39aa47fd36fb5db8162914b91fc932d282486b5cbe5dba89137bf78b60d",
+    "record": {
+      "path": "references/0.3.6-positioning-confirmation.json",
+      "bytes": 648,
+      "sha256": "c90aac026839a2c2e4047cc33e3664e50cc254d12c7a937702ff4e239f102b10",
+      "tracked": true
+    }
+  },
+  "confirmedAt": "2026-07-29T10:22:26+08:00"
+}

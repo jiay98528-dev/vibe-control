@@ -134,6 +134,7 @@ def _bootstrap_from_portable(portable: Path) -> None:
         (project / "PROJECT_BRIEF.md").write_text("# Fixture\n", encoding="utf-8", newline="\n")
         fixture.write_objective_files(project)
         (project / "POSITIONING_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8", newline="\n")
+        (project / "AUTOMATION_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8", newline="\n")
         git(project, "add", "-A")
         git(project, "commit", "-m", "authority")
         spec = fixture.valid_bootstrap_spec(project_id="portable-install", release_intent="PRIVATE_OPERATION")

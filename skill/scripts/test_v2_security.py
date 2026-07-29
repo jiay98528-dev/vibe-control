@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inherited composition, signature, dependency, and reinstall tests for 0.3.5."""
+"""Inherited composition, signature, dependency, and reinstall tests for 0.3.6."""
 from __future__ import annotations
 import json
 import sys
@@ -80,7 +80,7 @@ def test_expired_approval():
 def test_dependency_mismatch_blocks():
     temp,root,_=fx.setup_project()
     try:
-        path=root/".vibe-control"/"runtime"/"0.3.5"/"dependency-lock.json"; value=fx.load(path); value["packages"]["jsonschema"]="0.0.0"; fx.write(path,value); fx.commit(root,"dependency attack"); _,report=fx.command(root,"validate",expect=2); assert "HC-DEPENDENCY-JSONSCHEMA" in fx.failing_ids(report)
+        path=root/".vibe-control"/"runtime"/fx.RUNTIME_VERSION/"dependency-lock.json"; value=fx.load(path); value["packages"]["jsonschema"]="0.0.0"; fx.write(path,value); fx.commit(root,"dependency attack"); _,report=fx.command(root,"validate",expect=2); assert "HC-DEPENDENCY-JSONSCHEMA" in fx.failing_ids(report)
     finally: temp.cleanup()
 
 def test_missing_dependencies_emit_stable_json():
@@ -122,6 +122,7 @@ def test_cross_role_key_reuse_rejected_at_bootstrap():
         positioning=fx.positioning_axes("EXTERNAL_RELEASE")
         summary_hash=fx.hashlib.sha256(fx.json.dumps(positioning,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()).hexdigest()
         fx.write(root/"POSITIONING_CONFIRMATION.json",{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash})
+        fx.write(root/"AUTOMATION_CONFIRMATION.json",{"actorId":"owner","decision":"CONFIRM"})
         fx.commit(root,"initial")
         shared=fx.Ed25519PrivateKey.generate(); owner=fx.Ed25519PrivateKey.generate()
         trusted=[{"keyId":"executor-key","actorId":"executor","role":"executor","publicKey":fx.public_b64(shared)},{"keyId":"auditor-key","actorId":"auditor","role":"auditor","publicKey":fx.public_b64(shared)},{"keyId":"release-auditor-key","actorId":"release-auditor","role":"release-auditor","publicKey":fx.public_b64(fx.Ed25519PrivateKey.generate())},{"keyId":"owner-key","actorId":"owner","role":"owner","publicKey":fx.public_b64(owner)}]

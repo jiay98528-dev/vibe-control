@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "assets" / "project-control" / "runtime"
 CONTROL = RUNTIME / "control.py"
+RUNTIME_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8-sig").strip()
 sys.path.insert(0, str(RUNTIME))
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -56,6 +57,30 @@ def _adapter_binding(adapter_id: str = "generic-command") -> dict:
 def _source_id(prefix: str, statement: str) -> str:
     normalized = " ".join(statement.strip().split())
     return f"{prefix}-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:12]}"
+
+
+def _automation_policy(project_id: str) -> dict:
+    stop_conditions = sorted([
+        "AUTOMATED_CHECKPOINTS_COMPLETE", "HUMAN_CHECKPOINT", "OWNER_DECISION",
+        "BOUNDARY_CHANGE", "R3_OR_IRREVERSIBLE_ACTION", "HARD_FAILURE",
+        "PUSH_CONFLICT", "USER_INTERRUPT",
+    ])
+    semantic = {
+        "projectId": project_id,
+        "mode": "MANUAL_STAGE_CONFIRMATION",
+        "commitPolicy": "MANUAL",
+        "pushPolicy": "NONE",
+        "stopConditions": stop_conditions,
+    }
+    summary = json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
+    return {
+        "schemaVersion": "1.0", "policyId": f"automation-{digest[:12]}", **semantic,
+        "confirmation": {
+            "actorId": "owner", "summary": summary, "summarySha256": digest,
+            "record": "AUTOMATION_CONFIRMATION.json", "confirmedAt": "2026-07-29T00:00:00+08:00",
+        },
+    }
 
 
 def _task_contract(*, task_id: str = "TASK-001", risk: str = "R2", max_claim: str = "ACCEPTED") -> dict:
@@ -116,6 +141,7 @@ def _spec(*, confirmed: bool = True, incomplete_case_coverage: bool = False) -> 
             "sourceDocuments": ["PROJECT_BRIEF.md"], "objectiveIds": ["KO-001"], "failureModeIds": ["KF-001"], "nonGoalIds": ["NG-001"],
             "confirmation": {"actorId": "owner", "summary": "fixture objectives confirmed", "summarySha256": hashlib.sha256(b"fixture objectives confirmed").hexdigest(), "record": "OBJECTIVES_CONFIRMATION.json"},
         },
+        "automationPolicy": _automation_policy("fixture-v3"),
         "capabilityProfiles": [{"id": "backend-api"}],
         "profileBindings": [{"id": "backend-api"}],
         "runtimeAdapters": ["generic-command"],
@@ -158,7 +184,8 @@ def _new_project(base: Path) -> Path:
     (root / "KEY_OBJECTIVES.md").write_text("# Objectives\n\n- `KO-001`: outcome\n- `KF-001`: false proof\n- `NG-001`: deployment\n", encoding="utf-8", newline="\n")
     (root / "OBJECTIVES_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
     (root / "CHECKPOINT_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
-    _git(root, "add", "PROJECT_BRIEF.md", "POSITIONING_CONFIRMATION.json", "KEY_OBJECTIVES.md", "OBJECTIVES_CONFIRMATION.json", "CHECKPOINT_CONFIRMATION.json")
+    (root / "AUTOMATION_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
+    _git(root, "add", "PROJECT_BRIEF.md", "POSITIONING_CONFIRMATION.json", "KEY_OBJECTIVES.md", "OBJECTIVES_CONFIRMATION.json", "CHECKPOINT_CONFIRMATION.json", "AUTOMATION_CONFIRMATION.json")
     _git(root, "commit", "-m", "initial authority")
     return root
 
@@ -170,11 +197,11 @@ def _failing_ids(report: dict) -> set[str]:
 def test_cli_surface_and_envelope_are_schema3() -> None:
     parser = cli.parser()
     subparsers = next(action for action in parser._actions if hasattr(action, "choices") and action.choices)
-    assert {"resolve-rules", "reposition", "revise-objectives"} <= set(subparsers.choices)
+    assert {"resolve-rules", "reposition", "revise-objectives", "automation", "dashboard"} <= set(subparsers.choices)
     result, report = _run(sys.executable, str(CONTROL), "risk", "--score", "10", expect=0)
     assert result.stderr == ""
     assert report["schemaVersion"] == "3.2"
-    assert report["runtimeVersion"] == "0.3.5"
+    assert report["runtimeVersion"] == RUNTIME_VERSION == "0.3.6"
     assert set(report) >= {"status", "integrity", "formal", "state"}
 
 
@@ -242,7 +269,7 @@ def test_schema2_control_plane_returns_reinstall_required_without_writes() -> No
         assert result.returncode == 2
         assert "VC-REINSTALL-REQUIRED" in _failing_ids(report)
         assert old.read_bytes() == before
-        assert not (control / "legacy").exists(), "0.3.5 must not migrate/import Schema 2.0 evidence"
+        assert not (control / "legacy").exists(), "the current Schema 3.2 runtime must not migrate/import Schema 2.0 evidence"
 
 
 def test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules() -> None:
@@ -266,7 +293,7 @@ def test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules() -> None:
             _write(contract_path, contract)
             _git(project, "add", "-A")
             _git(project, "commit", "-m", "add task")
-            pinned = project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
+            pinned = project / ".vibe-control" / "runtime" / RUNTIME_VERSION / "control.py"
             result, report = _run(sys.executable, str(pinned), "lock-task", "--project", str(project), "--contract", str(contract_path), expect=None)
             assert result.returncode == 3, json.dumps(report, ensure_ascii=False)
             assert "HC-RULE-CASE-COVERAGE" in _failing_ids(report)
@@ -312,8 +339,8 @@ def test_reposition_invalidates_downstream() -> None:
             current["confirmation"] = {"actorId": "owner", "summary": "production candidate", "summarySha256": "pending", "record": {"path": "REPOSITION_CONFIRMATION.json", "bytes": confirmation.stat().st_size, "sha256": hashlib.sha256(confirmation.read_bytes()).hexdigest(), "tracked": True}}
             current["confirmation"]["summarySha256"] = hashlib.sha256(json.dumps(positioning_summary(current), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             positioning_path = project / "reposition.json"; _write(positioning_path, current); _git(project, "add", "reposition.json"); _git(project, "commit", "-m", "record reposition spec")
-            _, planned = _run(sys.executable, str(project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--plan", expect=2)
-            _, applied = _run(sys.executable, str(project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--apply", planned["data"]["planHash"], expect=2)
+            _, planned = _run(sys.executable, str(project / ".vibe-control" / "runtime" / RUNTIME_VERSION / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--plan", expect=2)
+            _, applied = _run(sys.executable, str(project / ".vibe-control" / "runtime" / RUNTIME_VERSION / "control.py"), "reposition", "--project", str(project), "--spec", str(positioning_path), "--apply", planned["data"]["planHash"], expect=2)
             state = json.loads((project / ".vibe-control" / "stage-state.json").read_text(encoding="utf-8"))
             assert state["phase"] == "DRAFT" and state["claimLevel"] == "DIAGNOSTIC"
             assert not marker.exists() and any(path.name == "old.json" for path in (project / ".vibe-control" / "legacy").rglob("old.json"))
@@ -337,7 +364,7 @@ def test_execute_aggregate_fails_when_any_case_fails() -> None:
             contract["goal"] = "prove execute aggregation"
             contract_path = project / ".vibe-control" / "tasks" / "TASK-FAIL.json"; _write(contract_path, contract)
             _git(project, "add", "-A"); _git(project, "commit", "-m", "add failing task")
-            pinned = project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
+            pinned = project / ".vibe-control" / "runtime" / RUNTIME_VERSION / "control.py"
             _run(sys.executable, str(pinned), "lock-task", "--project", str(project), "--contract", str(contract_path), expect=0)
             _git(project, "add", "-A"); _git(project, "commit", "-m", "lock failing task")
             (project / "fixture.py").write_text("raise SystemExit(7)\n", encoding="utf-8")

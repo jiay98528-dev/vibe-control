@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "projectId", "primaryExperience", "capabilityDomains", "deliveryObjective", "releaseIntent", "runtimeTargets", "targetEnvironments", "distributionChannels", "humanQualityGates", "nonGoals", "firstVerticalSlice", "confirmation", "keyObjectives", "capabilityProfiles", "profileBindings", "runtimeAdapters", "skillBindings", "projectOverlay", "authorityFiles", "trustedKeys", "cases"],
+  "required": ["schemaVersion", "projectId", "primaryExperience", "capabilityDomains", "deliveryObjective", "releaseIntent", "runtimeTargets", "targetEnvironments", "distributionChannels", "humanQualityGates", "nonGoals", "firstVerticalSlice", "confirmation", "keyObjectives", "automationPolicy", "capabilityProfiles", "profileBindings", "runtimeAdapters", "skillBindings", "projectOverlay", "authorityFiles", "trustedKeys", "cases"],
   "properties": {
     "schemaVersion": {"const": "3.2"},
     "projectId": {"type": "string", "minLength": 1},
@@ -32,6 +32,7 @@
         "confirmation": {"$ref": "#/$defs/sourceConfirmation"}
       }
     },
+    "automationPolicy": {"type": "object"},
     "capabilityProfiles": {"type": "array", "items": {"type": "object", "required": ["id"]}},
     "profileBindings": {"type": "array", "items": {"type": "object", "required": ["id"]}},
     "runtimeAdapters": {"type": "array", "items": {"anyOf": [{"type": "string"}, {"type": "object", "required": ["id"]}]}},

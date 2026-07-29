@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0",
+  "policyId": "REQUIRES_USER_SELECTION",
+  "projectId": "replace-me",
+  "mode": "REQUIRES_USER_SELECTION",
+  "commitPolicy": "REQUIRES_USER_SELECTION",
+  "pushPolicy": "REQUIRES_USER_SELECTION",
+  "stopConditions": [
+    "AUTOMATED_CHECKPOINTS_COMPLETE",
+    "HUMAN_CHECKPOINT",
+    "OWNER_DECISION",
+    "BOUNDARY_CHANGE",
+    "R3_OR_IRREVERSIBLE_ACTION",
+    "HARD_FAILURE",
+    "PUSH_CONFLICT",
+    "USER_INTERRUPT"
+  ],
+  "confirmation": {
+    "actorId": "product-owner",
+    "summary": "replace-with-canonical-policy-summary",
+    "summarySha256": "replace-with-64-char-sha256",
+    "record": "AUTOMATION_CONFIRMATION.json",
+    "confirmedAt": "replace-with-date-time"
+  }
+}

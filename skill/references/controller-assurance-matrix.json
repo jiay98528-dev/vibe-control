@@ -132,8 +132,8 @@
   "candidateAuditsAreHistorical": true,
   "subject": {
     "skill": "vibe-control",
-    "guidanceVersion": "0.3.5",
-    "runtimeVersion": "0.3.5"
+    "guidanceVersion": "0.3.6",
+    "runtimeVersion": "0.3.6"
   },
   "formalClaimsAllowed": false,
   "requirements": [
@@ -481,6 +481,22 @@
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["scripts/validate_installation.py", "scripts/bounded_test_runner.py", "scripts/test_package_release_audit.py", "scripts/test_assurance_regressions.py"],
       "regressionTests": ["test_installation_and_formal_validation_are_separate", "test_bounded_deep_suite_protocol"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-031",
+      "statement": "Automatic advancement requires one explicit content-bound mode selection, propagates that policy through the governance lock, task and candidate, preserves a manual legacy default, and gates milestone commit or non-force push side effects on the locked task, path envelope, branch, upstream and credential-stripped remote identity.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/cli.py", "assets/project-control/schemas/automation-policy.schema.json", "references/automation-advancement.md"],
+      "regressionTests": ["test_bootstrap_requires_explicit_policy_without_writes", "test_modes_and_task_binding", "test_legacy_opt_in_and_plan_hash", "test_action_guards_and_r3_stop", "test_push_binding_dirty_and_remote_drift", "test_commit_and_push_are_real_bounded_side_effects", "test_clean_forbidden_commit_cannot_be_pushed", "test_boundary_drift_staged_changes_and_unknown_control_paths_stop", "test_hard_failure_and_completed_automation_stop"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-032",
+      "statement": "Automatic advancement stops at the fixed owner-review boundary and produces an offline, escaped, responsive, non-authoritative dashboard plus JSON and Markdown from the same read-only machine/Git snapshot; generation cannot mutate state, evidence or claims.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/dashboard.py", "assets/project-control/runtime/vibe_runtime/cli.py", "references/automation-advancement.md"],
+      "regressionTests": ["test_dashboard_is_offline_escaped_and_non_authoritative", "test_dashboard_without_task_is_external_and_self_bound"],
       "independentValidation": "PENDING"
     }
   ]

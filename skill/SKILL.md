@@ -22,7 +22,8 @@ Build a project-local, version-pinned control plane before broad implementation.
 - Before creating a project control plane, ask the user for that **project's expected release intent**. Do not infer it from project size, user count, repository name, or a template; do not write bootstrap files until one intent is explicitly selected.
 - `releaseIntent` describes the product's delivery boundary, never installation, licensing, payment, public distribution, or Git tagging of this Skill. `LOCAL_EXPERIMENT` caps at `VERIFIED`; `PRIVATE_OPERATION` caps at `ACCEPTED`; only `EXTERNAL_RELEASE` can use the `RELEASE_READY` path.
 - Candidate-bound R2 review and owner decisions are tracked human attestations, not cryptographic licensing. Ed25519 public-key verification, the external release audit, and the receipt are required only for an actual `EXTERNAL_RELEASE` R3 task. A private key is never required to install, use, version, or locally tag this Skill, and it must remain outside the Skill and project control directory.
-- Version `0.3.5` is installed in `DEVELOPMENT_DIAGNOSTIC` mode while Schema 3.2 enforcement and orchestration compatibility remain unsealed. Its package manifest and assurance matrix can never self-grant `FORMAL_GATE_READY`; `formalClaimsAllowed` remains false and an unsealed package is capped at `DEVELOPMENT_CHECKED`. Diagnostic development remains available, but formal acceptance, release readiness, and package sealing are fail-closed until an exact future candidate completes independent package-audit closure.
+- Version `0.3.6` is installed in `DEVELOPMENT_DIAGNOSTIC` mode while Schema 3.2 enforcement, automation-policy 1.0 and orchestration compatibility remain unsealed. Its package manifest and assurance matrix can never self-grant `FORMAL_GATE_READY`; `formalClaimsAllowed` remains false and an unsealed package is capped at `DEVELOPMENT_CHECKED`. Diagnostic development remains available, but formal acceptance, release readiness, and package sealing are fail-closed until an exact future candidate completes independent package-audit closure.
+- A new project must explicitly select `MANUAL_STAGE_CONFIRMATION`, `AUTO_LOCAL_TO_REVIEW`, or `AUTO_PUSH_TO_REVIEW` in the consolidated startup confirmation. An unanswered automation choice blocks bootstrap. A legacy Schema 3.2 project without an automation policy remains manual-compatible and gains no automatic side-effect authority until a content-bound `automation --plan` / `--apply` opt-in completes. See [automation-advancement.md](references/automation-advancement.md).
 - A Schema 3.1 project may use the content-bound `migrate --plan [--spec]` / `--apply <plan-hash> --spec` path. Migration archives the complete old control plane, invalidates every downstream fact, and returns to `DRAFT / BLOCKED / DIAGNOSTIC`; it never rebinds old evidence. Schema 2.0 remains pinned to runtime 0.2.2 and returns `VC-REINSTALL-REQUIRED` instead of being converted.
 - On an external R3 **project** release path, `executor`、`auditor`、`release-auditor`、`owner` must use distinct actors and public keys, and the release-auditor must differ from the internal review auditor. This project-level signed chain is separate from the Skill package audit tags. The controller executes local cases in a temporary Git worktree at the candidate commit, never from the caller's worktree. Absence, drift, a non-PASS review/audit, credential reuse, or invalid required signatures blocks that external project release claim.
 - When modifying a controller, validator, gate, Schema or claim protocol, read [controller-assurance.md](references/controller-assurance.md) and [incident-2026-07-25.md](references/incident-2026-07-25.md). A happy-path fixture or manifest PASS cannot close a public hard claim.
@@ -34,6 +35,8 @@ Build a project-local, version-pinned control plane before broad implementation.
 | Create a complete new project | `resolve-rules` → `bootstrap` | [bootstrap.md](references/bootstrap.md), [project-positioning.md](references/project-positioning.md), [task-control.md](references/task-control.md), [human-decisions.md](references/human-decisions.md), [profiles.md](references/profiles.md) |
 | Add governance to an existing project | `adopt` | [adoption.md](references/adoption.md), [human-decisions.md](references/human-decisions.md) |
 | Start or resume a controlled task | `start` / `resume` | [checkpoint-contract.md](references/checkpoint-contract.md), [task-control.md](references/task-control.md), [multi-session-routing.md](references/multi-session-routing.md) |
+| Automatically advance to the next owner review | `advance` | [automation-advancement.md](references/automation-advancement.md), [multi-session-routing.md](references/multi-session-routing.md), [human-decisions.md](references/human-decisions.md) |
+| Configure automation or render a review snapshot | `automation` / `dashboard` | [automation-advancement.md](references/automation-advancement.md), [human-decisions.md](references/human-decisions.md) |
 | Configure models | `configure-models` | [model-routing.md](references/model-routing.md), [human-decisions.md](references/human-decisions.md) |
 | Freeze, execute, audit, accept, release-check, or hand off | corresponding CLI command | [evidence-policy.md](references/evidence-policy.md), [task-control.md](references/task-control.md) |
 | Change a Schema 3.2 project milestone/environment | `reposition` | [project-positioning.md](references/project-positioning.md), [evidence-policy.md](references/evidence-policy.md) |
@@ -55,8 +58,8 @@ Read only the references needed for the selected route. Do not load every refere
 
 4. If `.vibe-control/` exists, read `project-governance-lock.json`, its referenced `key-objectives-lock.json`, project-root `KEY_OBJECTIVES.md`, `stage-state.json`, and only the current referenced task/candidate objects. The lock is the machine authority for `releaseIntent`; do not invent a second narrative policy source.
 5. If control state is incomplete or contradictory, keep the claim `DIAGNOSTIC`; do not repair machine state through narrative.
-6. For a project without a governance lock, first persist written requirement sources, derive the root `KEY_OBJECTIVES.md`, and then establish the positioning axes from [project-positioning.md](references/project-positioning.md). `deliveryObjective` and `releaseIntent` remain separate explicit fields and are never inferred, but known answers may be presented together with objectives in one consolidated confirmation. Bootstrap materializes the confirmed positioning as `.vibe-control/project-positioning.json`. An unanswered or ambiguous boundary keeps the project in pre-bootstrap `DRAFT`.
-7. Run read-only `resolve-rules`, show the positioning/objective summary including the explicit trust boundary and excluded threat model, Profile/adapter/Skill/human-gate routing, warnings and investigations, then ask once for the consolidated confirmation. Bootstrap recompiles the rules and never trusts caller-supplied output.
+6. For a project without a governance lock, first persist written requirement sources, derive the root `KEY_OBJECTIVES.md`, and then establish the positioning axes from [project-positioning.md](references/project-positioning.md). `deliveryObjective`, `releaseIntent`, and automation mode remain separate explicit fields and are never inferred, but known answers may be presented together with objectives in one consolidated confirmation. Bootstrap materializes the confirmed positioning and automation policy. An unanswered or ambiguous boundary, including the automation choice, keeps the project in pre-bootstrap `DRAFT`.
+7. Show the proposed positioning/objective summary, explicit trust boundary, excluded threat model, and exactly one of the three automation modes, then ask once for the consolidated startup confirmation. Materialize that record and run read-only `resolve-rules`; report the derived Profile/adapter/Skill/human-gate routing, warnings and investigations without asking again unless a conflict exposes a real boundary change. Bootstrap recompiles the rules and never trusts caller-supplied output.
 8. Before task planning, draft observable checkpoints from the confirmed success signals, fixed cases, typed oracle expectations and human gates. Show their `notProven` limits and obtain one checkpoint-summary confirmation; do not ask the user to approve each assertion separately.
 9. Ask only boundary-changing questions. Let the model decide low-impact implementation details inside the contract and record assumptions.
 
@@ -64,18 +67,19 @@ Read only the references needed for the selected route. Do not load every refere
 
 - Trigger implicitly only for an unmistakable whole-project creation request.
 - Use an adaptive Socratic interview. Do not write before the user confirms the consolidated vision summary.
-- Before writing the approved bootstrap spec, obtain an explicit release-intent value; it may share the final consolidated confirmation with already answered positioning and objective axes, but must never be silently inferred or defaulted. The template's `REQUIRES_USER_SELECTION` value is intentionally invalid.
+- Before writing the approved bootstrap spec, obtain explicit release-intent and automation-mode values; they may share the final consolidated confirmation with already answered positioning and objective axes, but must never be silently inferred or defaulted. The template's `REQUIRES_USER_SELECTION` values are intentionally invalid.
 - Do not manufacture a complete vision from a one-line idea. Until the user has grounded the target user, problem/outcome, success signal, first-slice boundary, non-goals, platform/environment constraints, data/safety constraints, and human-quality decisions, keep missing fields explicitly `UNKNOWN` and ask one atomic boundary question.
 - During discovery, vary one unresolved boundary at a time. Do not re-ask fields already fixed by authority documents. At the end, present all resolved axes and the derived objectives together for one confirmation.
 - After confirmation, create new control files and missing thin authority files. For any existing file, show a diff and obtain approval before editing.
 - Suggest Git initialization when absent. If declined, create only a `DRAFT/DIAGNOSTIC` control plane and forbid formal candidates.
-- After the first vertical slice and cases are fixed, ask once more before writing product code.
+- After the first vertical slice and cases are fixed, follow the confirmed automation policy: manual mode asks before product-code execution; either automatic mode treats the startup authorization as permission to advance within the locked contract and stops only at a fixed review point.
 
 ## Existing-project behavior
 
 - The first `adopt` pass is read-only.
 - Report authority candidates, conflicts, worktrees, dirty state, current claims, migration risk, proposed new files, and proposed edits.
 - Before proposing control-file writes for an unmanaged project, ask the same release-intent question. For an already locked project, report its current intent rather than silently changing it; changing it requires a new approved control boundary and invalidates downstream task evidence.
+- For a new control plane, collect the automation mode in the same consolidated startup confirmation. An existing Schema 3.2 project without `.vibe-control/automation-policy.json` remains manual; opt-in or mode changes require the content-bound `automation --plan` / `--apply <plan-hash>` path and invalidate the archived task chain.
 - Create or modify control files only after the migration proposal is approved.
 - Synchronize small managed blocks in both `AGENTS.md` and `CLAUDE.md`; point them at the lock and state files instead of copying a second policy source.
 - If a managed block drifted, show the old template, current block, and new template before asking permission to update.
@@ -102,7 +106,7 @@ Never display a selectable option without both scores. This includes binary `con
 - When `CODEX_THREADS` is unavailable but child-agent spawn/message/wait tools are available, explicitly downgrade every cross-session worker/auditor role to `SUBAGENTS`. The responsible parent remains the sole control-plane writer and final decision context; a child-agent report is input, not approval.
 - When neither backend exists, use `SERIAL` in the responsible context and mark any would-be independent audit as non-independent. Never fabricate a Codex task, cursor, worktree, or independence claim.
 - This Skill imposes no fixed numeric limit on workers or child agents. Dispatch only concrete bounded tasks that fit the host's actual capacity, useful parallelism, file ownership and isolation; a platform capacity limit is not a Skill policy limit.
-- Ask once per task before creating separate user-owned Codex tasks. Subagent dispatch follows the host's current delegation authorization and does not require a made-up numeric quota.
+- In manual mode, ask once per task before creating separate user-owned Codex tasks. In either automatic mode, the confirmed policy is the one task-scoped authorization for bounded worker dispatch; do not pause again at ordinary stages or ask for a made-up numeric quota. Subagent dispatch still follows the host's actual delegation permission.
 - Put concurrent writers in separate worktrees with disjoint ownership; allow read-only workers to share the source directory. If writing isolation is unavailable, serialize writes.
 - Give every worker a bounded task packet with goal, allowed and forbidden files, baseline, validation command, stop condition, and report shape.
 - After candidate freeze, use a fresh read-only auditor context without expected defects or the intended conclusion. Under `SUBAGENTS`, this means a newly spawned auditor with no answer leakage; if the host cannot provide fresh isolated context, the result is diagnostic and non-independent.
@@ -110,6 +114,8 @@ Never display a selectable option without both scores. This includes binary `con
 - Materialize the candidate branch/tag as the **first checkout**: `git -c core.autocrlf=true clone --no-local --branch <candidate-branch-or-tag> --single-branch <source> <audit-dir>`. Then verify exact `HEAD` and immediately run `python <audit-dir>/scripts/build_manifest.py --root <audit-dir> --verify`. `--no-checkout` is retained only in historical negative tests. A clean Git status alone is not package-integrity evidence.
 - Under `CODEX_THREADS`, prefer cursor-based event waits of no more than 60 seconds and aggregate unchanged progress at 300-second intervals. Under `SUBAGENTS`, use the host's native mailbox/wait primitive; do not pretend a Codex cursor exists. `SERIAL` requires no coordination polling.
 - Preserve the same candidate binding, evidence, checkpoint, audit-stop and role-separation rules under every backend. See [multi-session-routing.md](references/multi-session-routing.md).
+
+`advance` is a Skill workflow, not a CLI command. In either automatic mode it performs plan → dispatch/implementation → validation → integration → milestone commit → optional non-force push without blocking at ordinary stages. It must stop for a closed candidate/owner review, any `HUMAN` checkpoint, an owner decision, boundary change, R3 or irreversible work, hard failure, push conflict, or user interruption. The responsible context is the only control-plane writer and the only context permitted to create policy-authorized milestone commits or pushes; workers and reviewers cannot call `accept` or approve a human checkpoint. At each review point render the non-authoritative external-cache Dashboard described in [automation-advancement.md](references/automation-advancement.md).
 
 ## Deterministic commands
 
@@ -146,6 +152,10 @@ python <skill-root>/scripts/vibe_control.py reposition --project <root> --spec <
 python <skill-root>/scripts/vibe_control.py reposition --project <root> --spec <confirmed-positioning.json> --apply <plan-hash>
 python <skill-root>/scripts/vibe_control.py revise-objectives --project <root> --spec <confirmed-objectives.json> --plan
 python <skill-root>/scripts/vibe_control.py revise-objectives --project <root> --spec <confirmed-objectives.json> --apply <plan-hash>
+python <skill-root>/scripts/vibe_control.py automation --project <root> --spec <confirmed-policy.json> --plan
+python <skill-root>/scripts/vibe_control.py automation --project <root> --spec <confirmed-policy.json> --apply <plan-hash>
+python <skill-root>/scripts/vibe_control.py automation --project <root> --action dispatch|continue|commit|push
+python <skill-root>/scripts/vibe_control.py dashboard --project <root> [--output-dir <external-path>]
 python <skill-root>/scripts/vibe_control.py risk --score <0-100> [--forced-r3]
 python <skill-root>/scripts/vibe_control.py migrate --project <root> --plan
 python <skill-root>/scripts/vibe_control.py migrate --project <root> --plan --spec <confirmed-migration-spec.json>
@@ -155,15 +165,15 @@ python <skill-root>/scripts/vibe_control.py migrate --project <root> --apply <pl
 Run the pinned project controller after bootstrap:
 
 ```text
-python .vibe-control/runtime/0.3.5/control.py lock-task --project . --contract <contract.json>
-python .vibe-control/runtime/0.3.5/control.py freeze --project . --actor <implementer> --session <session>
-python .vibe-control/runtime/0.3.5/control.py execute --project . --actor <actor> --session <session> [--case <case-id>]
-python .vibe-control/runtime/0.3.5/control.py ingest --project . --attestation <external-evidence-attestation.json>
-python .vibe-control/runtime/0.3.5/control.py validate --project .
-python .vibe-control/runtime/0.3.5/control.py audit --project . --review <review.json>
-python .vibe-control/runtime/0.3.5/control.py accept --project . --decision <decision.json>
-python .vibe-control/runtime/0.3.5/control.py release-check --project .
-python .vibe-control/runtime/0.3.5/control.py handoff --project .
+python .vibe-control/runtime/0.3.6/control.py lock-task --project . --contract <contract.json>
+python .vibe-control/runtime/0.3.6/control.py freeze --project . --actor <implementer> --session <session>
+python .vibe-control/runtime/0.3.6/control.py execute --project . --actor <actor> --session <session> [--case <case-id>]
+python .vibe-control/runtime/0.3.6/control.py ingest --project . --attestation <external-evidence-attestation.json>
+python .vibe-control/runtime/0.3.6/control.py validate --project .
+python .vibe-control/runtime/0.3.6/control.py audit --project . --review <review.json>
+python .vibe-control/runtime/0.3.6/control.py accept --project . --decision <decision.json>
+python .vibe-control/runtime/0.3.6/control.py release-check --project .
+python .vibe-control/runtime/0.3.6/control.py handoff --project .
 ```
 
 Interpret exit codes as:
@@ -177,15 +187,16 @@ Always preserve the JSON 3.2 envelope. Use only `formal.eligible` and `formal.ma
 
 Only for an `EXTERNAL_RELEASE` R3 task whose contract permits `RELEASE_READY`, after `audit` and `accept` have produced tracked records, the independent **release-auditor**—distinct from the implementation/execution actors and the internal review auditor—must create and sign an `external-release-audit` object under `.vibe-control/external-audits/`, including a tracked raw transcript, exact candidate/review/evidence references, and current package/runtime/matrix hashes. Commit that report. The owner then signs the project runtime's `release-receipt.json`, binding that exact candidate, decision and external-audit file; commit it. Private keys remain outside the agent/runtime environment. These two signed objects are deliberately not fabricated by a CLI convenience command. They do not apply to `LOCAL_EXPERIMENT` or `PRIVATE_OPERATION`.
 
-`adopt`, `start`, and `resume` remain Skill workflow routes. The implemented CLI is exactly: `inspect`, `resolve-rules`, `bootstrap`, `reposition`, `revise-objectives`, `lock-task`, `validate`, `freeze`, `execute`, `ingest`, `audit`, `accept`, `release-check`, `handoff`, `migrate`, and `risk`.
+`adopt`, `start`, `resume`, and `advance` remain Skill workflow routes. The implemented CLI is exactly: `inspect`, `resolve-rules`, `bootstrap`, `reposition`, `revise-objectives`, `automation`, `dashboard`, `lock-task`, `validate`, `freeze`, `execute`, `ingest`, `audit`, `accept`, `release-check`, `handoff`, `migrate`, and `risk`.
 
 ## Completion discipline
 
 - Render one current summary: governance/runtime version, unit, locked release intent/path, phase/health/claim, risk, candidate, change envelope, checkpoint/case totals, hard-check totals, exploration-budget use, warnings, investigations, sessions/roles, blockers, one human decision, and one next action.
 - Phrase absence findings as “本轮覆盖内未发现 P0/P1/P2”; never claim unknown defects do not exist.
 - Persist assessments only at bootstrap, candidate freeze, verification/audit, acceptance, migration, and handoff.
-- Propose a dedicated bootstrap commit after validation; never commit automatically.
-- Never push, publish, release, migrate destructive data, expand permissions, or perform another R3 action without explicit current authorization.
+- In `MANUAL_STAGE_CONFIRMATION`, propose commits and pushes and wait for explicit approval. In either automatic mode, the responsible context may create validated milestone commits; only `AUTO_PUSH_TO_REVIEW` may non-force push those commits to the exact existing bound upstream.
+- Automatic authorization never covers merge, rebase, new remotes, PRs, tags, releases, destructive migration, permission expansion, R3/irreversible actions, `accept`, or force-push. Stop and obtain explicit current authorization instead.
+- At every fixed owner-review point, generate `index.html`, `status.json`, and `summary.md` in the external dashboard cache. Treat the snapshot as a read-only projection that cannot alter state, replace evidence, grant a claim, or close a blocker.
 
 ## Bundled resources
 

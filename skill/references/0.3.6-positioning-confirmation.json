@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "3.2",
+  "recordType": "positioning-confirmation",
+  "recordId": "CONFIRM-VC036-POSITIONING",
+  "actorId": "product-owner",
+  "confirmedAt": "2026-07-29T10:22:26+08:00",
+  "source": "user-approved vibe-control 0.3.6 automatic advancement and human-review dashboard plan",
+  "summary": "Keep PRIVATE_OPERATION self-governance and DEVELOPMENT_DIAGNOSTIC package posture while adding one-time automation authorization, bounded milestone commits and optional non-force upstream pushes, fixed human review stops, and an offline read-only dashboard; existing Schema 3.2 projects remain manual until an explicit compatible opt-in."
+}

@@ -43,11 +43,21 @@ Auditor 必须在候选冻结后使用新鲜、只读、与实现者身份分离
 
 ## 授权与并行
 
-创建用户可见的 Codex 任务前，每个开发任务只确认一次授权。`SUBAGENTS` 按当前宿主和会话的委派授权执行；不得假造“跨会话”能力，也不得要求用户反复确认一个任意数量配额。任务仍需固定角色、所有权和风险范围，但不固定 Skill 级数量上限。
+手动模式在创建用户可见的 Codex 任务前，每个开发任务只确认一次授权；自动模式的已确认策略就是该任务内有界 worker 派发的一次性授权，普通阶段不得再次停下来确认。`SUBAGENTS` 仍按当前宿主和会话的实际委派权限执行；不得假造“跨会话”能力，也不得要求用户反复确认一个任意数量配额。任务仍需固定角色、所有权和风险范围，但不固定 Skill 级数量上限。
 
 并行写入必须使用隔离 worktree，且任务文件所有权互不重叠。只读调查可共享目录，但不得写入状态或证据。无法建立 worktree、不能可靠区分所有权或发现脏工作区时，降级为串行执行或只读诊断。
 
 Worker 不得自行 merge、rebase、发布、修改任务合同或接管其他执行上下文。负责上下文负责 diff 复核、冲突处理和唯一候选的建立。
+
+## `advance` 自动推进路由
+
+`advance` 是 Skill 工作流，不是独立 CLI。只有治理锁与 task lock 引用同一个有效 automation policy 时才可按自动模式运行；旧 Schema 3.2 项目缺少策略时保持 `MANUAL_STAGE_CONFIRMATION`，不能从宿主具备子智能体或线程能力推断自动授权。
+
+负责上下文按实际能力解析一次 `CODEX_THREADS → SUBAGENTS → SERIAL`，然后执行“计划 → 委派/实现 → 验证 → 整合 → 里程碑提交 → 可选推送”。普通阶段只发送非阻塞进度更新，不因 worker 完成、局部测试通过或准备进入下一实现步骤而暂停等待批准。后端降级不改变自动化权限，也不能提高角色独立性声明。
+
+只有负责上下文可以调用 `automation --action commit|push`。检查通过、文件归属清楚且改动仍在合同范围内时，`AUTO_LOCAL_TO_REVIEW` 和 `AUTO_PUSH_TO_REVIEW` 都允许里程碑提交；后者还允许向策略绑定的既有 remote/upstream 非强制推送。Worker、auditor 和其他任务不得提交控制面、推送、批准 checkpoint 或调用 `accept`。自动路径永远不允许 merge、rebase、创建 remote/PR/tag/release、force-push 或擅自扩大权限。
+
+出现候选闭合、`HUMAN` checkpoint/owner decision、目标或其他锁定边界变化、R3/不可逆操作、硬失败、推送冲突或用户中断时，所有后端都必须停止。负责上下文随后生成外部缓存 Dashboard 的同源 `index.html`、`status.json` 和 `summary.md`，呈现唯一待人工决定事项。该投影不构成 evidence、审核或批准。
 
 ## 候选与审核
 

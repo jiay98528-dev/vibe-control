@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8-sig").strip()
 sys.path.insert(0, str(ROOT / "scripts"))
 from check_audit_path import report as path_budget_report  # noqa: E402
 
@@ -36,6 +37,30 @@ def write_json(path: Path, value: dict) -> None:
 def source_id(prefix: str, statement: str) -> str:
     normalized = " ".join(statement.strip().split())
     return f"{prefix}-{hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:12]}"
+
+
+def automation_policy(project_id: str) -> dict:
+    stop_conditions = sorted([
+        "AUTOMATED_CHECKPOINTS_COMPLETE", "HUMAN_CHECKPOINT", "OWNER_DECISION",
+        "BOUNDARY_CHANGE", "R3_OR_IRREVERSIBLE_ACTION", "HARD_FAILURE",
+        "PUSH_CONFLICT", "USER_INTERRUPT",
+    ])
+    semantic = {
+        "projectId": project_id,
+        "mode": "MANUAL_STAGE_CONFIRMATION",
+        "commitPolicy": "MANUAL",
+        "pushPolicy": "NONE",
+        "stopConditions": stop_conditions,
+    }
+    summary = json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
+    return {
+        "schemaVersion": "1.0", "policyId": f"automation-{digest[:12]}", **semantic,
+        "confirmation": {
+            "actorId": "owner", "summary": summary, "summarySha256": digest,
+            "record": "AUTOMATION_CONFIRMATION.json", "confirmedAt": "2026-07-29T00:00:00+08:00",
+        },
+    }
 
 
 def checkpoint_contract() -> dict:
@@ -117,12 +142,13 @@ def test_development_package_never_grants_high_claims() -> None:
         (project / "POSITIONING_CONFIRMATION.json").write_text("{}\n", encoding="utf-8")
         (project / "OBJECTIVES_CONFIRMATION.json").write_text("{}\n", encoding="utf-8")
         (project / "CHECKPOINT_CONFIRMATION.json").write_text("{}\n", encoding="utf-8")
+        (project / "AUTOMATION_CONFIRMATION.json").write_text("{}\n", encoding="utf-8")
         (project / "KEY_OBJECTIVES.md").write_text("# Objectives\n- `KO-001`: outcome\n- `KF-001`: false proof\n- `NG-001`: deployment\n", encoding="utf-8", newline="\n")
         git(project, "add", "-A"); git(project, "commit", "-m", "requirements")
         positioning = {"primaryExperience":"SERVICE","capabilityDomains":["BACKEND_API"],"deliveryObjective":"VERTICAL_SLICE","releaseIntent":"PRIVATE_OPERATION","runtimeTargets":["python"],"targetEnvironments":[{"id":"dev","operatingSystem":"Windows","deviceClass":"desktop"}],"distributionChannels":[],"humanQualityGates":[],"nonGoals":[],"firstVerticalSlice":{"outcome":"x","included":["one command"],"excluded":[],"successSignals":[{"id":source_id("SIG","CASE-001 passes"),"statement":"CASE-001 passes"}]}}
         positioning_hash = hashlib.sha256(json.dumps(positioning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         objective_summary = "confirmed"
-        spec = {"schemaVersion":"3.2","projectId":"dev-fixture",**positioning,"confirmation":{"actorId":"owner","summary":"positioning","summarySha256":positioning_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":{"document":"KEY_OBJECTIVES.md","documentId":"DEV-OBJECTIVES","revision":1,"status":"CONFIRMED","sourceDocuments":["REQUIREMENTS.md"],"objectiveIds":["KO-001"],"failureModeIds":["KF-001"],"nonGoalIds":["NG-001"],"confirmation":{"actorId":"owner","summary":objective_summary,"summarySha256":hashlib.sha256(objective_summary.encode()).hexdigest(),"record":"OBJECTIVES_CONFIRMATION.json"}},"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["REQUIREMENTS.md"],"trustedKeys":[],"cases":[{"id":"CASE-001","command":[sys.executable,"fixture.py"],"observation":"runtime-observed","maxClaimLevel":"ACCEPTED","oracle":{"exitCode":0,"stdoutContainsAll":[],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":{"id":"generic-command","version":"1.0.0","sha256":"pending"}}]}
+        spec = {"schemaVersion":"3.2","projectId":"dev-fixture",**positioning,"confirmation":{"actorId":"owner","summary":"positioning","summarySha256":positioning_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":{"document":"KEY_OBJECTIVES.md","documentId":"DEV-OBJECTIVES","revision":1,"status":"CONFIRMED","sourceDocuments":["REQUIREMENTS.md"],"objectiveIds":["KO-001"],"failureModeIds":["KF-001"],"nonGoalIds":["NG-001"],"confirmation":{"actorId":"owner","summary":objective_summary,"summarySha256":hashlib.sha256(objective_summary.encode()).hexdigest(),"record":"OBJECTIVES_CONFIRMATION.json"}},"automationPolicy":automation_policy("dev-fixture"),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["REQUIREMENTS.md"],"trustedKeys":[],"cases":[{"id":"CASE-001","command":[sys.executable,"fixture.py"],"observation":"runtime-observed","maxClaimLevel":"ACCEPTED","oracle":{"exitCode":0,"stdoutContainsAll":[],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":{"id":"generic-command","version":"1.0.0","sha256":"pending"}}]}
         adapters = json.loads((skill / "assets" / "project-control" / "runtime" / "rules" / "v1" / "adapters.json").read_text(encoding="utf-8"))
         descriptor = next(item for item in adapters["adapters"] if item["id"] == "generic-command")
         spec["cases"][0]["adapter"]["sha256"] = hashlib.sha256(json.dumps(descriptor, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -133,7 +159,7 @@ def test_development_package_never_grants_high_claims() -> None:
         git(project, "add", "-A"); git(project, "commit", "-m", "bootstrap development")
         contract = checkpoint_contract()
         contract_path = project / ".vibe-control" / "tasks" / "TASK-001.json"; write_json(contract_path, contract); git(project, "add", "-A"); git(project, "commit", "-m", "task")
-        pinned = project / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
+        pinned = project / ".vibe-control" / "runtime" / RUNTIME_VERSION / "control.py"
         run(sys.executable, str(pinned), "lock-task", "--project", str(project), "--contract", str(contract_path))
         git(project, "add", "-A"); git(project, "commit", "-m", "lock")
         release = json.loads(run(sys.executable, str(pinned), "release-check", "--project", str(project), expect=2).stdout)

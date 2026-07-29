@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "3.2",
+  "recordType": "checkpoint-confirmation",
+  "recordId": "CONFIRM-VC036-CHECKPOINTS",
+  "actorId": "product-owner",
+  "confirmedAt": "2026-07-29T10:22:26+08:00",
+  "source": "user-approved vibe-control 0.3.6 automatic advancement and human-review dashboard plan",
+  "summary": "Four DEVELOPMENT_CHECKED checkpoints cover explicit automation authorization, uninterrupted bounded advancement, Git side-effect guards, and a truthful offline human-review dashboard.",
+  "checkpointSetSha256": "d6b8a6b01f022a7266ee08510e9859093740b05868b40af1dd62cdd514609997"
+}

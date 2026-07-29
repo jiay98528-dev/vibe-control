@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from .common import ControlError, envelope, error_envelope, exit_code, write_json_atomic
+from .automation_control import automation_action, automation_apply, automation_plan
 from .controller import (
     accept, audit, bootstrap, execute, freeze, handoff, ingest, inspect,
     lock_task, migration_apply, migration_plan, release_check, reposition_apply,
     reposition_plan, resolve_rules, revise_objectives_apply, revise_objectives_plan, validate,
 )
+from .dashboard import generate_dashboard
 
 
 class JsonParser(argparse.ArgumentParser):
@@ -35,6 +37,8 @@ def parser() -> JsonParser:
     item = sub.add_parser("audit"); item.add_argument("--project", default="."); item.add_argument("--review", required=True); item.add_argument("--output")
     item = sub.add_parser("accept"); item.add_argument("--project", default="."); item.add_argument("--decision", required=True); item.add_argument("--output")
     item = sub.add_parser("handoff"); item.add_argument("--project", default="."); item.add_argument("--handoff-output"); item.add_argument("--output")
+    item = sub.add_parser("automation"); item.add_argument("--project", default="."); item.add_argument("--spec"); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); mode.add_argument("--action", choices=("dispatch", "continue", "commit", "push")); item.add_argument("--output")
+    item = sub.add_parser("dashboard"); item.add_argument("--project", default="."); item.add_argument("--output-dir"); item.add_argument("--output")
     item = sub.add_parser("migrate"); item.add_argument("--project", default="."); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); item.add_argument("--spec"); item.add_argument("--output")
     item = sub.add_parser("risk"); item.add_argument("--score", required=True, type=int); item.add_argument("--forced-r3", action="store_true"); item.add_argument("--output")
     return root
@@ -62,6 +66,15 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "accept": return accept(project, Path(args.decision))
     if args.command == "release-check": return release_check(project)
     if args.command == "handoff": return handoff(project, Path(args.handoff_output) if args.handoff_output else None)
+    if args.command == "automation":
+        if args.action:
+            if args.spec:
+                raise ControlError("CLI-INVALID-ARGUMENTS", "automation --action does not accept --spec")
+            return automation_action(project, args.action)
+        if not args.spec:
+            raise ControlError("CLI-INVALID-ARGUMENTS", "automation --plan/--apply requires --spec")
+        return automation_plan(project, Path(args.spec)) if args.plan else automation_apply(project, Path(args.spec), args.apply)
+    if args.command == "dashboard": return generate_dashboard(project, Path(args.output_dir) if args.output_dir else None)
     if args.command == "migrate":
         if args.apply and not args.spec:
             raise ControlError("CLI-INVALID-ARGUMENTS", "migrate --apply requires --spec")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Skill-binding, orchestration-compatibility, and package-structure tests for 0.3.5."""
+"""Skill-binding, orchestration-compatibility, and package-structure tests for 0.3.6."""
 from __future__ import annotations
 
 import hashlib
@@ -14,6 +14,7 @@ RUNTIME = ROOT / "assets" / "project-control" / "runtime"
 sys.path.insert(0, str(RUNTIME))
 
 from vibe_runtime.project_rules import canonical_rule_bytes, compile_positioning  # noqa: E402
+from vibe_runtime import cli  # noqa: E402
 
 
 LOCKED_CHECK_IDS = {
@@ -36,6 +37,18 @@ LOCKED_CHECK_IDS = {
     "HC-AUDIT-STOP-CLOSURE",
     "VC-SKILL-INSTALL-APPROVAL",
     "VC-REINSTALL-REQUIRED",
+    "HC-AUTOMATION-POLICY-REQUIRED",
+    "HC-AUTOMATION-PLAN-HASH",
+    "HC-AUTOMATION-POLICY-DRIFT",
+    "HC-AUTOMATION-MANUAL",
+    "HC-AUTOMATION-PUSH-POLICY",
+    "HC-AUTOMATION-WORKTREE-CLEAN",
+    "HC-AUTOMATION-UPSTREAM",
+    "HC-AUTOMATION-REMOTE-DRIFT",
+    "HC-AUTOMATION-R3-STOP",
+    "HC-AUTOMATION-REVIEW-POINT",
+    "HC-DASHBOARD-OUTPUT-SCOPE",
+    "HC-DASHBOARD-SNAPSHOT",
 }
 
 
@@ -112,18 +125,19 @@ def test_unaddressed_advisory_skill_warns_without_blocking() -> None:
 def test_all_locked_check_ids_are_consumed_by_runtime() -> None:
     sources = "\n".join(path.read_text(encoding="utf-8-sig") for path in sorted((RUNTIME / "vibe_runtime").glob("*.py")))
     missing = sorted(check_id for check_id in LOCKED_CHECK_IDS if check_id not in sources)
-    assert not missing, f"locked 0.3.5 check IDs are not consumed by runtime: {missing}"
+    assert not missing, f"locked 0.3.6 check IDs are not consumed by runtime: {missing}"
 
 
 def test_skill_routes_schema3_positioning_and_reinstall_boundary() -> None:
     text = (ROOT / "SKILL.md").read_text(encoding="utf-8-sig")
     required_phrases = [
-        "0.3.5", "Schema 3.2", "resolve-rules", "reposition",
-        "project-positioning.json", "checkpoint-contract.md",
+        "0.3.6", "Schema 3.2", "resolve-rules", "reposition",
+        "project-positioning.md", ".vibe-control/automation-policy.json", "checkpoint-contract.md",
         "ALL_REQUIRED_CHECKPOINTS_REPORTED", "VC-REINSTALL-REQUIRED",
+        "automation", "dashboard", "AUTO_LOCAL_TO_REVIEW", "AUTO_PUSH_TO_REVIEW",
     ]
     missing = [phrase for phrase in required_phrases if phrase not in text]
-    assert not missing, f"SKILL.md is missing 0.3.5 route language: {missing}"
+    assert not missing, f"SKILL.md is missing 0.3.6 route language: {missing}"
     assert "private key is never required to install" in text.lower()
     assert (ROOT / "scripts" / "validate_installation.py").is_file()
     assert "validate_installation.py" in text and "PORTABLE_COPY" in text
@@ -162,6 +176,7 @@ def test_schema_and_rule_resources_exist_in_public_and_runtime_bundles() -> None
         "skill-binding.schema.json",
         "rule-overlay.schema.json",
         "bootstrap-spec.schema.json",
+        "automation-policy.schema.json",
     }
     public = ROOT / "assets" / "project-control" / "schemas"
     pinned = RUNTIME / "schemas"
@@ -174,6 +189,22 @@ def test_schema_and_rule_resources_exist_in_public_and_runtime_bundles() -> None
     assert (RUNTIME / "rules" / "v1" / "adapters.json").is_file()
 
 
+def test_automation_dashboard_surface_and_assurance_controls_exist() -> None:
+    parser = cli.parser()
+    subparsers = next(action for action in parser._actions if hasattr(action, "choices") and action.choices)
+    assert {"automation", "dashboard"} <= set(subparsers.choices)
+    assert (RUNTIME / "vibe_runtime" / "automation_control.py").is_file()
+    assert (RUNTIME / "vibe_runtime" / "dashboard.py").is_file()
+    assert (ROOT / "assets" / "project-control" / "templates" / "automation-policy.json").is_file()
+
+    matrix = json.loads((ROOT / "references" / "controller-assurance-matrix.json").read_text(encoding="utf-8-sig"))
+    controls = {item["id"]: item for item in matrix["confirmedControls"]}
+    for control_id in ("CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032"):
+        item = controls[control_id]
+        assert item["implementationStatus"] == "IMPLEMENTED"
+        assert item["independentValidation"] == "PENDING"
+
+
 TESTS = [
     test_required_skill_is_content_addressed_and_cannot_approve,
     test_required_drift_blocks_and_requests_user_approved_install,
@@ -182,6 +213,7 @@ TESTS = [
     test_skill_routes_schema3_positioning_and_reinstall_boundary,
     test_orchestration_compatibility_layer_is_capability_driven_and_unbounded,
     test_schema_and_rule_resources_exist_in_public_and_runtime_bundles,
+    test_automation_dashboard_surface_and_assurance_controls_exist,
 ]
 
 

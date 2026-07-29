@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "policyId", "projectId", "mode", "commitPolicy", "pushPolicy", "stopConditions", "confirmation"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "policyId": {"type": "string", "pattern": "^automation-[0-9a-f]{12}$"},
+    "projectId": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["MANUAL_STAGE_CONFIRMATION", "AUTO_LOCAL_TO_REVIEW", "AUTO_PUSH_TO_REVIEW"]},
+    "commitPolicy": {"enum": ["MANUAL", "MILESTONE_COMMITS"]},
+    "pushPolicy": {"enum": ["NONE", "EXISTING_UPSTREAM_MILESTONES"]},
+    "stopConditions": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "AUTOMATED_CHECKPOINTS_COMPLETE",
+          "HUMAN_CHECKPOINT",
+          "OWNER_DECISION",
+          "BOUNDARY_CHANGE",
+          "R3_OR_IRREVERSIBLE_ACTION",
+          "HARD_FAILURE",
+          "PUSH_CONFLICT",
+          "USER_INTERRUPT"
+        ]
+      }
+    },
+    "remoteBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remote", "branch", "upstream", "remoteUrlSha256"],
+      "properties": {
+        "remote": {"type": "string", "minLength": 1},
+        "branch": {"type": "string", "minLength": 1},
+        "upstream": {"type": "string", "minLength": 1},
+        "remoteUrlSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "scopeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["keyObjectivesObjectSha256", "positioningObjectSha256"],
+      "properties": {
+        "keyObjectivesObjectSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "positioningObjectSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "summary", "summarySha256", "record", "confirmedAt"],
+      "properties": {
+        "actorId": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "summarySha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "record": {
+          "oneOf": [
+            {"type": "string", "minLength": 1},
+            {"$ref": "#/$defs/ref"}
+          ]
+        },
+        "confirmedAt": {"type": "string", "format": "date-time"}
+      }
+    }
+  },
+  "$defs": {
+    "ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "bytes", "sha256", "tracked"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "tracked": {"const": true}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"mode": {"const": "MANUAL_STAGE_CONFIRMATION"}}},
+      "then": {
+        "properties": {"commitPolicy": {"const": "MANUAL"}, "pushPolicy": {"const": "NONE"}},
+        "not": {"required": ["remoteBinding"]}
+      }
+    },
+    {
+      "if": {"properties": {"mode": {"const": "AUTO_LOCAL_TO_REVIEW"}}},
+      "then": {
+        "properties": {"commitPolicy": {"const": "MILESTONE_COMMITS"}, "pushPolicy": {"const": "NONE"}},
+        "not": {"required": ["remoteBinding"]}
+      }
+    },
+    {
+      "if": {"properties": {"mode": {"const": "AUTO_PUSH_TO_REVIEW"}}},
+      "then": {
+        "required": ["remoteBinding"],
+        "properties": {"commitPolicy": {"const": "MILESTONE_COMMITS"}, "pushPolicy": {"const": "EXISTING_UPSTREAM_MILESTONES"}}
+      }
+    }
+  ]
+}

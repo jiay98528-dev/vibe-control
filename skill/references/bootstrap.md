@@ -6,7 +6,7 @@ Bootstrap 的目标不是套用一个粗糙“项目类型”，而是先把产�
 
 先运行 `inspect`，确认目录是否为空、是否存在 Git、是否包含多个可独立发布单元、是否已有 `AGENTS.md`、`CLAUDE.md` 或产品文档。检测到多个治理单元时先确认范围，不得默认 repo 根或当前目录。
 
-发现结果只能写入 `discovered` 事实。仓库名称、框架、配置文件、体量、现有部署文字或用户数量不能替用户选择 `primaryExperience`、`deliveryObjective`、`releaseIntent`、目标环境、发行渠道或主观质量门禁。发现 Tauri、Electron、Unreal 或 Capacitor 只能生成 investigation；0.3.5 不具备这些原生运行时的正式 adapter。
+发现结果只能写入 `discovered` 事实。仓库名称、框架、配置文件、体量、现有部署文字或用户数量不能替用户选择 `primaryExperience`、`deliveryObjective`、`releaseIntent`、自动化模式、目标环境、发行渠道或主观质量门禁。发现 Tauri、Electron、Unreal 或 Capacitor 只能生成 investigation；0.3.6 不具备这些原生运行时的正式 adapter。
 
 ## 2. 自适应愿景与首个切片
 
@@ -27,7 +27,7 @@ Bootstrap 的目标不是套用一个粗糙“项目类型”，而是先把产�
 
 发现矛盾时明确指出，不用模型偏好替用户消解。字段稳定后生成临时愿景摘要，包含假设和仍未知项。用户明确确认摘要前不得写项目文件；需要持久化的产品简报只能在 bootstrap 获批后作为已声明的权威文件创建。
 
-尚有未知边界时不得提前要求确认摘要；继续用原子问题补齐会改变边界的事实。事实稳定后只做一次综合确认，绑定需求摘要、关键目标和 positioning；该轮不得同时引入新的平台、技术栈、范围或架构选择。`确认` 与 `修改` 都必须显示风险分、人工负担分和影响。
+尚有未知边界时不得提前要求确认摘要；继续用原子问题补齐会改变边界的事实。事实稳定后只做一次综合确认，绑定需求摘要、关键目标、positioning 与三选一自动化模式；该轮不得同时引入新的平台、技术栈、范围或架构选择。`确认` 与 `修改` 都必须显示风险分、人工负担分和影响。
 
 ## 3. 推导并确认关键目标
 
@@ -68,6 +68,20 @@ Bootstrap 的目标不是套用一个粗糙“项目类型”，而是先把产�
 
 将用户明确选择写入 Schema 3.2 bootstrap spec 的 positioning。缺失、未知或仅由发现结果推断的值必须被控制器拒绝。成功 bootstrap 后定位写入 `project-positioning.json`，由治理锁、规则集、task lock 和 candidate 形成内容闭包。改变任何定位轴必须使用 `reposition`，批准后回到 `DRAFT/DIAGNOSTIC` 并失效下游对象。
 
+### 自动推进模式也是必答轴
+
+在需求、关键目标、positioning 与发行意图已经稳定后，把自动化模式加入同一次启动综合确认。新项目不得默认代选，未回答时不得生成 bootstrap 控制面。只允许以下固定组合：
+
+| 用户选择 / 机器枚举 | 提示中的分数与影响 | 固定权限组合 |
+| --- | --- | --- |
+| 本地自动推进 / `AUTO_LOCAL_TO_REVIEW`（推荐） | 风险 45/100；人工负担 20/100；影响：自动规划、委派、开发、验证并创建通过检查的里程碑提交，到人工复核点停止；不推送。 | `commitPolicy=MILESTONE_COMMITS`；`pushPolicy=NONE`。 |
+| 自动推进并推送 / `AUTO_PUSH_TO_REVIEW` | 风险 60/100；人工负担 15/100；影响：增加向已存在且已绑定 upstream 的非强制里程碑推送；冲突、认证或远端身份变化立即停止。 | `commitPolicy=MILESTONE_COMMITS`；`pushPolicy=EXISTING_UPSTREAM_MILESTONES`。 |
+| 逐阶段确认 / `MANUAL_STAGE_CONFIRMATION` | 风险 25/100；人工负担 65/100；影响：保留逐阶段人工确认，不自动提交或推送。 | `commitPolicy=MANUAL`；`pushPolicy=NONE`。 |
+
+确认记录必须绑定精确项目、关键目标、positioning、模式、提交/推送权限、固定停止条件与规范化摘要哈希，并物化为 `.vibe-control/automation-policy.json`；治理锁与 task lock 引用同一策略身份。不得自由拼接第四种权限组合。
+
+旧 Schema 3.2 项目没有策略时继续解释为 `MANUAL_STAGE_CONFIRMATION`，不得静默写入策略或取得自动副作用权限。加入或改变模式只能使用 `automation --spec <policy.json> --plan`，展示权限差异和失效集合后，再以精确 `--apply <plan-hash>` 应用；应用会归档当前 task、使下游对象失效并回到 `DRAFT / BLOCKED / DIAGNOSTIC`。详见 [automation-advancement.md](automation-advancement.md)。
+
 ## 5. 只读解析 Profile、Adapter 与 Skill
 
 运行：
@@ -78,7 +92,7 @@ Bootstrap 的目标不是套用一个粗糙“项目类型”，而是先把产�
 
 Profile 的选择由定位轴确定：`GAMEPLAY` 或 `REALTIME_ENGINE` 激活 `game`；`USER_INTERFACE` 激活 `ui-desktop`；`BACKEND_API` 激活 `backend-api`；`DATA_PIPELINE` 或 `LLM` 激活 `data-llm`。多项适用时全部生效。
 
-0.3.5 只有三种正式 adapter descriptor：
+0.3.6 只有三种正式 adapter descriptor：
 
 - `generic-command`：只证明锁定命令、原始 transcript、counters 与明确产物；
 - `browser-runtime`：证明真实浏览器/Playwright 运行及其截图、trace、日志和逐 case counters；
@@ -104,6 +118,7 @@ Skill binding 分为 `required` 和 `advisory`。required Skill 必须能绑定�
 - 已确认的 `KEY_OBJECTIVES.md`、需求来源、修订、ID 集合、确认记录和 SHA-256；
 - 项目 ID、治理单元与完整 positioning；
 - 用户确认记录及规范化定位摘要 SHA-256；
+- 已确认的 automation policy 1.0：模式、固定 commit/push 组合、停止条件、确认记录和规范化摘要 SHA-256；
 - 已确认愿景决策；
 - 权威文件候选；
 - 风险因子；
@@ -119,7 +134,7 @@ Case 的 `capabilities[]` 不是自由声明。控制器必须把它与 adapter 
 
 ## 8. 安全写入
 
-只有定位确认、规则无冲突、required Skill 闭合且 case 能覆盖全部适用规则后才运行 `bootstrap`。它创建 `project-positioning.json`、`resolved-rule-set.json`、治理锁、case catalog、阶段状态与固定 runtime；只允许自动创建新文件。若 `AGENTS.md` 或 `CLAUDE.md` 已存在，脚本必须报告需要批准的托管区块，不得覆盖。`PRODUCT.md` 与 `ARCHITECTURE.md` 仅在确有需要且不存在时创建薄骨架；未知内容写 `TBD`，不得编造。
+只有定位与 automation policy 已明确确认、规则无冲突、required Skill 闭合且 case 能覆盖全部适用规则后才运行 `bootstrap`。新项目缺少自动化选择必须以 `HC-AUTOMATION-POLICY-REQUIRED` 阻断，且不得留下部分 `.vibe-control/`。成功写入时创建 `project-positioning.json`、`automation-policy.json`、`resolved-rule-set.json`、治理锁、case catalog、阶段状态与固定 runtime；只允许自动创建新文件。若 `AGENTS.md` 或 `CLAUDE.md` 已存在，脚本必须报告需要批准的托管区块，不得覆盖。`PRODUCT.md` 与 `ARCHITECTURE.md` 仅在确有需要且不存在时创建薄骨架；未知内容写 `TBD`，不得编造。
 
 定位与规则结果使用稳定检查 ID：`HC-POSITIONING-SCHEMA`、`HC-POSITIONING-CONFIRMED`、`HC-RULESET-BINDING`、`HC-RULESET-CONFLICT`、`HC-RULESET-NON-WEAKENING`、`HC-RULE-CASE-COVERAGE`、`HC-ADAPTER-CAPABILITY`、`HC-SKILL-BINDING` 与 `VC-SKILL-INSTALL-APPROVAL`。
 
@@ -139,6 +154,6 @@ Bootstrap 只固定定位和 case，不替用户自动形成任务验收结论�
 
 ## 10. 首个切片与继续开发
 
-建立 R1 精简任务卡或 R2/R3 完整合同。合同的 `objectiveRefs[]` 必须至少引用当前目标锁中的一个 `KO-*` 或 `KF-*`，并包含已确认的 `acceptanceCheckpoints[]`、`checkpointConfirmation` 与固定 `auditPolicy`。`lock-task` 从已锁定规则集派生 `applicableRuleIds` 和 `requiredCaseCapabilities`；合同只能增加或缩小任务范围，不能删减它们。每个 required case 必须通过 `satisfiesRuleIds[]` 覆盖适用规则。R1 机械 case 只有能映射到已确认事实源时才可自动锁定；新增产品语义或 R2/R3 case 必须确认。控制面和首个切片就绪后，再问一次是否开始写产品代码。
+建立 R1 精简任务卡或 R2/R3 完整合同。合同的 `objectiveRefs[]` 必须至少引用当前目标锁中的一个 `KO-*` 或 `KF-*`，并包含已确认的 `acceptanceCheckpoints[]`、`checkpointConfirmation` 与固定 `auditPolicy`。`lock-task` 从已锁定规则集派生 `applicableRuleIds` 和 `requiredCaseCapabilities`，并绑定当前 automation policy；合同只能增加或缩小任务范围，不能删减它们。每个 required case 必须通过 `satisfiesRuleIds[]` 覆盖适用规则。R1 机械 case 只有能映射到已确认事实源时才可自动锁定；新增产品语义或 R2/R3 case 必须确认。
 
-完成硬检查后提议独立 bootstrap commit，获批才提交。
+控制面和首个切片就绪后按已确认模式推进：手动模式继续询问是否开始写产品代码并逐阶段确认；自动模式不再在普通阶段停下来询问，负责上下文可在检查通过后创建里程碑提交。只有 `AUTO_PUSH_TO_REVIEW` 可向精确绑定的既有 upstream 非强制推送。全部自动模式都必须在候选闭合、`HUMAN` checkpoint/owner decision、边界变化、R3/不可逆操作、硬失败、推送冲突或用户中断时停止并生成外部缓存 Dashboard。

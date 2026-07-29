@@ -1,6 +1,6 @@
 {
   "schemaVersion": "3.2",
-  "runtimeVersion": "0.3.5",
+  "runtimeVersion": "0.3.6",
   "hashAlgorithm": "sha256",
   "excludes": [
     "runtime-manifest.json",
@@ -11,7 +11,7 @@
     {
       "path": "control.py",
       "bytes": 3538,
-      "sha256": "18d22bf71f8a1ebc9ce643f94d86138c951d6a1d1e1dbc67e8d467b7835f869b"
+      "sha256": "30502055f68a05a44cae7134a21ffc8369de5a61cb1106b24b786bb7f75f3d92"
     },
     {
       "path": "dependency-lock.json",
@@ -54,14 +54,19 @@
       "sha256": "b9865ff2388883b3bddfd8c03b8a60e47119f93b78004a3a0af86bad8dbef853"
     },
     {
+      "path": "schemas/automation-policy.schema.json",
+      "bytes": 3696,
+      "sha256": "c0050357371c6581579be8117d04dd2b05cf170ba90def776470a52b15774297"
+    },
+    {
       "path": "schemas/bootstrap-spec.schema.json",
-      "bytes": 4863,
-      "sha256": "dd2ac3e38edac8179cc40f087a8c665f3670534e4c2e1df940c8a5af20590530"
+      "bytes": 4927,
+      "sha256": "db43bd233fbcf81b02efa546482610a6ea52496d4128a3fccff841c37d16ba62"
     },
     {
       "path": "schemas/candidate-manifest.schema.json",
-      "bytes": 1451,
-      "sha256": "1f21f08c6e5e9505efdbbba594f7387da0ad53df6e33c32c3555bb42828da328"
+      "bytes": 1493,
+      "sha256": "c9727a8e8ba21bbf9f354146c7802694459193e9f38165dc420b7849344ac79d"
     },
     {
       "path": "schemas/case-catalog.schema.json",
@@ -85,8 +90,8 @@
     },
     {
       "path": "schemas/handoff.schema.json",
-      "bytes": 936,
-      "sha256": "660e31c4208b73f2fa17c3c647b81dcb5105862d0078620c6718e8547583b84b"
+      "bytes": 1246,
+      "sha256": "3c7e096d1aef857b4cefd739bdb29b73ab2cd6725b35342313fe8e5116584d5c"
     },
     {
       "path": "schemas/key-objectives-lock.schema.json",
@@ -101,7 +106,7 @@
     {
       "path": "schemas/migration-plan.schema.json",
       "bytes": 1661,
-      "sha256": "6fc2e8c2b2ad1bdd9c395e7524216abeb1cb1aa4721adcd91fcff9c7bc67f00d"
+      "sha256": "68c0ae05c929026150c240f49dcbc5eee3e8e6f770be784636e506b807061d0d"
     },
     {
       "path": "schemas/migration-spec.schema.json",
@@ -130,8 +135,8 @@
     },
     {
       "path": "schemas/project-governance-lock.schema.json",
-      "bytes": 3493,
-      "sha256": "03cc5d25dc6c23bfbd566f00aae9e09d191901c62b2a79b0427f56a64a2fd8ca"
+      "bytes": 3548,
+      "sha256": "53deba988a0333666ea23c3eef289a2caee7cae7cd88689497e6fab978b2bd4b"
     },
     {
       "path": "schemas/project-positioning.schema.json",
@@ -175,13 +180,18 @@
     },
     {
       "path": "schemas/task-lock.schema.json",
-      "bytes": 1511,
-      "sha256": "6a0660a5196a9c45b636e1d6786a41913d1cdc2dd9a1ceeab7f82ead70236d7a"
+      "bytes": 1553,
+      "sha256": "fb0fcb1d94652a249a9c75b0a9b76279b31055828cdb2c8d6b46c521af22c449"
     },
     {
       "path": "vibe_runtime/__init__.py",
       "bytes": 73,
-      "sha256": "38f5c7806f631548a5c15296b7405149aef03727d4c4157b503d299fbdcf857a"
+      "sha256": "99c50485281eeaaf2685037c7fec609190f4dd3ba0f99083e4e6c4829c3c8484"
+    },
+    {
+      "path": "vibe_runtime/automation_control.py",
+      "bytes": 26546,
+      "sha256": "a3a4aa7c13901011625750267f56c750ed393a83b3cb784aece0b4aa63ef6301"
     },
     {
       "path": "vibe_runtime/checkpoint_control.py",
@@ -190,8 +200,8 @@
     },
     {
       "path": "vibe_runtime/cli.py",
-      "bytes": 6714,
-      "sha256": "0d9c63d18b02532d16615b6eacfb6d512b2bb0738be7a4b8a9d38ee6702cf6ca"
+      "bytes": 8007,
+      "sha256": "37aa7211eadddfd8444c91ed0ae49f7eb91d2b4d2da8a99bf60f377cf56e4de1"
     },
     {
       "path": "vibe_runtime/common.py",
@@ -200,8 +210,8 @@
     },
     {
       "path": "vibe_runtime/controller.py",
-      "bytes": 155449,
-      "sha256": "d969838edf2f32625c21bf2f0f0f1f249af5f0a4018254bd1a537acead7eb24b"
+      "bytes": 159910,
+      "sha256": "bbdb79cc4f4c1d8d87d41aff534782dfb9476c7404a2cdce790c262217a0d0a6"
     },
     {
       "path": "vibe_runtime/crypto.py",
@@ -209,9 +219,14 @@
       "sha256": "e8a7a23a3123547b8fd641d193707908e7a80b9bee442f12505ab80211076bfd"
     },
     {
+      "path": "vibe_runtime/dashboard.py",
+      "bytes": 39478,
+      "sha256": "38dde8aba97735e0a1e6bdee667b5b0780aaa60c4850af48608a8790c6736b98"
+    },
+    {
       "path": "vibe_runtime/package_release.py",
-      "bytes": 42143,
-      "sha256": "4b57d1e3db884aaa035f60803036ce02dd6ff5e9dbffafe15be69aa5645ea8da"
+      "bytes": 42191,
+      "sha256": "8a1c91c8e57c2a0c3b09210094edf9c40bbd82a43eb37873f89f1eabf30a431a"
     },
     {
       "path": "vibe_runtime/positioning_control.py",
@@ -225,8 +240,8 @@
     },
     {
       "path": "vibe_runtime/schema.py",
-      "bytes": 1918,
-      "sha256": "7f582e8eeb71c3ac046170b7d2bad52e532c10024710560be93384f303e28028"
+      "bytes": 1982,
+      "sha256": "2d580b4e11fb5920a60f0e2c26c7b5eac1425b38b25803a9107fe7d07758ac98"
     }
   ]
 }

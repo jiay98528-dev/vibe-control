@@ -25,6 +25,7 @@ from .checkpoint_control import (
     owner_checkpoint_checks, positioning_checkpoint_source_checks,
     review_checkpoint_checks, statement_id, validate_statement_objects,
 )
+from .automation_control import materialize_policy, policy_scope_binding, verify_policy
 from .package_release import validate_development_package, validate_materialized_receipt, validate_package_release
 from .positioning_control import (
     compile_for_project, compiler_checks, coverage_check, fail_on_compile_issues,
@@ -58,6 +59,7 @@ REQUIRED_ASSURANCE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-022", "CTRL-CONFIRMED-023", "CTRL-CONFIRMED-024",
     "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
+    "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032",
 })
 
 
@@ -66,6 +68,7 @@ def paths(project: Path) -> dict[str, Path]:
     control = root / ".vibe-control"
     return {
         "root": root, "control": control, "lock": control / "project-governance-lock.json",
+        "automation_policy": control / "automation-policy.json",
         "state": control / "stage-state.json", "cases": control / "case-catalog.json",
         "key_objectives": control / "key-objectives-lock.json",
         "positioning": control / "project-positioning.json", "rule_inputs": control / "rule-inputs.json",
@@ -144,8 +147,22 @@ def inspect(project: Path) -> dict[str, Any]:
     data = {
         "project": str(p["root"]), "gitRoot": str(root), "head": git(root, "rev-parse", "HEAD", required=False) or None,
         "dirtyEntries": clean_status(root), "controlPlaneExists": p["control"].is_dir(),
-        "runtimeInstalled": p["runtime"].is_dir(), "commands": ["inspect", "resolve-rules", "bootstrap", "reposition", "revise-objectives", "lock-task", "validate", "freeze", "execute", "ingest", "audit", "accept", "release-check", "handoff", "migrate", "risk"],
+        "runtimeInstalled": p["runtime"].is_dir(), "commands": ["inspect", "resolve-rules", "bootstrap", "reposition", "revise-objectives", "automation", "dashboard", "lock-task", "validate", "freeze", "execute", "ingest", "audit", "accept", "release-check", "handoff", "migrate", "risk"],
     }
+    if p["lock"].is_file():
+        try:
+            lock = load_json(p["lock"])
+            ref = lock.get("automationPolicy") if isinstance(lock, dict) else None
+            if isinstance(ref, dict) and isinstance(ref.get("path"), str):
+                policy = load_json(safe_relative(root, ref["path"]))
+                data["automationMode"] = policy.get("mode", "MANUAL_STAGE_CONFIRMATION")
+                data["automationPolicySource"] = "LOCKED_POLICY"
+            else:
+                data["automationMode"] = "MANUAL_STAGE_CONFIRMATION"
+                data["automationPolicySource"] = "BACKWARD_COMPATIBLE_DEFAULT"
+        except ControlError:
+            data["automationMode"] = "UNKNOWN"
+            data["automationPolicySource"] = "INVALID_OR_UNREADABLE"
     return envelope(status="PASS", checks=dependency_checks(), data=data)
 
 
@@ -388,7 +405,7 @@ def _catalog_from_spec(spec: dict[str, Any], compiled: dict[str, Any]) -> dict[s
 
 
 def _rule_input_record(spec: dict[str, Any]) -> dict[str, Any]:
-    omitted = {"cases", "authorityFiles", "trustedKeys", "keyObjectives"}
+    omitted = {"cases", "authorityFiles", "trustedKeys", "keyObjectives", "automationPolicy"}
     return {key: value for key, value in spec.items() if key not in omitted}
 
 
@@ -408,9 +425,13 @@ def _resolved_rule_object(root: Path, p: dict[str, Path], positioning: dict[str,
 
 def resolve_rules(project: Path, spec_path: Path) -> dict[str, Any]:
     assert_dependencies(); p = paths(project); root = git_root(p["root"])
-    spec = load_json(spec_path.resolve()); validate_object("bootstrap-spec", spec)
+    spec = load_json(spec_path.resolve())
+    if not isinstance(spec, dict) or "automationPolicy" not in spec:
+        raise ControlError("HC-AUTOMATION-POLICY-REQUIRED", "new projects must explicitly select an automation advancement mode")
+    validate_object("bootstrap-spec", spec)
     objective_lock = _key_objectives_from_spec(root, spec)
     positioning = _positioning_from_spec(root, spec)
+    policy = materialize_policy(root, spec["automationPolicy"], project_id=spec["projectId"], scope_binding=policy_scope_binding(objective_lock, positioning))
     compiled = compile_for_project(spec, root, runtime_root())
     checks = key_objective_checks(root, objective_lock) + positioning_checkpoint_source_checks(positioning) + verify_positioning(root, positioning) + compiler_checks(compiled)
     try:
@@ -427,6 +448,7 @@ def resolve_rules(project: Path, spec_path: Path) -> dict[str, Any]:
         "adapters": compiled["canonical"]["runtimeAdapters"], "skillBindings": compiled["canonical"]["skillBindings"],
         "warnings": compiled["warnings"], "investigations": compiled["investigations"], "installRequests": compiled["installRequests"],
         "keyObjectives": {"documentId": objective_lock["documentId"], "revision": objective_lock["revision"], "objectiveIds": objective_lock["objectiveIds"], "failureModeIds": objective_lock["failureModeIds"]},
+        "automation": {"policyId": policy["policyId"], "mode": policy["mode"]},
     })
 
 
@@ -449,9 +471,13 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
         package_mode = "SEALED"
         if package_release.get("formalClaimsAllowed") is not True:
             raise ControlError("HC-PACKAGE-AUDIT-CLOSURE", "the installed sealed Skill package is not bound to an exact independently audited release candidate", status="BLOCKED" if package_release.get("status") == "BLOCKED" else "FAIL", details={"readiness": package_release.get("readiness"), "blockers": package_release.get("blockers", [])})
-    spec = load_json(spec_path.resolve()); validate_object("bootstrap-spec", spec)
+    spec = load_json(spec_path.resolve())
+    if not isinstance(spec, dict) or "automationPolicy" not in spec:
+        raise ControlError("HC-AUTOMATION-POLICY-REQUIRED", "new projects must explicitly select an automation advancement mode")
+    validate_object("bootstrap-spec", spec)
     objective_lock = _key_objectives_from_spec(root, spec)
     positioning = _positioning_from_spec(root, spec)
+    automation_policy = materialize_policy(root, spec["automationPolicy"], project_id=spec["projectId"], scope_binding=policy_scope_binding(objective_lock, positioning))
     compiled = compile_for_project(spec, root, runtime_root())
     compile_checks = compiler_checks(compiled); fail_on_compile_issues(compile_checks)
     catalog = _catalog_from_spec(spec, compiled)
@@ -463,6 +489,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
     if package_mode == "SEALED":
         write_json_atomic(p["package_receipt"], package_release["receipt"])
     write_json_atomic(p["key_objectives"], objective_lock)
+    write_json_atomic(p["automation_policy"], automation_policy)
     write_json_atomic(p["positioning"], positioning)
     write_json_atomic(p["rule_inputs"], _rule_input_record(spec))
     resolved = _resolved_rule_object(root, p, positioning, compiled); write_json_atomic(p["resolved_rules"], resolved)
@@ -499,7 +526,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
         "schemaVersion": SCHEMA_VERSION, "lockId": f"lock-{spec['projectId']}-v32", "projectId": spec["projectId"],
         "packageMode": package_mode, "packageBinding": package_binding,
         "skill": content_ref(root, p["governance"] / "package-manifest.json"), "runtime": content_ref(root, p["runtime"] / "runtime-manifest.json"),
-        "keyObjectives": content_ref(root, p["key_objectives"]), "caseCatalog": content_ref(root, p["cases"]),
+        "keyObjectives": content_ref(root, p["key_objectives"]), "automationPolicy": content_ref(root, p["automation_policy"]), "caseCatalog": content_ref(root, p["cases"]),
         "authorityFiles": authorities, "ruleInputs": content_ref(root, p["rule_inputs"]), "positioning": content_ref(root, p["positioning"]),
         "resolvedRuleSet": content_ref(root, p["resolved_rules"]), "ruleCompiler": content_ref(root, p["runtime"] / "vibe_runtime" / "project_rules.py"),
         "profileDirectory": content_ref(root, p["runtime"] / "rules" / "v1" / "profiles.json"),
@@ -511,7 +538,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
     validate_object("project-governance-lock", lock); assert_trusted_key_separation(lock); write_json_atomic(p["lock"], lock)
     write_json_atomic(p["state"], initial_state(spec["projectId"], positioning["positioningId"], resolved["ruleSetId"]))
     package_cap = "DEVELOPMENT_CHECKED" if package_mode == "DEVELOPMENT" else RELEASE_INTENT_CAPS[positioning["releaseIntent"]]
-    return envelope(status="BLOCKED", checks=[*key_objective_checks(root, objective_lock), *positioning_checkpoint_source_checks(positioning), *verify_positioning(root, positioning), *compile_checks, check("HC-RULE-CASE-COVERAGE", "PASS", "fixed cases cover every applicable rule"), check("VC-BOOTSTRAP-COMMIT-REQUIRED", "BLOCKED", "commit generated Schema 3.2 control files before lock-task")], data={"created": str(p["control"]), "packageMode": package_mode, "releaseIntent": positioning["releaseIntent"], "maxClaimLevel": package_cap, "positioningId": positioning["positioningId"], "ruleSetId": resolved["ruleSetId"], "warnings": compiled["warnings"], "investigations": compiled["investigations"], "next": "commit-and-lock-task"})
+    return envelope(status="BLOCKED", checks=[*key_objective_checks(root, objective_lock), *positioning_checkpoint_source_checks(positioning), *verify_positioning(root, positioning), *compile_checks, check("HC-AUTOMATION-POLICY", "PASS", "explicit automation advancement mode is content-bound"), check("HC-RULE-CASE-COVERAGE", "PASS", "fixed cases cover every applicable rule"), check("VC-BOOTSTRAP-COMMIT-REQUIRED", "BLOCKED", "commit generated Schema 3.2 control files before lock-task")], data={"created": str(p["control"]), "packageMode": package_mode, "releaseIntent": positioning["releaseIntent"], "automationMode": automation_policy["mode"], "maxClaimLevel": package_cap, "positioningId": positioning["positioningId"], "ruleSetId": resolved["ruleSetId"], "warnings": compiled["warnings"], "investigations": compiled["investigations"], "next": "commit-and-lock-task"})
 
 
 def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
@@ -523,6 +550,13 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
     validate_object("task-contract", contract)
     require_identifier(contract["taskId"], "taskId")
     lock = load_json(p["lock"]); validate_object("project-governance-lock", lock)
+    automation_ref = lock.get("automationPolicy")
+    if automation_ref is not None:
+        result = verify_ref(root, automation_ref, "HC-AUTOMATION-POLICY-DRIFT")
+        if result["status"] != "PASS":
+            raise ControlError(result["id"], result["message"], status=result["status"])
+        automation_policy = load_json(safe_relative(root, automation_ref["path"]))
+        verify_policy(root, automation_policy, project_id=lock["projectId"], expected_scope_binding=policy_scope_binding(load_json(p["key_objectives"]), load_json(p["positioning"])))
     objective_lock = load_json(p["key_objectives"]); validate_object("key-objectives-lock", objective_lock)
     objective_checks = key_objective_checks(root, objective_lock)
     if any(item["status"] != "PASS" for item in objective_checks):
@@ -574,6 +608,8 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
         "checkpointSetSha256": checkpoint_hash, "checkpointConfirmation": checkpoint_confirmation_ref,
         "baselineCommit": head, "baselineTree": git(root, "show", "-s", "--format=%T", head), "lockedAt": now_iso(),
     }
+    if automation_ref is not None:
+        task_lock["automationPolicy"] = automation_ref
     validate_object("task-lock", task_lock)
     output = p["task_locks"] / f"{contract['taskId']}.json"; write_json_atomic(output, task_lock)
     state = transition(p, "CONTRACT_LOCKED", "CLEAR", "DEVELOPMENT_CHECKED", "task contract locked", task_id=contract["taskId"])
@@ -620,6 +656,8 @@ def freeze(project: Path, actor_id: str, session_id: str, contract_path: Path | 
     if task_lock["checkpointSetSha256"] != checkpoint_set_sha256(contract):
         raise ControlError("HC-CHECKPOINT-HASH", "checkpoint set drifted after task lock", status="INVALIDATED")
     bindings = [task_lock["contract"], task_lock["governanceLock"], task_lock["keyObjectives"], task_lock["caseCatalog"], task_lock["positioning"], task_lock["resolvedRuleSet"], task_lock["checkpointConfirmation"], *task_lock["authorityBindings"]]
+    if "automationPolicy" in task_lock:
+        bindings.append(task_lock["automationPolicy"])
     for ref in bindings:
         result = verify_ref(root, ref, "HC-CANDIDATE-INPUT-BINDING")
         if result["status"] != "PASS":
@@ -632,6 +670,8 @@ def freeze(project: Path, actor_id: str, session_id: str, contract_path: Path | 
         "checkpointSetSha256": task_lock["checkpointSetSha256"],
         "implementer": {"actorId": actor_id, "sessionId": session_id}, "changedPaths": product, "inputBindings": bindings, "frozenAt": now_iso(),
     }
+    if "automationPolicy" in task_lock:
+        candidate["automationPolicy"] = task_lock["automationPolicy"]
     validate_object("candidate-manifest", candidate)
     output = p["candidates"] / f"{candidate['candidateId']}.json"; write_json_atomic(output, candidate)
     # CONTRACT_LOCKED -> IMPLEMENTING is materialized here if implementation was committed without a controller command.
@@ -655,6 +695,14 @@ def current_objects(p: dict[str, Path]) -> tuple[dict[str, Any], dict[str, Any],
         raise ControlError("HC-TASK-LOCK-REQUIRED", "no active task", status="BLOCKED")
     require_identifier(state["taskId"], "taskId")
     task_lock = load_json(p["task_locks"] / f"{state['taskId']}.json"); validate_object("task-lock", task_lock)
+    automation_ref = lock.get("automationPolicy")
+    if task_lock.get("automationPolicy") != automation_ref:
+        raise ControlError("HC-AUTOMATION-POLICY-DRIFT", "task automation binding differs from the current governance policy", status="INVALIDATED")
+    if automation_ref is not None:
+        result = verify_ref(p["root"], automation_ref, "HC-AUTOMATION-POLICY-DRIFT")
+        if result["status"] != "PASS":
+            raise ControlError(result["id"], result["message"], status=result["status"])
+        verify_policy(p["root"], load_json(safe_relative(p["root"], automation_ref["path"])), project_id=lock["projectId"], expected_scope_binding=policy_scope_binding(load_json(p["key_objectives"]), load_json(p["positioning"])))
     contract = load_json(safe_relative(p["root"], task_lock["contract"]["path"])); validate_object("task-contract", contract)
     assert_objective_refs(contract, objective_lock)
     positioning = load_json(p["positioning"]); validate_object("project-positioning", positioning)
@@ -1281,6 +1329,8 @@ def validate(project: Path) -> dict[str, Any]:
     checks.extend(assurance_matrix_checks(p))
     for ident, ref in (("LOCK", task_lock["governanceLock"]), ("CONTRACT", task_lock["contract"]), ("OBJECTIVES", task_lock["keyObjectives"]), ("CASES", task_lock["caseCatalog"]), ("POSITIONING", task_lock["positioning"]), ("RULESET", task_lock["resolvedRuleSet"]), ("CHECKPOINT-CONFIRMATION", task_lock["checkpointConfirmation"])):
         checks.append(verify_ref(root, ref, f"HC-TASK-{ident}-BINDING"))
+    if "automationPolicy" in task_lock:
+        checks.append(verify_ref(root, task_lock["automationPolicy"], "HC-AUTOMATION-POLICY-DRIFT"))
     current_checkpoint_hash = checkpoint_set_sha256(contract)
     checks.append(check("HC-CHECKPOINT-HASH", "PASS" if task_lock["checkpointSetSha256"] == current_checkpoint_hash else "INVALIDATED", "task lock binds the current checkpoint set" if task_lock["checkpointSetSha256"] == current_checkpoint_hash else "checkpoint set changed after task lock", expected=current_checkpoint_hash, actual=task_lock["checkpointSetSha256"]))
     for index, ref in enumerate(task_lock["authorityBindings"]): checks.append(verify_ref(root, ref, f"HC-TASK-AUTHORITY-{index+1}"))
@@ -1298,11 +1348,15 @@ def validate(project: Path) -> dict[str, Any]:
             expected_task_lock_ref = content_ref(root, p["task_locks"] / f"{state['taskId']}.json")
             objective_lock = load_json(p["key_objectives"])
             expected_input_bindings = [task_lock["contract"], task_lock["governanceLock"], task_lock["keyObjectives"], task_lock["caseCatalog"], task_lock["positioning"], task_lock["resolvedRuleSet"], task_lock["checkpointConfirmation"], *task_lock["authorityBindings"]]
+            if "automationPolicy" in task_lock:
+                expected_input_bindings.append(task_lock["automationPolicy"])
             checks.append(check("HC-CANDIDATE-TRACKED", "PASS" if tracked_candidate else "BLOCKED", "candidate record is tracked" if tracked_candidate else "candidate record is not tracked"))
             checks.append(check("HC-CANDIDATE-TASK-IDENTITY", "PASS" if candidate["taskId"] == state["taskId"] == contract["taskId"] else "FAIL", "candidate/task identities close" if candidate["taskId"] == state["taskId"] == contract["taskId"] else "candidate/task identity mismatch"))
             checks.append(check("HC-CANDIDATE-CONTRACT-IDENTITY", "PASS" if candidate["taskLock"]["sha256"] == sha256_file(p["task_locks"] / f"{state['taskId']}.json") else "FAIL", "candidate binds task lock" if candidate["taskLock"]["sha256"] == sha256_file(p["task_locks"] / f"{state['taskId']}.json") else "candidate/task-lock hash mismatch"))
             checks.append(check("HC-CANDIDATE-TASK-LOCK-REF", "PASS" if ref_key(candidate["taskLock"]) == ref_key(expected_task_lock_ref) else "FAIL", "candidate binds the exact current task-lock reference" if ref_key(candidate["taskLock"]) == ref_key(expected_task_lock_ref) else "candidate task-lock path/bytes/hash differs from current task lock"))
             checks.append(check("HC-CANDIDATE-INPUT-CLOSURE", "PASS" if refs_equal(candidate["inputBindings"], expected_input_bindings) else "FAIL", "candidate input bindings equal task-lock bindings" if refs_equal(candidate["inputBindings"], expected_input_bindings) else "candidate input bindings were substituted"))
+            automation_bound = candidate.get("automationPolicy") == task_lock.get("automationPolicy")
+            checks.append(check("HC-AUTOMATION-POLICY-DRIFT", "PASS" if automation_bound else "INVALIDATED", "candidate binds the current task automation policy" if automation_bound else "candidate automation policy differs from the task lock"))
             checks.append(check("HC-CHECKPOINT-HASH", "PASS" if candidate["checkpointSetSha256"] == task_lock["checkpointSetSha256"] else "INVALIDATED", "candidate binds the locked checkpoint set" if candidate["checkpointSetSha256"] == task_lock["checkpointSetSha256"] else "candidate checkpoint binding drifted"))
             objective_bound = ref_key(candidate["keyObjectives"]) == ref_key(task_lock["keyObjectives"]) and refs_equal(candidate["requirementSources"], objective_lock["sourceDocuments"])
             checks.append(check("HC-CANDIDATE-OBJECTIVE-BINDING", "PASS" if objective_bound else "FAIL", "candidate binds current objectives and requirement sources" if objective_bound else "candidate objective or requirement-source binding drifted"))
@@ -1568,6 +1622,9 @@ def handoff(project: Path, output: Path | None) -> dict[str, Any]:
     evidence_ids = [load_json(path).get("evidenceId") for path in p["evidence"].glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json"))]
     reviews = sorted(p["reviews"].glob("*.json")); decisions = sorted(p["decisions"].glob("*.json"))
     value = {"schemaVersion":SCHEMA_VERSION,"handoffId":f"handoff-{uuid.uuid4().hex[:12]}","taskId":state.get("taskId") or "NONE","candidateId":state.get("candidateId"),"checkpointSetSha256":checkpoint_hash,"positioningId":state["positioningId"],"ruleSetId":state["ruleSetId"],"phase":state["phase"],"health":state["health"],"claimLevel":state["claimLevel"],"evidenceIds":evidence_ids,"reviewId":load_json(reviews[-1])["reviewId"] if reviews else None,"decisionId":load_json(decisions[-1])["decisionId"] if decisions else None,"blockers":report["formal"]["blockers"],"createdAt":now_iso()}
+    lock = load_json(p["lock"])
+    if lock.get("automationPolicy") is not None:
+        value["automationPolicy"] = lock["automationPolicy"]
     validate_object("handoff", value); target = output or p["handoffs"] / f"{value['handoffId']}.json"; write_json_atomic(target, value)
     return envelope(status=report["status"], checks=report["integrity"]["checks"], formal=report["formal"], state=report["state"], data={"handoff":str(target)})
 
@@ -1777,7 +1834,7 @@ def migration_plan(project: Path, spec_path: Path | None = None) -> dict[str, An
         "signalConversions": signals, "humanGateConversions": gates,
         "caseConversions": [{"caseId": item["id"], "oracle": item["oracle"], "artifacts": item.get("artifacts", [])} for item in converted_cases],
         "checkpointDrafts": checkpoint_drafts, "unresolvedMappings": unresolved,
-        "actions": ["archive-schema-3.1", "install-runtime-0.3.5", "convert-positioning-sources", "convert-case-oracles", "invalidate-downstream", "reset-diagnostic-state"],
+        "actions": ["archive-schema-3.1", f"install-runtime-{VERSION}", "convert-positioning-sources", "convert-case-oracles", "invalidate-downstream", "reset-diagnostic-state"],
         "invalidates": ["task", "candidate", "evidence", "review", "decision", "receipt", "handoff"], "risk": "R2",
     }
     base["planHash"] = sha256_bytes(canonical_bytes(base)); validate_object("migration-plan", base)
@@ -1829,7 +1886,7 @@ def migration_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str,
     skill_root = runtime_root().parents[2]
     package_release = validate_development_package(skill_root)
     if package_release.get("status") != "PASS":
-        raise ControlError("HC-DEVELOPMENT-PACKAGE-INTEGRITY", "migration requires an integrity-checked 0.3.5 development package", status="BLOCKED", details=package_release.get("blockers", []))
+        raise ControlError("HC-DEVELOPMENT-PACKAGE-INTEGRITY", f"migration requires an integrity-checked {VERSION} development package", status="BLOCKED", details=package_release.get("blockers", []))
 
     staging = root / f".vibe-control.migrate-{plan_hash[:12]}.tmp"
     backup = root / f".vibe-control.migrate-{plan_hash[:12]}.backup"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run every inherited 0.2.2 assurance suite against the 0.3.5 package tree."""
+"""Run every inherited 0.2.2 assurance suite against the 0.3.6 package tree."""
 from __future__ import annotations
 
 import json

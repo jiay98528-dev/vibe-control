@@ -70,7 +70,10 @@ def write(path: Path, value: object) -> None:
 def load(path: Path): return json.loads(path.read_text(encoding="utf-8-sig"))
 def sha(path: Path) -> str: return hashlib.sha256(path.read_bytes()).hexdigest()
 def ref(root: Path, path: Path) -> dict: return {"path":path.relative_to(root).as_posix(),"bytes":path.stat().st_size,"sha256":sha(path),"tracked":True}
-def runtime(root: Path) -> Path: return root / ".vibe-control" / "runtime" / "0.3.5" / "control.py"
+RUNTIME_VERSION = (SOURCE_SKILL_ROOT / "VERSION").read_text(encoding="utf-8-sig").strip()
+
+
+def runtime(root: Path) -> Path: return root / ".vibe-control" / "runtime" / RUNTIME_VERSION / "control.py"
 def main_evidence_path(root: Path) -> Path: return next(path for path in (root/".vibe-control"/"evidence").glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json")))
 
 
@@ -113,6 +116,28 @@ def objective_spec() -> dict:
     }
 
 
+def automation_policy(project_id: str, *, mode: str = "MANUAL_STAGE_CONFIRMATION") -> dict:
+    stop_conditions = sorted([
+        "AUTOMATED_CHECKPOINTS_COMPLETE", "HUMAN_CHECKPOINT", "OWNER_DECISION",
+        "BOUNDARY_CHANGE", "R3_OR_IRREVERSIBLE_ACTION", "HARD_FAILURE",
+        "PUSH_CONFLICT", "USER_INTERRUPT",
+    ])
+    semantic = {
+        "projectId": project_id,
+        "mode": mode,
+        "commitPolicy": "MANUAL" if mode == "MANUAL_STAGE_CONFIRMATION" else "MILESTONE_COMMITS",
+        "pushPolicy": "NONE",
+        "stopConditions": stop_conditions,
+    }
+    summary = json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
+    return {
+        "schemaVersion": "1.0", "policyId": f"automation-{digest[:12]}", **semantic,
+        "confirmation": {"actorId": "owner", "summary": summary, "summarySha256": digest,
+                         "record": "AUTOMATION_CONFIRMATION.json", "confirmedAt": "2026-07-29T00:00:00+08:00"},
+    }
+
+
 def write_objective_files(root: Path) -> None:
     (root / "KEY_OBJECTIVES.md").write_text("# Fixture objectives\n\n- `KO-001`: prove the fixture outcome\n- `KF-001`: prevent false evidence\n- `NG-001`: no deployment\n", encoding="utf-8", newline="\n")
     write(root / "OBJECTIVES_CONFIRMATION.json", {"actorId": "owner", "decision": "CONFIRM"})
@@ -122,7 +147,7 @@ def valid_bootstrap_spec(*, project_id: str = "fixture", release_intent: str = "
     """Return a minimal but complete Schema 3.2 bootstrap input for mutation tests."""
     positioning = positioning_axes(release_intent)
     summary_hash = hashlib.sha256(json.dumps(positioning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return {"schemaVersion":"3.2","projectId":project_id,**positioning,"confirmation":{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":objective_spec(),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["PROJECT_BRIEF.md"],"trustedKeys":trusted_keys or [],"cases":[{"id":"CASE-001","command":[sys.executable,"fixture.py"],"observation":"runtime-observed","maxClaimLevel":"RELEASE_READY" if release_intent == "EXTERNAL_RELEASE" else "ACCEPTED","oracle":{"exitCode":0,"stdoutContainsAll":[],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":adapter_binding()}]}
+    return {"schemaVersion":"3.2","projectId":project_id,**positioning,"confirmation":{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":objective_spec(),"automationPolicy":automation_policy(project_id),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["PROJECT_BRIEF.md"],"trustedKeys":trusted_keys or [],"cases":[{"id":"CASE-001","command":[sys.executable,"fixture.py"],"observation":"runtime-observed","maxClaimLevel":"RELEASE_READY" if release_intent == "EXTERNAL_RELEASE" else "ACCEPTED","oracle":{"exitCode":0,"stdoutContainsAll":[],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":adapter_binding()}]}
 
 
 def package_formal_enabled() -> bool:
@@ -160,6 +185,9 @@ def bootstrap_raw(spec: dict):
     confirmation = spec.get("confirmation") if isinstance(spec, dict) else None
     if isinstance(confirmation, dict) and isinstance(confirmation.get("record"), str):
         write(root / confirmation["record"], {"actorId": confirmation.get("actorId", "owner"), "decision": "CONFIRM"})
+    automation = spec.get("automationPolicy") if isinstance(spec, dict) else None
+    if isinstance(automation, dict) and isinstance(automation.get("confirmation", {}).get("record"), str):
+        write(root / automation["confirmation"]["record"], {"actorId": automation["confirmation"].get("actorId", "owner"), "decision": "CONFIRM"})
     commit(root, "initial authority")
     spec_path = base / "bootstrap.json"; write(spec_path, spec)
     result = run(sys.executable, str(WRAPPER), "bootstrap", "--project", str(root), "--spec", str(spec_path), expect=None)
@@ -175,16 +203,17 @@ def setup_project(*, risk: str = "R2", task_ceiling: str | None = None, case_cei
     (root / "PROJECT_BRIEF.md").write_text("# Fixture\n", encoding="utf-8")
     (root / "POSITIONING_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
     (root / "CHECKPOINT_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
+    (root / "AUTOMATION_CONFIRMATION.json").write_text('{"actorId":"owner","decision":"CONFIRM"}\n', encoding="utf-8")
     write_objective_files(root)
     if ignored_runner_case: (root / ".gitignore").write_text("ignored_runner.py\n", encoding="utf-8")
     commit(root, "initial authority")
     keys = {name:Ed25519PrivateKey.generate() for name in ("executor","auditor","release-auditor","owner")} if include_keys else {}
     positioning = positioning_axes(release_intent)
     summary_hash = hashlib.sha256(json.dumps(positioning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    spec = {"schemaVersion":"3.2","projectId":"fixture",**positioning,"confirmation":{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":objective_spec(),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["PROJECT_BRIEF.md"],"trustedKeys":[{"keyId":f"{name}-key","actorId":name,"role":name,"publicKey":public_b64(key)} for name,key in keys.items()],"cases":[{"id":"CASE-001","command":[sys.executable,command_script],"observation":observation,"maxClaimLevel":case_ceiling,"oracle":{"exitCode":0,"stdoutContainsAll":["OK"],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":adapter_binding()}]}
+    spec = {"schemaVersion":"3.2","projectId":"fixture",**positioning,"confirmation":{"actorId":"owner","summary":"fixture positioning","summarySha256":summary_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":objective_spec(),"automationPolicy":automation_policy("fixture"),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["PROJECT_BRIEF.md"],"trustedKeys":[{"keyId":f"{name}-key","actorId":name,"role":name,"publicKey":public_b64(key)} for name,key in keys.items()],"cases":[{"id":"CASE-001","command":[sys.executable,command_script],"observation":observation,"maxClaimLevel":case_ceiling,"oracle":{"exitCode":0,"stdoutContainsAll":["OK"],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":adapter_binding()}]}
     spec_path = base / "bootstrap.json"; write(spec_path, spec)
     result = run(sys.executable, str(WRAPPER), "bootstrap", "--project", str(root), "--spec", str(spec_path), expect=2); assert json.loads(result.stdout)["status"] == "BLOCKED"; commit(root, "bootstrap v3")
-    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.5"
+    control = root / ".vibe-control"; runtime_root = control / "runtime" / RUNTIME_VERSION
     contract = task_contract(risk=risk, task_ceiling=task_ceiling)
     contract_path = control / "tasks" / "TASK-001.json"; write(contract_path, contract); commit(root, "add task contract")
     command(root, "lock-task", "--contract", str(contract_path)); commit(root, "lock task")
@@ -224,7 +253,7 @@ def advance_accept(root: Path, keys: dict, *, expired: bool = False):
 
 def install_release_chain(root: Path, keys: dict, *, report_result: str = "PASS", report_findings: list | None = None, use_review_auditor: bool = False):
     """Record a candidate-bound external audit and owner-signed receipt after audit/accept."""
-    control = root / ".vibe-control"; runtime_root = control / "runtime" / "0.3.5"
+    control = root / ".vibe-control"; runtime_root = control / "runtime" / RUNTIME_VERSION
     candidate_path = next((control/"candidates").glob("*.json")); candidate = load(candidate_path)
     review_path = next((control/"reviews").glob("*.json")); decision_path = next((control/"decisions").glob("*.json"))
     evidence_paths = sorted(path for path in (control/"evidence").glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json")))
@@ -239,7 +268,7 @@ def install_release_chain(root: Path, keys: dict, *, report_result: str = "PASS"
     }
     report_path = control / "external-audits" / "RELEASE-AUDIT-001.json"; write(report_path, sign(report, release_key)); commit(root, "record signed external release audit")
     receipt = {
-        "schemaVersion":"3.2", "version":"0.3.5", "taskId":"TASK-001", "candidateId":candidate["candidateId"], "candidateCommit":candidate["commit"], "candidateTree":candidate["tree"],
+        "schemaVersion":"3.2", "version":RUNTIME_VERSION, "taskId":"TASK-001", "candidateId":candidate["candidateId"], "candidateCommit":candidate["commit"], "candidateTree":candidate["tree"],
         "candidate":ref(root,candidate_path), "positioning":candidate["positioning"], "resolvedRuleSet":candidate["resolvedRuleSet"], "decision":ref(root,decision_path), "auditReport":ref(root,report_path),
         "packageManifestSha256":sha(control/"governance"/"package-manifest.json"), "runtimeManifestSha256":sha(runtime_root/"runtime-manifest.json"), "assuranceMatrixSha256":sha(control/"governance"/"controller-assurance-matrix.json"),
         "enableFormalClaims":True, "owner":{"actorId":"owner"}, "keyId":"owner-key", "signedAt":"2026-07-25T04:00:00+08:00"

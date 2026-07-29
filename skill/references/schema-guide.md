@@ -1,17 +1,18 @@
 # 机器接口指南（Schema 3.2）
 
-Schema 位于 `assets/project-control/schemas/`，模板位于 `assets/project-control/templates/`。Bootstrap 后，适用 Schema、规则目录与校验器固定复制到 `.vibe-control/runtime/0.3.5/`。所有 0.3.5 项目机器对象使用 `schemaVersion="3.2"`；不得把旧对象改字段后冒充 3.2。
+Schema 位于 `assets/project-control/schemas/`，模板位于 `assets/project-control/templates/`。Bootstrap 后，适用 Schema、规则目录与校验器固定复制到 `.vibe-control/runtime/0.3.6/`。所有 0.3.6 项目机器对象使用 `schemaVersion="3.2"`；不得把旧对象改字段后冒充 3.2。
 
 ## 对象与所有权
 
 主要闭包为：
 
-`package-audit-receipt/package-development-binding → key-objectives-lock + project-positioning + resolved-rule-set → project-governance-lock → task-contract(checkpoints + confirmation) → task-lock → candidate-manifest → execution-evidence/external-evidence-attestation → review-attestation(checkpoint results)/audit-closure → approval-signature(checkpoint decisions) → external-release-audit/release-receipt → stage-state/handoff`
+`package-audit-receipt/package-development-binding → key-objectives-lock + project-positioning + automation-policy + resolved-rule-set → project-governance-lock → task-contract(checkpoints + confirmation) → task-lock → candidate-manifest → execution-evidence/external-evidence-attestation → review-attestation(checkpoint results)/audit-closure → approval-signature(checkpoint decisions) → external-release-audit/release-receipt → stage-state/handoff`
 
 连接必须使用稳定 ID、项目根相对路径和 SHA-256，不能凭文件名、聊天描述或状态自报猜测。
 
 - `key-objectives-lock.json` 绑定根级 `KEY_OBJECTIVES.md`、需求来源、修订、确认记录、ID 集合与 SHA-256；机器不判断目标文本质量。
 - `project-positioning.json` 保存用户确认的项目定位轴、确认记录与规范化摘要哈希；发现事实不能自证用户确认。
+- `automation-policy.json` 保存一次性确认的 `MANUAL_STAGE_CONFIRMATION | AUTO_LOCAL_TO_REVIEW | AUTO_PUSH_TO_REVIEW`、固定 commit/push 权限、停止条件，以及当前关键目标与定位对象哈希。新项目必须显式选择；旧 3.2 项目缺失时只按手动兼容。策略、目标或定位漂移会阻断自动副作用并要求重新 plan/apply。
 - `resolved-rule-set.json` 只能由控制器从六层输入确定性编译：`CORE → EXPERIENCE → CAPABILITY_PROFILE → RUNTIME_ADAPTER → SKILL_BINDING → PROJECT_OVERLAY`。它是 Profile、adapter、Skill routing 和 overlay 的唯一机器结果，不得另建第二份规则状态。
 - `project-governance-lock.json` 内容绑定关键目标、positioning、resolved rule set、case catalog、权威文件、规则编译器/目录、Skill package、固定 runtime 和 package mode。新 `DEVELOPMENT` 锁必须登记 `sourceKind`：`GIT_ROOT` 绑定当前 commit/tree 并检查完整 Skill 根，`GIT_SUBDIRECTORY` 绑定父仓库 commit 与精确 subtree tree 且只检查 Skill 子树污染，`PORTABLE_COPY` 只绑定重算后的 package/runtime manifest 与 matrix 哈希并禁止伪造 commit/tree。旧 0.3.4 开发锁仍可按原 commit/tree 结构读取。所有开发来源均限制在 `DEVELOPMENT_CHECKED`；`SEALED` 仍强制 Git commit/tree 与包级审计收据。
 - `task-lock` 从当前规则集派生 `applicableRuleIds[]` 和 `requiredCaseCapabilities[]`；任务合同必须用 `objectiveRefs[]` 引用当前 `KO/KF`，包含已确认 checkpoint set，且不能删除或降低派生要求。
@@ -20,6 +21,7 @@ Schema 位于 `assets/project-control/schemas/`，模板位于 `assets/project-c
 - `review-attestation.checkpointResults[]` 对每个自动 checkpoint 恰好一项，observed status 由控制器从原始 evidence 重算。`approval-signature.checkpointDecisions[]` 对适用 HUMAN checkpoint 恰好一项，只接受显式 `PASS`。
 - `audit-closure` 在探索预算超限时绑定候选、checkpoint hash、失败 review hash 和 finding IDs，阻止同一候选跨会话重置预算。
 - `stage-state.json` 由控制器重新派生并原子写入。手改 phase、health 或 claimLevel 不会产生资格。
+- Dashboard 的 `status.json`、`summary.md` 与 `index.html` 是同一只读快照的外部缓存投影，不属于控制面对象，不能授予 claim 或覆盖 evidence。
 
 ## 定位、发行意图与声明上限
 
@@ -33,7 +35,7 @@ Schema 位于 `assets/project-control/schemas/`，模板位于 `assets/project-c
 
 ## Adapter 与 Skill binding
 
-Adapter descriptor 绑定 ID、版本、内容哈希、runtime family、发现来源、执行模式、机器可接受的 `provesCaseCapabilities[]`、明确非证明事项及环境限制。Case 自报能力必须是该集合的子集；超界声明不能形成规则覆盖。0.3.5 仅实现 `generic-command`、`browser-runtime`、`godot-runtime`；Tauri、Electron、Unreal 与 Capacitor 只能产生 investigation。
+Adapter descriptor 绑定 ID、版本、内容哈希、runtime family、发现来源、执行模式、机器可接受的 `provesCaseCapabilities[]`、明确非证明事项及环境限制。Case 自报能力必须是该集合的子集；超界声明不能形成规则覆盖。0.3.6 仅实现 `generic-command`、`browser-runtime`、`godot-runtime`；Tauri、Electron、Unreal 与 Capacitor 只能产生 investigation。
 
 Skill binding 固定 Skill ID、`required | advisory`、`producer | heuristic-reviewer`、触发条件、写权限、`canApprove=false`、路径、版本和确定性 tree hash。required 缺失或漂移阻断任务；advisory 缺失只告警；无法内容寻址的 Skill 只能 advisory。安装需要单独人工批准，完成后必须重新发现和解析。任何 Skill 安装均不需要私钥。
 
@@ -61,7 +63,7 @@ CLI 统一输出 Schema 3.2 JSON envelope，`status` 只能是 `PASS | BLOCKED |
 
 Schema 3.1 使用 `migrate --plan [--spec]` 与 `--apply <plan-hash> --spec`。无 spec 的计划只读生成内容 ID 和待补映射；确认 spec 后，apply 在 staging 中验证完整 3.2 控制面和逐文件 archive manifest，再原子替换。旧 task、candidate、evidence、review、decision、receipt 和 handoff 只归档、不重绑定，状态回到 `DRAFT / BLOCKED / DIAGNOSTIC`。
 
-0.3.5 不迁移 Schema 2.0 数据。检测到 Schema 2.0 控制面时返回 `VC-REINSTALL-REQUIRED`，不得写入；该项目可继续使用固定 0.2.2 runtime，或经批准后全新 bootstrap。
+0.3.6 不迁移 Schema 2.0 数据。检测到 Schema 2.0 控制面时返回 `VC-REINSTALL-REQUIRED`，不得写入；该项目可继续使用固定 0.2.2 runtime，或经批准后全新 bootstrap。
 
 Schema 3.2 项目改变里程碑、目标环境或发行边界时使用 `reposition --plan` 计算精确变化和失效集合；只有批准并匹配 plan hash 后才能 apply，随后状态回到 `DRAFT/DIAGNOSTIC`。
 

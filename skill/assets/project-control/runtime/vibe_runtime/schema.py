@@ -30,6 +30,7 @@ def validate_object(kind: str, value: Any) -> None:
             "package-audit-report": "HC-SCHEMA-PACKAGE-AUDIT-REPORT",
             "package-audit-receipt": "HC-SCHEMA-PACKAGE-AUDIT-RECEIPT",
             "bootstrap-spec": "HC-POSITIONING-SCHEMA",
+            "automation-policy": "HC-SCHEMA-AUTOMATION-POLICY",
             "migration-spec": "HC-SCHEMA-MIGRATION-SPEC",
             "migration-plan": "HC-SCHEMA-MIGRATION-PLAN",
             "project-positioning": "HC-POSITIONING-SCHEMA",

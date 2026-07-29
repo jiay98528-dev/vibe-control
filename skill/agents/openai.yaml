@@ -1,7 +1,7 @@
 interface:
   display_name: "Vibe Control"
-  short_description: "用检查点、目标缰绳与跨宿主协调兼容层建立可验证控制面"
-  default_prompt: "Use $vibe-control to derive and lock key objectives, establish a Schema 3.2 control plane, confirm preset acceptance checkpoints, resolve CODEX_THREADS/SUBAGENTS/SERIAL from actual host capabilities, and stop audits when their bounded contract closes."
+  short_description: "用目标缰绳、检查点与定点复核自动推进可验证开发"
+  default_prompt: "Use $vibe-control 0.3.6 to derive and lock key objectives, require an explicit MANUAL_STAGE_CONFIRMATION, AUTO_LOCAL_TO_REVIEW, or AUTO_PUSH_TO_REVIEW startup choice, establish the Schema 3.2 control plane, and run the advance workflow through CODEX_THREADS → SUBAGENTS → SERIAL until a fixed owner-review point. At that point render the non-authoritative offline Dashboard and stop for the one required human decision."
 
 policy:
   allow_implicit_invocation: true

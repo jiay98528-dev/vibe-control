@@ -31,6 +31,7 @@ CONTROL_IDS = sorted({
     "CTRL-CONFIRMED-022", "CTRL-CONFIRMED-023", "CTRL-CONFIRMED-024",
     "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
+    "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032",
 })
 
 
@@ -158,10 +159,11 @@ def package_copy() -> tuple[tempfile.TemporaryDirectory, Path]:
             "CTRL-CONFIRMED-020", "CTRL-CONFIRMED-021", "CTRL-CONFIRMED-022",
             "CTRL-CONFIRMED-025", "CTRL-CONFIRMED-026", "CTRL-CONFIRMED-027",
             "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
+            "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032",
         }:
             item["independentValidation"] = "PASS"
     write_json(matrix_path, matrix)
-    # The installed 0.3.5 tree is intentionally DEVELOPMENT_DIAGNOSTIC. This
+    # The current 0.3.6 tree is intentionally DEVELOPMENT_DIAGNOSTIC. This
     # isolated fixture models a future sealed candidate so the release-seal
     # validator remains directly testable without changing the installed tree.
     builder_path = target / "scripts" / "build_manifest.py"
