@@ -1656,7 +1656,7 @@ def assurance_matrix_checks(p: dict[str, Path]) -> list[dict[str, Any]]:
         return [check(exc.check_id, exc.status, exc.message)]
 
 
-def validate(project: Path) -> dict[str, Any]:
+def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
     p = paths(project); root = git_root(p["root"]); checks = dependency_checks()
     if any(item["status"] != "PASS" for item in checks):
         return envelope(status="BLOCKED", checks=checks, formal={"eligible": False, "maxClaimLevel": "DIAGNOSTIC", "blockers": ["DEPENDENCY_BLOCKED"]})
@@ -1864,7 +1864,17 @@ def validate(project: Path) -> dict[str, Any]:
                 executors.add((evidence["executor"]["actorId"], evidence["executor"]["sessionId"]))
             except ControlError as exc: checks.append(check(exc.check_id, exc.status, exc.message, path=str(evidence_path)))
         missing_coverage = sorted(set(contract["requiredCaseIds"]) - set(evidence_by_case))
-        checks.append(check("HC-REQUIRED-CASE-COVERAGE", "PASS" if not missing_coverage else "FAIL", "each required case has eligible execution" if not missing_coverage else "required cases lack eligible execution", missing=missing_coverage))
+        eligible_evidence_by_case = {
+            case_id: evidence_by_case[case_id]["evidenceId"]
+            for case_id in sorted(evidence_by_case)
+        }
+        checks.append(check(
+            "HC-REQUIRED-CASE-COVERAGE",
+            "PASS" if not missing_coverage else "FAIL",
+            "each required case has eligible execution" if not missing_coverage else "required cases lack eligible execution",
+            missing=missing_coverage,
+            eligibleEvidenceByCase=eligible_evidence_by_case,
+        ))
         if not missing_coverage: derived_phase = "VERIFIED"
         try:
             closure_path, audit_closure = _current_audit_closure(p, contract, candidate)
@@ -1962,16 +1972,52 @@ def validate(project: Path) -> dict[str, Any]:
     prior_hard = [item for item in checks if item["status"] in {"FAIL", "INVALIDATED"}]
     if can_advance and not prior_hard and clean_status(root):
         can_advance = False
+    declared_state = state
+    effective_state = state
+    projected_transition = False
     if can_advance and not prior_hard:
-        state = transition(p, derived_phase, "CLEAR", ceiling, "state derived from closed fact objects")
-    state_matches = state["phase"] == derived_phase and state["claimLevel"] == ceiling
-    checks.append(check("HC-STATE-DERIVED-MISMATCH", "PASS" if state_matches else "FAIL", "declared state equals derived state" if state_matches else "manual/stale state differs from derived facts", declaredPhase=state["phase"], derivedPhase=derived_phase, declaredClaim=state["claimLevel"], derivedClaim=ceiling))
+        if mutate_state:
+            effective_state = transition(
+                p,
+                derived_phase,
+                "CLEAR",
+                ceiling,
+                "state derived from closed fact objects",
+            )
+            declared_state = effective_state
+        else:
+            projected_transition = True
+            effective_state = {
+                **state,
+                "phase": derived_phase,
+                "health": "CLEAR",
+                "claimLevel": ceiling,
+            }
+    state_matches = (
+        effective_state["phase"] == derived_phase
+        and effective_state["claimLevel"] == ceiling
+    )
+    checks.append(check(
+        "HC-STATE-DERIVED-MISMATCH",
+        "PASS" if state_matches else "FAIL",
+        "declared state equals derived state"
+        if state_matches and not projected_transition
+        else "read-only projection identifies the next legal derived state"
+        if state_matches
+        else "manual/stale state differs from derived facts",
+        declaredPhase=declared_state["phase"],
+        derivedPhase=derived_phase,
+        declaredClaim=declared_state["claimLevel"],
+        derivedClaim=ceiling,
+        readOnlyProjection=not mutate_state,
+        projectedTransition=projected_transition,
+    ))
     dirty = clean_status(root); checks.append(check("HC-WORKTREE-CLEAN", "PASS" if not dirty else "BLOCKED", "worktree is clean" if not dirty else "formal claims require a clean worktree", entries=dirty))
     priorities = {"PASS":0,"BLOCKED":1,"INVALIDATED":2,"FAIL":3}; status = max((item["status"] for item in checks), key=lambda x: priorities[x])
-    eligible = status == "PASS" and lock["packageMode"] == "SEALED" and receipt_ok and state["health"] == "CLEAR" and review_gate_ok
+    eligible = status == "PASS" and lock["packageMode"] == "SEALED" and receipt_ok and effective_state["health"] == "CLEAR" and review_gate_ok
     blockers = [item["id"] for item in checks if item["status"] != "PASS"]
     reported_ceiling = ceiling if lock["packageMode"] == "SEALED" else "DEVELOPMENT_CHECKED"
-    return envelope(status=status, checks=checks, formal={"eligible": eligible, "maxClaimLevel": reported_ceiling, "blockers": blockers}, state={"declared": state, "derived": {"phase": derived_phase, "health": "CLEAR" if status == "PASS" else ("FAILED" if status == "FAIL" else "BLOCKED"), "claimLevel": ceiling}}, data={"packageMode": lock["packageMode"], "releaseIntent": lock["releaseIntent"], "releaseIntentMaxClaimLevel": intent_cap, "deliveryObjective": positioning["deliveryObjective"], "externalReleaseCryptoRequired": external_release_crypto, "warnings": resolved["warnings"], "investigations": resolved["investigations"]})
+    return envelope(status=status, checks=checks, formal={"eligible": eligible, "maxClaimLevel": reported_ceiling, "blockers": blockers}, state={"declared": declared_state, "derived": {"phase": derived_phase, "health": "CLEAR" if status == "PASS" else ("FAILED" if status == "FAIL" else "BLOCKED"), "claimLevel": ceiling}}, data={"packageMode": lock["packageMode"], "releaseIntent": lock["releaseIntent"], "releaseIntentMaxClaimLevel": intent_cap, "deliveryObjective": positioning["deliveryObjective"], "externalReleaseCryptoRequired": external_release_crypto, "warnings": resolved["warnings"], "investigations": resolved["investigations"]})
 
 
 def release_check(project: Path) -> dict[str, Any]:

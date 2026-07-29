@@ -21,15 +21,12 @@ from .common import (
     sha256_bytes,
     write_json_atomic,
 )
+from .checkpoint_control import derive_checkpoint_result
+from .controller import validate as controller_validate
 
 
 SOURCE = "DERIVED_NON_AUTHORITATIVE"
 MANUAL_MODE = "MANUAL_STAGE_CONFIRMATION"
-BLOCKING_FINDING_CLASSES = {
-    "CURRENT_GOAL_DEFECT",
-    "MINIMUM_CORE_VIOLATION",
-    "SAFETY_OVERRIDE",
-}
 _OBJECTIVE_LINE = re.compile(
     r"^\s*[-*]\s+`(?P<id>(?:KO|KF|NG)-[A-Z0-9][A-Z0-9._-]*)`\s*[:：]\s*(?P<statement>.+?)\s*$"
 )
@@ -86,6 +83,25 @@ def _default_output(root: Path, state: dict[str, Any]) -> Path:
             / task_key
         ).resolve()
     return candidate
+
+
+def _control_fingerprint(control: Path) -> str:
+    inventory: list[dict[str, Any]] = []
+    if control.is_dir():
+        for path in sorted(control.rglob("*"), key=lambda item: item.as_posix()):
+            if not path.is_file() or path.is_symlink():
+                continue
+            relative = path.relative_to(control)
+            if relative.parts and relative.parts[0] in {"runtime", "legacy"}:
+                continue
+            inventory.append(
+                {
+                    "path": relative.as_posix(),
+                    "bytes": path.stat().st_size,
+                    "sha256": sha256_file(path),
+                }
+            )
+    return sha256_bytes(canonical_bytes(inventory))
 
 
 def _read_optional_json(path: Path, issues: list[str]) -> dict[str, Any] | None:
@@ -179,38 +195,93 @@ def _number(value: Any) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
+def _coverage_projection(
+    validation: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    checks = validation.get("integrity", {}).get("checks", [])
+    coverage = next(
+        (
+            item
+            for item in reversed(checks)
+            if isinstance(item, dict) and item.get("id") == "HC-REQUIRED-CASE-COVERAGE"
+        ),
+        None,
+    )
+    raw_mapping = (
+        coverage.get("details", {}).get("eligibleEvidenceByCase", {})
+        if isinstance(coverage, dict)
+        else {}
+    )
+    if not isinstance(raw_mapping, dict):
+        raw_mapping = {}
+    by_id = {
+        str(item.get("evidenceId")): item
+        for item in evidence
+        if isinstance(item.get("evidenceId"), str)
+    }
+    eligible: dict[str, dict[str, Any]] = {}
+    for case_id, evidence_id in raw_mapping.items():
+        if not isinstance(case_id, str) or not isinstance(evidence_id, str):
+            continue
+        item = by_id.get(evidence_id)
+        if item is None or item.get("caseId") != case_id:
+            continue
+        eligible[case_id] = item
+    return eligible
+
+
+def _case_failure_status(validation: dict[str, Any], case_id: str) -> str:
+    statuses = []
+    for item in validation.get("integrity", {}).get("checks", []):
+        if not isinstance(item, dict):
+            continue
+        details = item.get("details")
+        if isinstance(details, dict) and details.get("caseId") == case_id:
+            statuses.append(str(item.get("status") or "PASS"))
+    if "FAIL" in statuses or "INVALIDATED" in statuses:
+        return "FAIL"
+    if "BLOCKED" in statuses:
+        return "BLOCKED"
+    return "PENDING"
+
+
 def _evidence_summary(
-    evidence: list[dict[str, Any]], required_cases: list[str]
+    eligible: dict[str, dict[str, Any]],
+    required_cases: list[str],
+    validation: dict[str, Any],
+    raw_evidence: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     counters = {"executed": 0, "passed": 0, "failed": 0, "skipped": 0, "timedOut": 0}
-    by_case: dict[str, list[dict[str, Any]]] = {}
-    for item in evidence:
-        case_id = str(item.get("caseId") or "UNKNOWN")
-        by_case.setdefault(case_id, []).append(item)
+    for item in eligible.values():
         raw = item.get("counters") if isinstance(item.get("counters"), dict) else {}
         for name in counters:
             counters[name] += _number(raw.get(name))
+    raw_cases = {
+        str(item.get("caseId"))
+        for item in raw_evidence
+        if isinstance(item.get("caseId"), str)
+    }
     case_rows: list[dict[str, Any]] = []
     for case_id in required_cases:
-        records = by_case.get(case_id, [])
-        results = {str(item.get("result", "UNKNOWN")) for item in records}
-        if "FAIL" in results:
-            observed = "FAIL"
-        elif "BLOCKED" in results:
-            observed = "BLOCKED"
-        elif "PASS" in results:
+        if case_id in eligible:
             observed = "PASS"
+            evidence_ids = [str(eligible[case_id]["evidenceId"])]
         else:
-            observed = "PENDING"
+            observed = _case_failure_status(validation, case_id)
+            if observed == "PENDING" and case_id in raw_cases:
+                observed = "BLOCKED"
+            evidence_ids = []
         case_rows.append(
             {
                 "caseId": case_id,
                 "status": observed,
-                "evidenceIds": [str(item.get("evidenceId")) for item in records],
+                "evidenceIds": evidence_ids,
             }
         )
     summary = {
-        "records": len(evidence),
+        "records": len(eligible),
+        "rawRecords": len(raw_evidence),
         "requiredCases": len(required_cases),
         "reportedCases": sum(1 for row in case_rows if row["status"] != "PENDING"),
         "caseResults": {
@@ -224,8 +295,7 @@ def _evidence_summary(
 
 def _checkpoint_rows(
     contract: dict[str, Any] | None,
-    evidence: list[dict[str, Any]],
-    review: dict[str, Any] | None,
+    evidence_by_case: dict[str, dict[str, Any]],
     decision: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     checkpoints = (
@@ -233,11 +303,6 @@ def _checkpoint_rows(
         if isinstance(contract, dict)
         else []
     )
-    review_results = {
-        item.get("checkpointId"): item
-        for item in (review or {}).get("checkpointResults", [])
-        if isinstance(item, dict)
-    }
     decisions = {
         item.get("checkpointId"): item.get("decision")
         for item in (decision or {}).get("checkpointDecisions", [])
@@ -249,30 +314,21 @@ def _checkpoint_rows(
             continue
         checkpoint_id = str(checkpoint.get("id") or "UNKNOWN")
         checkpoint_type = str(checkpoint.get("type") or "UNKNOWN")
-        linked_evidence = [
-            item
-            for item in evidence
-            if checkpoint_id in item.get("checkpointIds", [])
-        ]
-        evidence_ids = [str(item.get("evidenceId")) for item in linked_evidence]
+        case_ids = (
+            [str(value) for value in checkpoint.get("caseIds", [])]
+            if isinstance(checkpoint.get("caseIds", []), list)
+            else []
+        )
         if checkpoint_type == "HUMAN":
             observed = decisions.get(checkpoint_id, "PENDING")
-        elif checkpoint_id in review_results:
-            observed = str(review_results[checkpoint_id].get("observedStatus", "PENDING"))
-            evidence_ids = [
-                str(value) for value in review_results[checkpoint_id].get("evidenceIds", [])
-            ]
+            evidence_ids = []
         else:
-            results = {str(item.get("result", "UNKNOWN")) for item in linked_evidence}
-            observed = (
-                "FAIL"
-                if "FAIL" in results
-                else "BLOCKED"
-                if "BLOCKED" in results
-                else "PASS"
-                if "PASS" in results
-                else "PENDING"
-            )
+            try:
+                observed, evidence_ids = derive_checkpoint_result(
+                    checkpoint, evidence_by_case
+                )
+            except (KeyError, TypeError):
+                observed, evidence_ids = "BLOCKED", []
         rows.append(
             {
                 "id": checkpoint_id,
@@ -280,7 +336,7 @@ def _checkpoint_rows(
                 "statement": str(checkpoint.get("statement") or ""),
                 "requiredForClaim": str(checkpoint.get("requiredForClaim") or "DIAGNOSTIC"),
                 "status": observed,
-                "caseIds": [str(value) for value in checkpoint.get("caseIds", [])],
+                "caseIds": case_ids,
                 "evidenceIds": evidence_ids,
                 "notProven": [str(value) for value in checkpoint.get("notProven", [])],
             }
@@ -431,6 +487,43 @@ def _human_decision(
     }
 
 
+def _state_projection(
+    validation: dict[str, Any], declared: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    report_state = validation.get("state")
+    report_declared = (
+        report_state.get("declared")
+        if isinstance(report_state, dict)
+        and isinstance(report_state.get("declared"), dict)
+        else declared
+    )
+    raw_derived = (
+        report_state.get("derived")
+        if isinstance(report_state, dict)
+        and isinstance(report_state.get("derived"), dict)
+        else {}
+    )
+    declared_view = {
+        "phase": str(report_declared.get("phase") or "DRAFT"),
+        "health": str(report_declared.get("health") or "BLOCKED"),
+        "claimLevel": str(report_declared.get("claimLevel") or "DIAGNOSTIC"),
+        "taskId": report_declared.get("taskId"),
+        "candidateId": report_declared.get("candidateId"),
+        "updatedAt": report_declared.get("updatedAt"),
+    }
+    derived_view = {
+        "phase": str(raw_derived.get("phase") or declared_view["phase"]),
+        "health": str(raw_derived.get("health") or declared_view["health"]),
+        "claimLevel": str(
+            raw_derived.get("claimLevel") or declared_view["claimLevel"]
+        ),
+        "taskId": declared_view["taskId"],
+        "candidateId": declared_view["candidateId"],
+        "updatedAt": declared_view["updatedAt"],
+    }
+    return declared_view, derived_view
+
+
 def _build_snapshot(project: Path) -> dict[str, Any]:
     root = git_root(project.resolve())
     control = root / ".vibe-control"
@@ -442,11 +535,19 @@ def _build_snapshot(project: Path) -> dict[str, Any]:
         "taskId": None,
         "candidateId": None,
     }
+    validation = controller_validate(root, mutate_state=False)
+    declared_state, derived_state = _state_projection(validation, state)
     lock = _read_optional_json(control / "project-governance-lock.json", issues)
     objective_lock = _read_optional_json(control / "key-objectives-lock.json", issues)
-    task_id = state.get("taskId") if isinstance(state.get("taskId"), str) else None
+    task_id = (
+        declared_state.get("taskId")
+        if isinstance(declared_state.get("taskId"), str)
+        else None
+    )
     candidate_id = (
-        state.get("candidateId") if isinstance(state.get("candidateId"), str) else None
+        declared_state.get("candidateId")
+        if isinstance(declared_state.get("candidateId"), str)
+        else None
     )
 
     task_lock = (
@@ -493,8 +594,11 @@ def _build_snapshot(project: Path) -> dict[str, Any]:
         if isinstance(contract, dict)
         else []
     )
-    evidence_summary, case_rows = _evidence_summary(evidence, required_cases)
-    checkpoint_rows = _checkpoint_rows(contract, evidence, review, decision)
+    eligible_evidence = _coverage_projection(validation, evidence)
+    evidence_summary, case_rows = _evidence_summary(
+        eligible_evidence, required_cases, validation, evidence
+    )
+    checkpoint_rows = _checkpoint_rows(contract, eligible_evidence, decision)
     automation = _automation_state(control, lock, issues)
     git_state = _git_status(root)
 
@@ -508,22 +612,13 @@ def _build_snapshot(project: Path) -> dict[str, Any]:
         {"id": value, "statement": objective_text.get(value)} for value in objective_refs
     ]
 
-    blockers = list(dict.fromkeys(issues))
-    health = str(state.get("health") or "BLOCKED")
-    if health != "CLEAR":
-        blockers.append(f"STATE-{health}")
-    for row in case_rows:
-        if row["status"] in {"FAIL", "BLOCKED"}:
-            blockers.append(f"CASE-{row['caseId']}-{row['status']}")
-    if evidence_summary["counters"]["skipped"]:
-        blockers.append("HC-EVIDENCE-SKIP")
-    if review:
-        for finding in review.get("findings", []):
-            if not isinstance(finding, dict) or finding.get("status") != "OPEN":
-                continue
-            if finding.get("classification") in BLOCKING_FINDING_CLASSES:
-                blockers.append(str(finding.get("id") or "OPEN-BLOCKING-FINDING"))
-    blockers = list(dict.fromkeys(blockers))
+    formal = validation.get("formal")
+    validation_blockers = (
+        formal.get("blockers", []) if isinstance(formal, dict) else []
+    )
+    if not isinstance(validation_blockers, list):
+        validation_blockers = ["HC-DASHBOARD-VALIDATION-SHAPE"]
+    blockers = list(dict.fromkeys([*issues, *validation_blockers]))
 
     automated_rows = [item for item in checkpoint_rows if item["type"] == "AUTOMATED"]
     automated_closed = bool(automated_rows) and all(
@@ -575,9 +670,10 @@ def _build_snapshot(project: Path) -> dict[str, Any]:
         "schemaVersion": "1.0",
         "source": SOURCE,
         "generatedAt": now_iso(),
-        "phase": str(state.get("phase") or "DRAFT"),
-        "health": health,
-        "claim": str(state.get("claimLevel") or "DIAGNOSTIC"),
+        "phase": derived_state["phase"],
+        "health": derived_state["health"],
+        "claim": derived_state["claimLevel"],
+        "validationStatus": validation.get("status", "BLOCKED"),
         "project": {
             "id": (lock or {}).get("projectId") or state.get("projectId") or root.name,
             "root": str(root),
@@ -589,13 +685,19 @@ def _build_snapshot(project: Path) -> dict[str, Any]:
             "maxClaimLevel": "DIAGNOSTIC",
             "blockers": ["HC-DASHBOARD-NON-AUTHORITATIVE"],
         },
-        "state": {
-            "phase": str(state.get("phase") or "DRAFT"),
-            "health": health,
-            "claimLevel": str(state.get("claimLevel") or "DIAGNOSTIC"),
-            "taskId": task_id,
-            "candidateId": candidate_id,
-            "updatedAt": state.get("updatedAt"),
+        "state": derived_state,
+        "declaredState": declared_state,
+        "derivedState": derived_state,
+        "stateDrift": {
+            "detected": any(
+                declared_state[name] != derived_state[name]
+                for name in ("phase", "health", "claimLevel")
+            ),
+            "fields": [
+                name
+                for name in ("phase", "health", "claimLevel")
+                if declared_state[name] != derived_state[name]
+            ],
         },
         "automation": automation,
         "objectives": {
@@ -668,6 +770,8 @@ def _list(items: list[Any], *, empty: str = "暂无") -> str:
 
 def _render_html(snapshot: dict[str, Any]) -> str:
     state = snapshot["state"]
+    declared = snapshot["declaredState"]
+    drift = snapshot["stateDrift"]
     evidence = snapshot["evidence"]
     candidate = snapshot["candidate"] or {}
     human = snapshot["humanDecision"]
@@ -798,9 +902,9 @@ def _render_html(snapshot: dict[str, Any]) -> str:
     </header>
     <div class="notice" role="note">只读派生视图：不能授予 PASS、人工验收或正式发行资格。</div>
     <section class="status-grid" aria-label="核心状态">
-      <div class="metric"><span class="eyebrow">阶段</span><strong>{_escape(state['phase'])}</strong></div>
-      <div class="metric"><span class="eyebrow">健康</span><strong>{_badge(state['health'])}</strong></div>
-      <div class="metric"><span class="eyebrow">声明</span><strong>{_escape(state['claimLevel'])}</strong></div>
+      <div class="metric"><span class="eyebrow">派生阶段</span><strong>{_escape(state['phase'])}</strong></div>
+      <div class="metric"><span class="eyebrow">派生健康</span><strong>{_badge(state['health'])}</strong></div>
+      <div class="metric"><span class="eyebrow">派生声明</span><strong>{_escape(state['claimLevel'])}</strong></div>
       <div class="metric"><span class="eyebrow">自动化</span><strong>{_escape(snapshot['automation']['mode'])}</strong></div>
     </section>
     <div class="layout">
@@ -814,6 +918,7 @@ def _render_html(snapshot: dict[str, Any]) -> str:
         <section class="panel"><h2>关键目标</h2>{objective_markup}</section>
         <section class="panel"><h2>候选</h2><dl class="facts"><dt>ID</dt><dd><code>{_escape(candidate.get('candidateId'))}</code></dd><dt>Commit</dt><dd><code>{_escape(candidate.get('commit'))}</code></dd><dt>Tree</dt><dd><code>{_escape(candidate.get('tree'))}</code></dd><dt>变更文件</dt><dd>{len(changed_paths)}</dd></dl>{_list(changed_paths, empty='没有冻结候选或没有产品路径变更')}</section>
         <section class="panel"><h2>Git 实况</h2><dl class="facts"><dt>分支</dt><dd>{_escape(snapshot['git']['branch'])}</dd><dt>Upstream</dt><dd>{_escape(snapshot['git']['upstream'])}</dd><dt>远端同步</dt><dd>{_escape(snapshot['git']['remoteSync'])} · ahead {snapshot['git']['ahead']} / behind {snapshot['git']['behind']}</dd><dt>工作树污染</dt><dd>{_escape(snapshot['git']['dirty'])}</dd><dt>HEAD</dt><dd><code>{_escape(snapshot['git']['head'])}</code></dd></dl></section>
+        <section class="panel"><h2>状态派生</h2><dl class="facts"><dt>校验结论</dt><dd>{_badge(snapshot['validationStatus'])}</dd><dt>声明状态</dt><dd>{_escape(declared['phase'])} / {_escape(declared['health'])} / {_escape(declared['claimLevel'])}</dd><dt>派生状态</dt><dd>{_escape(state['phase'])} / {_escape(state['health'])} / {_escape(state['claimLevel'])}</dd><dt>漂移</dt><dd>{_escape(drift['detected'])} · {_escape(', '.join(drift['fields']))}</dd></dl></section>
         <section class="panel"><h2>审核发现</h2>{finding_markup}</section>
         <section class="panel"><h2>停止与阻断</h2><dl class="facts"><dt>停止原因</dt><dd>{_escape(snapshot['stopReason'])}</dd></dl><div style="margin-top:12px">{_list(snapshot['blockers'], empty='当前快照未观察到阻断项')}</div></section>
       </aside>
@@ -836,6 +941,7 @@ def _render_html(snapshot: dict[str, Any]) -> str:
 
 def _render_summary(snapshot: dict[str, Any]) -> str:
     state = snapshot["state"]
+    declared = snapshot["declaredState"]
     human = snapshot["humanDecision"]
     evidence = snapshot["evidence"]
     lines = [
@@ -844,7 +950,9 @@ def _render_summary(snapshot: dict[str, Any]) -> str:
         "> 本文件由控制对象与 Git 实况派生，不构成证据、人工批准或正式发行资格。",
         "",
         f"- 项目：`{_markdown(snapshot['project']['id'])}`",
-        f"- 阶段／健康／声明：`{_markdown(state['phase'])} / {_markdown(state['health'])} / {_markdown(state['claimLevel'])}`",
+        f"- 派生阶段／健康／声明：`{_markdown(state['phase'])} / {_markdown(state['health'])} / {_markdown(state['claimLevel'])}`",
+        f"- 声明阶段／健康／声明：`{_markdown(declared['phase'])} / {_markdown(declared['health'])} / {_markdown(declared['claimLevel'])}`",
+        f"- 状态漂移：`{_markdown(snapshot['stateDrift']['detected'])}`；字段：`{_markdown(', '.join(snapshot['stateDrift']['fields']) or 'NONE')}`",
         f"- 自动化模式：`{_markdown(snapshot['automation']['mode'])}`",
         f"- 停止原因：`{_markdown(snapshot['stopReason'] or 'NONE')}`",
         f"- 快照 SHA-256：`{_markdown(snapshot['snapshotSha256'])}`",
@@ -886,14 +994,26 @@ def _render_summary(snapshot: dict[str, Any]) -> str:
 def generate_dashboard(project: Path, output_dir: Path | None) -> dict[str, Any]:
     """Generate a non-authoritative, offline human-review projection.
 
-    This function intentionally does not call ``controller.validate`` because validation may
-    advance and persist controller state. It reads current control objects and Git facts only.
+    Validation runs through the controller's explicit read-only projection. The mutable control
+    plane is fingerprinted before and after projection so accidental writes fail closed.
     """
 
     root = git_root(project.resolve())
+    control_fingerprint_before = _control_fingerprint(root / ".vibe-control")
     snapshot = _build_snapshot(root)
+    control_fingerprint_after = _control_fingerprint(root / ".vibe-control")
+    if control_fingerprint_after != control_fingerprint_before:
+        raise ControlError(
+            "HC-DASHBOARD-READONLY-DRIFT",
+            "dashboard projection changed project control files",
+            status="FAIL",
+            details={
+                "before": control_fingerprint_before,
+                "after": control_fingerprint_after,
+            },
+        )
     if output_dir is None:
-        destination = _default_output(root, snapshot["state"])
+        destination = _default_output(root, snapshot["declaredState"])
     else:
         destination = output_dir.expanduser().resolve()
         if _inside(destination, root):
@@ -919,6 +1039,7 @@ def generate_dashboard(project: Path, output_dir: Path | None) -> dict[str, Any]
                 "HC-DASHBOARD-SNAPSHOT",
                 "PASS",
                 "offline dashboard files bind one non-authoritative snapshot without mutating project control state",
+                controlFingerprint=control_fingerprint_after,
             ),
             check(
                 "HC-DASHBOARD-OUTPUT-SCOPE",
@@ -931,7 +1052,10 @@ def generate_dashboard(project: Path, output_dir: Path | None) -> dict[str, Any]
             "maxClaimLevel": "DIAGNOSTIC",
             "blockers": ["HC-DASHBOARD-NON-AUTHORITATIVE"],
         },
-        state={"declared": snapshot["state"], "derived": snapshot["state"]},
+        state={
+            "declared": snapshot["declaredState"],
+            "derived": snapshot["derivedState"],
+        },
         data={
             "files": {
                 "html": str(html_path),
