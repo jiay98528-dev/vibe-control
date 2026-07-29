@@ -121,7 +121,7 @@ def test_development_installation_source_kinds() -> None:
         assert "Traceback" not in dependency_report.get("message", "")
 
 
-def _bootstrap_from_portable(portable: Path) -> None:
+def _bootstrap_from_portable(portable: Path) -> dict:
     import test_v2_support as fixture
 
     with tempfile.TemporaryDirectory(prefix="vc035-portable-bootstrap-", ignore_cleanup_errors=True) as temp_name:
@@ -155,32 +155,37 @@ def _bootstrap_from_portable(portable: Path) -> None:
         lock = json.loads((project / ".vibe-control" / "project-governance-lock.json").read_text(encoding="utf-8"))
         assert lock["packageBinding"]["sourceKind"] == "PORTABLE_COPY"
         assert "commit" not in lock["packageBinding"] and "tree" not in lock["packageBinding"]
+        return lock
 
 
 def test_portable_binding_schema_and_bootstrap() -> None:
     schema = json.loads((ROOT / "assets" / "project-control" / "schemas" / "project-governance-lock.schema.json").read_text(encoding="utf-8"))
-    legacy = json.loads((ROOT / ".vibe-control" / "project-governance-lock.json").read_text(encoding="utf-8"))
-    legacy["packageBinding"]["version"] = "0.3.4"
-    assert not list(Draft202012Validator(schema).iter_errors(legacy)), "legacy 0.3.4 development lock must remain valid"
-    missing_source = json.loads(json.dumps(legacy))
-    missing_source["packageBinding"]["version"] = "0.3.5"
-    assert list(Draft202012Validator(schema).iter_errors(missing_source)), "new development locks must declare sourceKind"
-    portable_lock = json.loads(json.dumps(legacy))
-    portable_lock["packageBinding"]["version"] = "0.3.5"
-    portable_lock["packageBinding"]["sourceKind"] = "PORTABLE_COPY"
-    portable_lock["packageBinding"].pop("commit", None)
-    portable_lock["packageBinding"].pop("tree", None)
-    assert not list(Draft202012Validator(schema).iter_errors(portable_lock))
-    forged = json.loads(json.dumps(portable_lock))
-    forged["packageBinding"]["commit"] = "0" * 40
-    assert list(Draft202012Validator(schema).iter_errors(forged)), "portable lock must not forge Git identity"
-    sealed = json.loads(json.dumps(portable_lock))
-    sealed["packageMode"] = "SEALED"
-    assert list(Draft202012Validator(schema).iter_errors(sealed)), "sealed lock must retain Git/audit closure"
-
     with tempfile.TemporaryDirectory(prefix="vc035-bootstrap-package-", ignore_cleanup_errors=True) as temp_name:
         portable = portable_copy(Path(temp_name), "skill")
-        _bootstrap_from_portable(portable)
+        current = _bootstrap_from_portable(portable)
+
+        # The public repository stores the Skill below ``skill/`` and therefore
+        # has no package-local dogfood lock.  Derive the compatibility fixture
+        # from a real portable bootstrap instead of assuming one exists at ROOT.
+        legacy = json.loads(json.dumps(current))
+        legacy["packageBinding"]["version"] = "0.3.4"
+        legacy["packageBinding"].pop("sourceKind", None)
+        assert not list(Draft202012Validator(schema).iter_errors(legacy)), "legacy 0.3.4 development lock must remain valid"
+        missing_source = json.loads(json.dumps(legacy))
+        missing_source["packageBinding"]["version"] = "0.3.5"
+        assert list(Draft202012Validator(schema).iter_errors(missing_source)), "new development locks must declare sourceKind"
+        portable_lock = json.loads(json.dumps(legacy))
+        portable_lock["packageBinding"]["version"] = "0.3.5"
+        portable_lock["packageBinding"]["sourceKind"] = "PORTABLE_COPY"
+        portable_lock["packageBinding"].pop("commit", None)
+        portable_lock["packageBinding"].pop("tree", None)
+        assert not list(Draft202012Validator(schema).iter_errors(portable_lock))
+        forged = json.loads(json.dumps(portable_lock))
+        forged["packageBinding"]["commit"] = "0" * 40
+        assert list(Draft202012Validator(schema).iter_errors(forged)), "portable lock must not forge Git identity"
+        sealed = json.loads(json.dumps(portable_lock))
+        sealed["packageMode"] = "SEALED"
+        assert list(Draft202012Validator(schema).iter_errors(sealed)), "sealed lock must retain Git/audit closure"
 
 
 def test_installation_and_formal_validation_are_separate() -> None:

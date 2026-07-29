@@ -2381,6 +2381,7 @@ def migration_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str,
 
         new_runtime = staging / "runtime" / VERSION
         copy_runtime_bundle(new_runtime)
+        write_evidence_byte_policy(staging / ".gitattributes")
         governance = staging / "governance"; governance.mkdir(parents=True, exist_ok=True)
         shutil.copy2(skill_root / "package-manifest.json", governance / "package-manifest.json")
         shutil.copy2(skill_root / "references" / "controller-assurance-matrix.json", governance / "controller-assurance-matrix.json")
@@ -2399,7 +2400,17 @@ def migration_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str,
 
         rule_inputs = load_json(staging / "rule-inputs.json"); rule_inputs.update({"schemaVersion": SCHEMA_VERSION, "humanQualityGates": gates, "firstVerticalSlice": migrated_positioning["firstVerticalSlice"], "confirmation": {**migrated_positioning["confirmation"], "record": spec_ref["path"]}})
         write_json_atomic(staging / "rule-inputs.json", rule_inputs)
-        compiled = compile_for_project(rule_inputs, root, new_runtime); fail_on_compile_issues(compiler_checks(compiled))
+        # The compiler is loaded from the staged runtime, not from this
+        # controller's import path.  Bind that execution to the exact staged
+        # manifest so the compatibility loader can distinguish an intentional
+        # runtime copy from an unbound compiler substitution.
+        compiled = compile_for_project(
+            rule_inputs,
+            root,
+            new_runtime,
+            expected_runtime_manifest_sha256=sha256_file(new_runtime / "runtime-manifest.json"),
+        )
+        fail_on_compile_issues(compiler_checks(compiled))
         resolved = {"schemaVersion": SCHEMA_VERSION, "ruleSetId": f"rules-{compiled['canonicalSha256'][:16]}", "positioning": _staged_ref(staging, "project-positioning.json"), "compiler": {"id": "vibe-control-project-rules", "version": VERSION, "sha256": sha256_file(new_runtime / "vibe_runtime" / "project_rules.py")}, "canonical": compiled["canonical"], "canonicalSha256": compiled["canonicalSha256"], "conflicts": compiled["conflicts"], "warnings": compiled["warnings"], "investigations": compiled["investigations"], "installRequests": compiled["installRequests"], "blockers": compiled["blockers"], "canApprove": False, "compiledAt": now_iso()}
         validate_object("resolved-rule-set", resolved); write_json_atomic(staging / "resolved-rule-set.json", resolved)
 
@@ -2411,6 +2422,7 @@ def migration_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str,
             "packageBinding": {"version": binding["version"], "sourceKind": binding["sourceKind"], **({"commit": binding["commit"], "tree": binding["tree"]} if "commit" in binding and "tree" in binding else {}), "packageManifest": _staged_ref(staging, "governance/package-manifest.json"), "runtimeManifest": _staged_ref(staging, f"runtime/{VERSION}/runtime-manifest.json"), "assuranceMatrix": _staged_ref(staging, "governance/controller-assurance-matrix.json")},
             "skill": _staged_ref(staging, "governance/package-manifest.json"), "runtime": _staged_ref(staging, f"runtime/{VERSION}/runtime-manifest.json"),
             "keyObjectives": _staged_ref(staging, "key-objectives-lock.json"), "caseCatalog": _staged_ref(staging, "case-catalog.json"),
+            "evidenceBytePolicy": _staged_ref(staging, ".gitattributes"),
             "ruleInputs": _staged_ref(staging, "rule-inputs.json"), "positioning": _staged_ref(staging, "project-positioning.json"), "resolvedRuleSet": _staged_ref(staging, "resolved-rule-set.json"),
             "ruleCompiler": _staged_ref(staging, f"runtime/{VERSION}/vibe_runtime/project_rules.py"), "profileDirectory": _staged_ref(staging, f"runtime/{VERSION}/rules/v1/profiles.json"), "adapterDirectory": _staged_ref(staging, f"runtime/{VERSION}/rules/v1/adapters.json"),
             "skillBindings": [_staged_ref(staging, path.relative_to(staging).as_posix()) for path in sorted((staging / "skill-bindings").glob("*.json"))] if (staging / "skill-bindings").is_dir() else [],

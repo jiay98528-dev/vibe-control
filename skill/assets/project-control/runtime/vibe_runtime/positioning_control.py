@@ -13,6 +13,7 @@ from .schema import validate_object
 
 _COMPATIBLE_RULE_COMPILERS = {
     ("0.3.4", "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"),
+    ("0.3.7", "95badd00860946382ed3ff9fa737ff91e1f925c63cbc0282ae9fbfebd82a9055"),
 }
 _COMPILER_PATH = "vibe_runtime/project_rules.py"
 _RULE_CATALOG_PATHS = {
