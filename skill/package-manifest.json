@@ -78,8 +78,8 @@
     },
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
-      "bytes": 8223,
-      "sha256": "cd9d344afdbcf0d53e81e059f0162befbcc7ed2991b7c4d53a913638f0adbae9"
+      "bytes": 8224,
+      "sha256": "236930d75791e428df68864b37cf44f12306b4e4b1dadf48d3dc641051cffdd5"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
@@ -258,8 +258,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/controller.py",
-      "bytes": 173093,
-      "sha256": "c537cb89025b89d41ebb58f58f96ff5031463dacdb2eb391fba96b55d5f303b1"
+      "bytes": 174206,
+      "sha256": "aee2f50768097997a6d39d7c3af265c69cf26aa1bb9bbf44bf1329c738eaaa90"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/crypto.py",
@@ -278,8 +278,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/positioning_control.py",
-      "bytes": 7567,
-      "sha256": "8ca3b33d1d0e2e44f2ddf9c5f536cbfec71d1b81f28eca6f6b4bba79987182ef"
+      "bytes": 11018,
+      "sha256": "b3b6c0c558950c55458ab34a39c761d5219eb6a1485e3d22c82c11872ed304e2"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/project_rules.py",
@@ -763,8 +763,8 @@
     },
     {
       "path": "scripts/test_v036_boundaries.py",
-      "bytes": 7763,
-      "sha256": "5bdc7bb763127104ff99039990e650cb042738912872f5e283d47dee4dbb835c"
+      "bytes": 12295,
+      "sha256": "39837ef229811e8f96da7cdadc26800ec704fc21858766e9595e56f5c1bac1ee"
     },
     {
       "path": "scripts/test_v2_security.py",

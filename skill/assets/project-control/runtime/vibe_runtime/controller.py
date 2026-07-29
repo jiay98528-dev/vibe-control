@@ -260,6 +260,7 @@ def _guard_v3_control_plane(p: dict[str, Path], *, allow_missing: bool = False) 
     if not p["control"].exists():
         if allow_missing: return
         raise ControlError("VC-CONTROL-PLANE-MISSING", ".vibe-control does not exist", status="BLOCKED")
+    governance_lock: dict[str, Any] | None = None
     for path, kind in ((p["lock"], "project-governance-lock"), (p["state"], "stage-state")):
         if path.is_file():
             value = load_json(path)
@@ -269,6 +270,17 @@ def _guard_v3_control_plane(p: dict[str, Path], *, allow_missing: bool = False) 
                 if value.get("schemaVersion") == "3.1":
                     raise ControlError("VC-MIGRATION-REQUIRED", "Schema 3.1 control planes remain pinned until migrate --plan establishes a recoverable Schema 3.2 conversion", status="BLOCKED")
                 raise ControlError("VC-REINSTALL-REQUIRED", "only Schema 3.1 has a supported automatic migration path; older control planes require a fresh bootstrap", status="BLOCKED")
+            if kind == "project-governance-lock":
+                validate_object(kind, value)
+                governance_lock = value
+    if governance_lock is not None:
+        runtime_ref = governance_lock.get("runtime")
+        if not isinstance(runtime_ref, dict) or not isinstance(runtime_ref.get("path"), str):
+            raise ControlError("HC-RUNTIME-MANIFEST", "governance lock does not identify a bound runtime manifest")
+        manifest_path = safe_relative(p["root"], runtime_ref["path"])
+        if manifest_path.name != "runtime-manifest.json":
+            raise ControlError("HC-RUNTIME-MANIFEST", "governance runtime reference must identify runtime-manifest.json")
+        p["runtime"] = manifest_path.parent
 
 
 def _key_objective_id_sets(value: dict[str, Any]) -> tuple[set[str], set[str], set[str]]:
@@ -592,10 +604,14 @@ def _rule_input_record(spec: dict[str, Any]) -> dict[str, Any]:
 
 def _resolved_rule_object(root: Path, p: dict[str, Path], positioning: dict[str, Any], compiled: dict[str, Any]) -> dict[str, Any]:
     compiler_path = p["runtime"] / "vibe_runtime" / "project_rules.py"
+    runtime_manifest = load_json(p["runtime"] / "runtime-manifest.json")
+    compiler_version = runtime_manifest.get("runtimeVersion") if isinstance(runtime_manifest, dict) else None
+    if not isinstance(compiler_version, str):
+        raise ControlError("HC-RUNTIME-MANIFEST", "bound runtime manifest omits runtimeVersion")
     value = {
         "schemaVersion": SCHEMA_VERSION, "ruleSetId": f"rules-{compiled['canonicalSha256'][:16]}",
         "positioning": content_ref(root, p["positioning"]),
-        "compiler": {"id": "vibe-control-project-rules", "version": VERSION, "sha256": sha256_file(compiler_path)},
+        "compiler": {"id": "vibe-control-project-rules", "version": compiler_version, "sha256": sha256_file(compiler_path)},
         "canonical": compiled["canonical"], "canonicalSha256": compiled["canonicalSha256"],
         "conflicts": compiled["conflicts"], "warnings": compiled["warnings"], "investigations": compiled["investigations"],
         "installRequests": compiled["installRequests"], "blockers": compiled["blockers"], "canApprove": False, "compiledAt": now_iso(),

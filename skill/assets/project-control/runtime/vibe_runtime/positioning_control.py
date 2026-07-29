@@ -1,12 +1,27 @@
 """Controller-side Project Positioning and rule-closure helpers for Schema 3.2."""
 from __future__ import annotations
 
+import hashlib
+import json
+import runpy
 from pathlib import Path
 from typing import Any
 
 from .common import ControlError, canonical_bytes, check, load_json, sha256_bytes, verify_ref
 from .project_rules import compile_positioning
 from .schema import validate_object
+
+
+_COMPATIBLE_RULE_COMPILERS = {
+    ("0.3.4", "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"),
+}
+_COMPILER_PATH = "vibe_runtime/project_rules.py"
+_RULE_CATALOG_PATHS = {
+    "rules/v1/layers.json",
+    "rules/v1/core.json",
+    "rules/v1/profiles.json",
+    "rules/v1/adapters.json",
+}
 
 
 def positioning_summary(value: dict[str, Any]) -> dict[str, Any]:
@@ -45,7 +60,58 @@ def verify_positioning(root: Path, positioning: dict[str, Any]) -> list[dict[str
 
 def compile_for_project(spec: dict[str, Any], project_root: Path, runtime_root: Path) -> dict[str, Any]:
     """Always recompile from the source spec; never consume a caller-supplied result."""
-    return compile_positioning(spec, project_root, runtime_root)
+    runtime_root = runtime_root.resolve()
+    current_compiler = Path(__file__).resolve().with_name("project_rules.py")
+    requested_compiler = runtime_root / _COMPILER_PATH
+    if requested_compiler.resolve() == current_compiler:
+        return compile_positioning(spec, project_root, runtime_root)
+
+    manifest_path = runtime_root / "runtime-manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime manifest is missing or unsafe", status="BLOCKED")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime manifest is unreadable", status="BLOCKED") from exc
+    version = manifest.get("runtimeVersion") if isinstance(manifest, dict) else None
+    entries = {
+        item.get("path"): item
+        for item in manifest.get("files", [])
+        if isinstance(item, dict) and isinstance(item.get("path"), str)
+    } if isinstance(manifest, dict) else {}
+    required_paths = {_COMPILER_PATH, *_RULE_CATALOG_PATHS}
+    if not required_paths.issubset(entries):
+        raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime manifest omits the compiler or rule catalogs", status="BLOCKED")
+    for relative in sorted(required_paths):
+        path = runtime_root / relative
+        if path.is_symlink() or not path.is_file():
+            raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound compiler inputs are missing or unsafe", status="BLOCKED", details={"path": relative})
+        try:
+            path.resolve().relative_to(runtime_root)
+        except ValueError as exc:
+            raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound compiler input escapes its runtime", status="BLOCKED", details={"path": relative}) from exc
+        entry = entries[relative]
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if entry.get("sha256") != actual or entry.get("bytes") != path.stat().st_size:
+            raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound compiler input does not match its runtime manifest", status="INVALIDATED", details={"path": relative})
+    compiler_hash = entries[_COMPILER_PATH]["sha256"]
+    if (version, compiler_hash) not in _COMPATIBLE_RULE_COMPILERS:
+        raise ControlError(
+            "HC-RULE-COMPILER-COMPATIBILITY",
+            "the installed controller does not support this bound rule compiler",
+            status="BLOCKED",
+            details={"runtimeVersion": version, "compilerSha256": compiler_hash},
+        )
+    try:
+        namespace = runpy.run_path(str(requested_compiler))
+        legacy_compile = namespace.get("compile_positioning")
+        if not callable(legacy_compile):
+            raise TypeError("compile_positioning is not callable")
+        return legacy_compile(spec, project_root, runtime_root)
+    except ControlError:
+        raise
+    except Exception as exc:
+        raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound rule compiler failed closed", status="BLOCKED") from exc
 
 
 def compiler_checks(compiled: dict[str, Any]) -> list[dict[str, Any]]:

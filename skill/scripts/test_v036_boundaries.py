@@ -4,12 +4,71 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 import test_v036_automation as base
+
+
+def _file_ref(root: Path, path: Path) -> dict:
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "bytes": path.stat().st_size,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "tracked": True,
+    }
+
+
+def _materialize_034_runtime(fixture: base.Fixture) -> Path:
+    control = fixture.root / ".vibe-control"
+    source = control / "runtime/0.3.6"
+    target = control / "runtime/0.3.4"
+    source.rename(target)
+    compiler = target / "vibe_runtime/project_rules.py"
+    text = compiler.read_text(encoding="utf-8")
+    nested = '            "**/playwright.config.ts", "**/playwright.config.js", "**/playwright.config.mjs", "**/playwright.config.cjs",\n'
+    assert nested in text
+    compiler.write_text(text.replace(nested, "", 1), encoding="utf-8", newline="\n")
+    assert hashlib.sha256(compiler.read_bytes()).hexdigest() == "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"
+
+    manifest_path = target / "runtime-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["runtimeVersion"] = "0.3.4"
+    for entry in manifest["files"]:
+        path = target / entry["path"]
+        entry["bytes"] = path.stat().st_size
+        entry["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    base.write_json(manifest_path, manifest)
+
+    lock_path = control / "project-governance-lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    lock["packageBinding"]["version"] = "0.3.4"
+    lock["packageBinding"]["runtimeManifest"] = _file_ref(fixture.root, manifest_path)
+    lock["runtime"] = _file_ref(fixture.root, manifest_path)
+    lock["ruleCompiler"] = _file_ref(fixture.root, compiler)
+    lock["profileDirectory"] = _file_ref(fixture.root, target / "rules/v1/profiles.json")
+    lock["adapterDirectory"] = _file_ref(fixture.root, target / "rules/v1/adapters.json")
+    base.write_json(lock_path, lock)
+
+    resolved_path = control / "resolved-rule-set.json"
+    resolved = json.loads(resolved_path.read_text(encoding="utf-8"))
+    resolved["compiler"]["version"] = "0.3.4"
+    resolved["compiler"]["sha256"] = lock["ruleCompiler"]["sha256"]
+    base.write_json(resolved_path, resolved)
+    lock["resolvedRuleSet"] = _file_ref(fixture.root, resolved_path)
+    base.write_json(lock_path, lock)
+
+    shutil.rmtree(control / "task-locks")
+    state_path = control / "stage-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update({"phase": "DRAFT", "health": "BLOCKED", "claimLevel": "DIAGNOSTIC", "taskId": None, "candidateId": None, "revision": 0, "phaseHistory": []})
+    base.write_json(state_path, state)
+    base.git(fixture.root, "add", "-A")
+    base.git(fixture.root, "commit", "-m", "pin legacy runtime")
+    return target
 
 
 def test_commit_and_push_are_real_bounded_side_effects() -> None:
@@ -119,6 +178,36 @@ def test_dashboard_without_task_is_external_and_self_bound() -> None:
             raise AssertionError("default dashboard output entered the project worktree")
 
 
+def test_current_controller_relocks_exact_supported_bound_runtime() -> None:
+    fixture = base.Fixture("AUTO_LOCAL_TO_REVIEW")
+    try:
+        legacy_runtime = _materialize_034_runtime(fixture)
+        contract = fixture.root / ".vibe-control/tasks/TASK-001.json"
+        result = base.run(
+            sys.executable, str(base.CONTROL), "lock-task",
+            "--project", str(fixture.root), "--contract", str(contract),
+        )
+        value = base.report(result)
+        assert result.returncode == 0 and value["status"] == "PASS", value
+        state = json.loads((fixture.root / ".vibe-control/stage-state.json").read_text(encoding="utf-8"))
+        assert state["phase"] == "CONTRACT_LOCKED" and state["taskId"] == "TASK-001"
+        assert not (fixture.root / ".vibe-control/runtime/0.3.6").exists()
+        assert legacy_runtime.is_dir(), "the compatibility controller must not migrate or replace the bound runtime"
+
+        compiler = legacy_runtime / "vibe_runtime/project_rules.py"
+        compiler.write_text(compiler.read_text(encoding="utf-8") + "\n# drift\n", encoding="utf-8", newline="\n")
+        base.git(fixture.root, "add", "-A")
+        base.git(fixture.root, "commit", "-m", "tamper compiler")
+        result = base.run(
+            sys.executable, str(base.CONTROL), "validate", "--project", str(fixture.root),
+        )
+        rejected = base.report(result)
+        failing = {item["id"] for item in rejected.get("integrity", {}).get("checks", []) if item.get("status") != "PASS"}
+        assert result.returncode != 0 and "HC-RULE-COMPILER-COMPATIBILITY" in failing, rejected
+    finally:
+        fixture.close()
+
+
 def main() -> int:
     tests = [
         test_commit_and_push_are_real_bounded_side_effects,
@@ -126,6 +215,7 @@ def main() -> int:
         test_boundary_drift_staged_changes_and_unknown_control_paths_stop,
         test_hard_failure_and_completed_automation_stop,
         test_dashboard_without_task_is_external_and_self_bound,
+        test_current_controller_relocks_exact_supported_bound_runtime,
     ]
     results = []
     for test in tests:
