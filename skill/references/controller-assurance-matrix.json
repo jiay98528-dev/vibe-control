@@ -535,7 +535,7 @@
       "statement": "Dashboard state, blockers, eligible evidence and checkpoint results are projected from the same validation computation used by the controller in an explicit read-only mode; declared state is shown separately and dashboard generation cannot mutate control records or grant claims.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/dashboard.py"],
-      "regressionTests": ["test_dashboard_uses_read_only_validation_projection", "test_multicase_checkpoint_requires_all_eligible_evidence"],
+      "regressionTests": ["test_multi_case_checkpoint_uses_only_controller_eligible_evidence", "test_dashboard_projection_is_read_only_and_shows_declared_derived_drift"],
       "independentValidation": "PENDING"
     },
     {
@@ -543,7 +543,7 @@
       "statement": "Bootstrap diagnostics cannot enter candidate-required case or rule coverage, automation milestone messages are hook-compatible and bounded, and same-Schema runtime upgrades use a content-bound plan, byte-hashed legacy archive, atomic replacement, complete downstream invalidation and no evidence inheritance.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/positioning_control.py", "assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/vibe_runtime/upgrade_control.py", "assets/project-control/runtime/schemas/case-catalog.schema.json"],
-      "regressionTests": ["test_case_lifecycle_is_not_candidate_coverage", "test_default_and_explicit_commit_messages", "test_hook_failure_preserves_worktree_and_clears_staging", "test_runtime_upgrade_plan_apply_and_rollback"],
+      "regressionTests": ["test_case_lifecycle_is_not_candidate_coverage", "test_default_subject_is_conventional", "test_explicit_subject_and_cli_scope", "test_hook_failure_keeps_worktree_and_clears_automation_staging", "test_plan_is_read_only_and_apply_invalidates", "test_staging_failure_preserves_live_control"],
       "independentValidation": "PENDING"
     }
   ]

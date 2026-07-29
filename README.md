@@ -6,7 +6,7 @@
 
 Observable control planes for VibeCoding and multi-agent software development.
 
-![Version](https://img.shields.io/badge/version-0.3.6-2563eb)
+![Version](https://img.shields.io/badge/version-0.3.7-2563eb)
 ![Maturity](https://img.shields.io/badge/maturity-DEVELOPMENT__DIAGNOSTIC-f59e0b)
 ![Schema](https://img.shields.io/badge/schema-3.2-7c3aed)
 ![Python](https://img.shields.io/badge/python-3.12-3776ab)
@@ -14,7 +14,7 @@ Observable control planes for VibeCoding and multi-agent software development.
 </div>
 
 > [!WARNING]
-> 当前公开包是 `0.3.6 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
+> 当前公开包是 `0.3.7 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
 
 ## 它解决什么问题
 
@@ -29,6 +29,9 @@ VibeCoding 的典型失败往往不是“模型完全不会写代码”，而是
 | 关键目标缰绳 | 从需求事实源推导并锁定 `KEY_OBJECTIVES.md`，阻止审计和修复逐轮跑偏。 |
 | 检查点契约 | 在实现前固定“什么结果算通过”，绑定 case、oracle、assertion 与声明上限。 |
 | 候选与证据闭包 | 绑定精确 commit/tree、输入哈希、逐 case provenance、transcript、产物与 counters。 |
+| Windows 候选执行 | 保留锁定逻辑命令，显式解析 `pnpm.cmd` 等宿主 executable；参数不经过 shell。 |
+| Evidence 字节身份 | 嵌套 Git attributes 禁止换行/filter 转换，并复核工作副本与提交 blob。 |
+| 同 Schema 升级 | 内容绑定地归档旧控制链、原子安装新 runtime，并使旧 PASS 全部失效。 |
 | 有界审核 | 先审核预设检查点；普通探索发现有候选级预算，达到停止条件后结束审核。 |
 | 多智能体边界 | 单一控制面写入者、隔离写入、无答案泄漏审核；Worker 回报不能自行批准。 |
 | 跨宿主兼容 | 按实际能力选择 `CODEX_THREADS → SUBAGENTS → SERIAL`，不伪造宿主不存在的功能。 |
@@ -103,13 +106,13 @@ Skill 不设置固定子智能体数量上限，但仍服从宿主容量、任�
 
 ## 当前成熟度
 
-- 版本：`0.3.6`
+- 版本：`0.3.7`
 - Schema：`3.2`
 - 首个真实运行环境：Windows + Python 3.12
-- 包清单：162 个受管条目、runtime 47 个受管条目，SHA-256 内容寻址
+- 包清单：174 个受管条目、runtime 51 个受管条目，SHA-256 内容寻址
 - 姿态：`DEVELOPMENT_DIAGNOSTIC`
 - 正式声明：`formalClaimsAllowed=false`
-- 当前没有 `v0.3.6` release tag 或对应 package audit tag
+- 当前没有 `v0.3.7` release tag 或对应 package audit tag
 
 公开仓库可以用于研究、诊断开发和本地试用；它目前不能作为 `FORMAL_GATE_READY` 的证明。
 
