@@ -280,7 +280,26 @@ def _guard_v3_control_plane(p: dict[str, Path], *, allow_missing: bool = False) 
         manifest_path = safe_relative(p["root"], runtime_ref["path"])
         if manifest_path.name != "runtime-manifest.json":
             raise ControlError("HC-RUNTIME-MANIFEST", "governance runtime reference must identify runtime-manifest.json")
-        p["runtime"] = manifest_path.parent
+        bound_runtime = manifest_path.parent
+        expected_refs = (
+            ("runtime", bound_runtime / "runtime-manifest.json", "HC-RUNTIME-MANIFEST"),
+            ("ruleCompiler", bound_runtime / "vibe_runtime" / "project_rules.py", "HC-RULESET-BINDING"),
+            ("profileDirectory", bound_runtime / "rules" / "v1" / "profiles.json", "HC-RULESET-BINDING"),
+            ("adapterDirectory", bound_runtime / "rules" / "v1" / "adapters.json", "HC-ADAPTER-CAPABILITY"),
+        )
+        for name, expected_path, check_id in expected_refs:
+            ref = governance_lock.get(name)
+            if not isinstance(ref, dict) or not isinstance(ref.get("path"), str):
+                raise ControlError(check_id, f"governance lock omits the bound {name} reference")
+            if safe_relative(p["root"], ref["path"]) != expected_path.resolve():
+                raise ControlError(check_id, f"governance lock {name} reference does not belong to the bound runtime")
+            verified = verify_ref(p["root"], ref, check_id)
+            if verified["status"] != "PASS":
+                raise ControlError(verified["id"], verified["message"], status=verified["status"], details=verified.get("details"))
+        package_runtime_ref = governance_lock.get("packageBinding", {}).get("runtimeManifest")
+        if package_runtime_ref != runtime_ref:
+            raise ControlError("HC-RUNTIME-MANIFEST", "package and governance runtime manifest bindings differ", status="INVALIDATED")
+        p["runtime"] = bound_runtime
 
 
 def _key_objective_id_sets(value: dict[str, Any]) -> tuple[set[str], set[str], set[str]]:

@@ -203,7 +203,7 @@ def test_current_controller_relocks_exact_supported_bound_runtime() -> None:
         )
         rejected = base.report(result)
         failing = {item["id"] for item in rejected.get("integrity", {}).get("checks", []) if item.get("status") != "PASS"}
-        assert result.returncode != 0 and "HC-RULE-COMPILER-COMPATIBILITY" in failing, rejected
+        assert result.returncode != 0 and "HC-RULESET-BINDING" in failing, rejected
     finally:
         fixture.close()
 

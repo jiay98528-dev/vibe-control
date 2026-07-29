@@ -79,7 +79,7 @@
     {
       "path": "assets/project-control/runtime/runtime-manifest.json",
       "bytes": 8224,
-      "sha256": "236930d75791e428df68864b37cf44f12306b4e4b1dadf48d3dc641051cffdd5"
+      "sha256": "56733738e436e9e05a6a33b2b7fd071be373cce96a1a3eba1ba2668c1ea9f74f"
     },
     {
       "path": "assets/project-control/runtime/schemas/adapter-descriptor.schema.json",
@@ -258,8 +258,8 @@
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/controller.py",
-      "bytes": 174206,
-      "sha256": "aee2f50768097997a6d39d7c3af265c69cf26aa1bb9bbf44bf1329c738eaaa90"
+      "bytes": 175687,
+      "sha256": "b27350f51c241525d3c79f7d888afcae3c60e604e10427dc8f7c9ab3f4ddc6b4"
     },
     {
       "path": "assets/project-control/runtime/vibe_runtime/crypto.py",
@@ -763,8 +763,8 @@
     },
     {
       "path": "scripts/test_v036_boundaries.py",
-      "bytes": 12295,
-      "sha256": "39837ef229811e8f96da7cdadc26800ec704fc21858766e9595e56f5c1bac1ee"
+      "bytes": 12283,
+      "sha256": "6a25f495af60830f56eed8376b4240691230b94f1f2ec043b5844df4b0901a42"
     },
     {
       "path": "scripts/test_v2_security.py",
