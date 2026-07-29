@@ -215,8 +215,8 @@
     },
     {
       "path": "vibe_runtime/controller.py",
-      "bytes": 175687,
-      "sha256": "b27350f51c241525d3c79f7d888afcae3c60e604e10427dc8f7c9ab3f4ddc6b4"
+      "bytes": 175541,
+      "sha256": "38b92f5c2d07bccea1901556b921d51f7e2000a118e8fa0562751bcf860cfb48"
     },
     {
       "path": "vibe_runtime/crypto.py",
@@ -235,8 +235,8 @@
     },
     {
       "path": "vibe_runtime/positioning_control.py",
-      "bytes": 11018,
-      "sha256": "b3b6c0c558950c55458ab34a39c761d5219eb6a1485e3d22c82c11872ed304e2"
+      "bytes": 15234,
+      "sha256": "cfec91ada94bdd2ba1f5540ff46ea4d492879e84fc6114b7eb45a64418d2c86f"
     },
     {
       "path": "vibe_runtime/project_rules.py",

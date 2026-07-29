@@ -208,6 +208,33 @@ def test_current_controller_relocks_exact_supported_bound_runtime() -> None:
         fixture.close()
 
 
+def test_resolved_compiler_metadata_is_rederived() -> None:
+    fixture = base.Fixture("AUTO_LOCAL_TO_REVIEW")
+    try:
+        control = fixture.root / ".vibe-control"
+        resolved_path = control / "resolved-rule-set.json"
+        resolved = json.loads(resolved_path.read_text(encoding="utf-8"))
+        resolved["compiler"]["version"] = "forged"
+        base.write_json(resolved_path, resolved)
+        lock_path = control / "project-governance-lock.json"
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        lock["resolvedRuleSet"] = _file_ref(fixture.root, resolved_path)
+        base.write_json(lock_path, lock)
+        task_path = control / "task-locks/TASK-001.json"
+        task = json.loads(task_path.read_text(encoding="utf-8"))
+        task["resolvedRuleSet"] = lock["resolvedRuleSet"]
+        task["governanceLock"] = _file_ref(fixture.root, lock_path)
+        base.write_json(task_path, task)
+        base.git(fixture.root, "add", "-A")
+        base.git(fixture.root, "commit", "-m", "forge compiler metadata")
+        result = base.run(sys.executable, str(base.CONTROL), "validate", "--project", str(fixture.root))
+        rejected = base.report(result)
+        failing = {item["id"] for item in rejected.get("integrity", {}).get("checks", []) if item.get("status") != "PASS"}
+        assert result.returncode != 0 and "HC-RULESET-BINDING" in failing, rejected
+    finally:
+        fixture.close()
+
+
 def main() -> int:
     tests = [
         test_commit_and_push_are_real_bounded_side_effects,
@@ -216,6 +243,7 @@ def main() -> int:
         test_hard_failure_and_completed_automation_stop,
         test_dashboard_without_task_is_external_and_self_bound,
         test_current_controller_relocks_exact_supported_bound_runtime,
+        test_resolved_compiler_metadata_is_rederived,
     ]
     results = []
     for test in tests:

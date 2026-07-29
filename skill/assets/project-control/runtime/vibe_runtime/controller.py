@@ -30,7 +30,7 @@ from .automation_control import materialize_policy, policy_scope_binding, verify
 from .package_release import validate_development_package, validate_materialized_receipt, validate_package_release
 from .positioning_control import (
     compile_for_project, compiler_checks, coverage_check, fail_on_compile_issues,
-    positioning_summary, verify_positioning,
+    positioning_summary, rule_compiler_binding, verify_positioning,
 )
 from .project_rules import canonical_rule_bytes
 from .schema import validate_object
@@ -622,15 +622,11 @@ def _rule_input_record(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def _resolved_rule_object(root: Path, p: dict[str, Path], positioning: dict[str, Any], compiled: dict[str, Any]) -> dict[str, Any]:
-    compiler_path = p["runtime"] / "vibe_runtime" / "project_rules.py"
-    runtime_manifest = load_json(p["runtime"] / "runtime-manifest.json")
-    compiler_version = runtime_manifest.get("runtimeVersion") if isinstance(runtime_manifest, dict) else None
-    if not isinstance(compiler_version, str):
-        raise ControlError("HC-RUNTIME-MANIFEST", "bound runtime manifest omits runtimeVersion")
+    compiler = rule_compiler_binding(p["runtime"])
     value = {
         "schemaVersion": SCHEMA_VERSION, "ruleSetId": f"rules-{compiled['canonicalSha256'][:16]}",
         "positioning": content_ref(root, p["positioning"]),
-        "compiler": {"id": "vibe-control-project-rules", "version": compiler_version, "sha256": sha256_file(compiler_path)},
+        "compiler": compiler,
         "canonical": compiled["canonical"], "canonicalSha256": compiled["canonicalSha256"],
         "conflicts": compiled["conflicts"], "warnings": compiled["warnings"], "investigations": compiled["investigations"],
         "installRequests": compiled["installRequests"], "blockers": compiled["blockers"], "canApprove": False, "compiledAt": now_iso(),
@@ -786,7 +782,7 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
     positioning_checks = verify_positioning(root, positioning)
     compiled = compile_for_project(rule_inputs, root, p["runtime"])
     rule_checks = compiler_checks(compiled)
-    binding_ok = resolved["canonicalSha256"] == compiled["canonicalSha256"]
+    binding_ok = resolved["canonicalSha256"] == compiled["canonicalSha256"] and resolved["compiler"] == rule_compiler_binding(p["runtime"])
     rule_checks.append(check("HC-RULESET-BINDING", "PASS" if binding_ok else "INVALIDATED", "resolved rule set matches a fresh compilation" if binding_ok else "rule inputs or runtime catalogs drifted"))
     fail_on_compile_issues([*positioning_checks, *rule_checks])
     intent_cap = release_intent_cap(lock)
@@ -1532,7 +1528,9 @@ def validate(project: Path) -> dict[str, Any]:
         compiled = compile_for_project(rule_inputs, root, p["runtime"])
         checks.extend(compiler_checks(compiled))
         fresh_rule_hash = compiled["canonicalSha256"]
-        checks.append(check("HC-RULESET-BINDING", "PASS" if resolved["canonicalSha256"] == fresh_rule_hash else "INVALIDATED", "resolved rules equal a fresh deterministic compilation" if resolved["canonicalSha256"] == fresh_rule_hash else "positioning/Profile/adapter/Skill/overlay/catalog drift invalidated downstream objects", recordedSha256=resolved["canonicalSha256"], actualSha256=fresh_rule_hash))
+        fresh_compiler = rule_compiler_binding(p["runtime"])
+        rules_match = resolved["canonicalSha256"] == fresh_rule_hash and resolved["compiler"] == fresh_compiler
+        checks.append(check("HC-RULESET-BINDING", "PASS" if rules_match else "INVALIDATED", "resolved rules and compiler identity equal a fresh deterministic compilation" if rules_match else "positioning/Profile/adapter/Skill/overlay/catalog/compiler drift invalidated downstream objects", recordedSha256=resolved["canonicalSha256"], actualSha256=fresh_rule_hash, recordedCompiler=resolved.get("compiler"), actualCompiler=fresh_compiler))
         state_binding_ok = state["positioningId"] == positioning["positioningId"] and state["ruleSetId"] == resolved["ruleSetId"]
         checks.append(check("HC-RULESET-BINDING", "PASS" if state_binding_ok else "FAIL", "state identifies the locked positioning and rule set" if state_binding_ok else "state positioning/rule identity is stale or manually changed"))
         checks.append(coverage_check(compiled, [get_case(catalog, case_id) for case_id in contract["requiredCaseIds"]]))

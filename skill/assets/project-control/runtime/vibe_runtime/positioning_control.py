@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import runpy
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +12,11 @@ from .schema import validate_object
 
 
 _COMPATIBLE_RULE_COMPILERS = {
-    ("0.3.4", "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293"),
+    (
+        "0.3.4",
+        "6152ee606ab1292327df94474d1b6b0eb14a080a00f6622d2e0cd39bc067b293",
+        "ceff3807b3ada16f2668a09f195186ead392f5547097a64ae01b5ae1aeba3fa1",
+    ),
 }
 _COMPILER_PATH = "vibe_runtime/project_rules.py"
 _RULE_CATALOG_PATHS = {
@@ -22,6 +25,58 @@ _RULE_CATALOG_PATHS = {
     "rules/v1/profiles.json",
     "rules/v1/adapters.json",
 }
+
+
+def rule_compiler_binding(runtime_root: Path) -> dict[str, str]:
+    runtime_root = runtime_root.resolve()
+    manifest_path = runtime_root / "runtime-manifest.json"
+    compiler_path = runtime_root / _COMPILER_PATH
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime manifest is unreadable", status="BLOCKED") from exc
+    version = manifest.get("runtimeVersion") if isinstance(manifest, dict) else None
+    if not isinstance(version, str) or compiler_path.is_symlink() or not compiler_path.is_file():
+        raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime compiler identity is incomplete", status="BLOCKED")
+    return {
+        "id": "vibe-control-project-rules",
+        "version": version,
+        "sha256": hashlib.sha256(compiler_path.read_bytes()).hexdigest(),
+    }
+
+
+def _catalog_from_snapshots(namespace: dict[str, Any], snapshots: dict[str, bytes], blockers: list[dict[str, Any]]) -> dict[str, Any]:
+    issue = namespace["_issue"]
+    layers = json.loads(snapshots["rules/v1/layers.json"].decode("utf-8-sig"))
+    core = json.loads(snapshots["rules/v1/core.json"].decode("utf-8-sig"))
+    profiles = json.loads(snapshots["rules/v1/profiles.json"].decode("utf-8-sig"))
+    adapters = json.loads(snapshots["rules/v1/adapters.json"].decode("utf-8-sig"))
+    if not isinstance(layers, dict) or tuple(layers.get("layers", ())) != namespace["LAYERS"]:
+        blockers.append(issue("blocker", "RULE-CATALOG-LAYERS", "versioned layer catalog must declare the six fixed layers"))
+    adapter_items = adapters.get("adapters") if isinstance(adapters, dict) else None
+    resolved_adapters: dict[str, dict[str, Any]] = {}
+    if not isinstance(adapter_items, list):
+        blockers.append(issue("blocker", "RULE-CATALOG-ADAPTERS", "adapter catalog must contain an adapters array"))
+    else:
+        for adapter in adapter_items:
+            if not isinstance(adapter, dict) or not isinstance(adapter.get("id"), str):
+                blockers.append(issue("blocker", "RULE-CATALOG-ADAPTERS", "adapter descriptor is invalid"))
+                continue
+            if adapter.get("canApprove") is not False or not isinstance(adapter.get("evidenceCapabilities"), list) or not isinstance(adapter.get("doesNotProve"), list) or not isinstance(adapter.get("provesCaseCapabilities"), list):
+                blockers.append(issue("blocker", "RULE-CATALOG-ADAPTERS", "adapter descriptor must declare proof limits and canApprove=false", adapter=adapter["id"]))
+                continue
+            resolved_adapters[adapter["id"]] = adapter
+    core_rules = core.get("rules") if isinstance(core, dict) else None
+    profile_items = profiles.get("profiles") if isinstance(profiles, dict) else None
+    if not isinstance(core_rules, list):
+        blockers.append(issue("blocker", "RULE-CATALOG-CORE", "core rule catalog must contain a rules array")); core_rules = []
+    if not isinstance(profile_items, list):
+        blockers.append(issue("blocker", "RULE-CATALOG-PROFILES", "profile catalog must contain a profiles array")); profile_items = []
+    files = [
+        {"path": relative, "sha256": hashlib.sha256(snapshots[relative]).hexdigest()}
+        for relative in ("rules/v1/layers.json", "rules/v1/core.json", "rules/v1/profiles.json", "rules/v1/adapters.json")
+    ]
+    return {"version": "v1", "adapters": resolved_adapters, "coreRules": core_rules, "profiles": profile_items, "files": files}
 
 
 def positioning_summary(value: dict[str, Any]) -> dict[str, Any]:
@@ -70,7 +125,8 @@ def compile_for_project(spec: dict[str, Any], project_root: Path, runtime_root: 
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime manifest is missing or unsafe", status="BLOCKED")
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = json.loads(manifest_bytes.decode("utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime manifest is unreadable", status="BLOCKED") from exc
     version = manifest.get("runtimeVersion") if isinstance(manifest, dict) else None
@@ -82,6 +138,7 @@ def compile_for_project(spec: dict[str, Any], project_root: Path, runtime_root: 
     required_paths = {_COMPILER_PATH, *_RULE_CATALOG_PATHS}
     if not required_paths.issubset(entries):
         raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound runtime manifest omits the compiler or rule catalogs", status="BLOCKED")
+    snapshots: dict[str, bytes] = {}
     for relative in sorted(required_paths):
         path = runtime_root / relative
         if path.is_symlink() or not path.is_file():
@@ -91,22 +148,27 @@ def compile_for_project(spec: dict[str, Any], project_root: Path, runtime_root: 
         except ValueError as exc:
             raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound compiler input escapes its runtime", status="BLOCKED", details={"path": relative}) from exc
         entry = entries[relative]
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        snapshot = path.read_bytes()
+        snapshots[relative] = snapshot
+        actual = hashlib.sha256(snapshot).hexdigest()
         if entry.get("sha256") != actual or entry.get("bytes") != path.stat().st_size:
             raise ControlError("HC-RULE-COMPILER-COMPATIBILITY", "bound compiler input does not match its runtime manifest", status="INVALIDATED", details={"path": relative})
     compiler_hash = entries[_COMPILER_PATH]["sha256"]
-    if (version, compiler_hash) not in _COMPATIBLE_RULE_COMPILERS:
+    manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
+    if (version, compiler_hash, manifest_hash) not in _COMPATIBLE_RULE_COMPILERS:
         raise ControlError(
             "HC-RULE-COMPILER-COMPATIBILITY",
             "the installed controller does not support this bound rule compiler",
             status="BLOCKED",
-            details={"runtimeVersion": version, "compilerSha256": compiler_hash},
+            details={"runtimeVersion": version, "compilerSha256": compiler_hash, "runtimeManifestSha256": manifest_hash},
         )
     try:
-        namespace = runpy.run_path(str(requested_compiler))
+        namespace: dict[str, Any] = {"__name__": "vibe_control_bound_project_rules", "__file__": str(requested_compiler)}
+        exec(compile(snapshots[_COMPILER_PATH], str(requested_compiler), "exec"), namespace)
         legacy_compile = namespace.get("compile_positioning")
         if not callable(legacy_compile):
             raise TypeError("compile_positioning is not callable")
+        namespace["_load_runtime_catalog"] = lambda _runtime_root, blockers: _catalog_from_snapshots(namespace, snapshots, blockers)
         return legacy_compile(spec, project_root, runtime_root)
     except ControlError:
         raise
