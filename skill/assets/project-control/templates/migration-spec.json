@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "3.2",
+  "schemaVersion": "4.0",
   "projectId": "replace-with-project-id",
   "sourceSchemaVersion": "3.1",
   "successSignals": [{"id": "SIG-000000000000", "statement": "replace-with-normalized-old-success-signal"}],

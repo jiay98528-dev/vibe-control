@@ -1,6 +1,6 @@
 {
-  "schemaVersion": "3.2",
-  "runtimeVersion": "0.3.7",
+  "schemaVersion": "4.0",
+  "runtimeVersion": "0.4.0",
   "hashAlgorithm": "sha256",
   "excludes": [
     "runtime-manifest.json",
@@ -10,8 +10,8 @@
   "files": [
     {
       "path": "control.py",
-      "bytes": 3538,
-      "sha256": "3dd8bd119d32743dab07a2f365aa5124089b5162cc16a386926f510e44f77a28"
+      "bytes": 4191,
+      "sha256": "e53a3d05d78d5c882acb6343a3d0463dda0c64901ae0da656bc30126495940cd"
     },
     {
       "path": "dependency-lock.json",
@@ -46,187 +46,207 @@
     {
       "path": "schemas/adapter-invocation.schema.json",
       "bytes": 2580,
-      "sha256": "5ed683abcc4f3558f8232cc3b80f532d4724364db50b283d1153738dca206ee6"
+      "sha256": "05fcad68fbfdf87e9a63c7deb4dbfdcdf4d6533429e6ce23cce3d40707227c9e"
     },
     {
       "path": "schemas/approval-signature.schema.json",
-      "bytes": 1540,
-      "sha256": "1e00281cc675a5b82a896fce12b75cc36e7d75e65e7e72d813c437f297203ac1"
+      "bytes": 1809,
+      "sha256": "f053d12e502d5cd946fb17c78c664817f55eea52e648e2f92a5c4aa9e683c201"
     },
     {
       "path": "schemas/audit-closure.schema.json",
-      "bytes": 1037,
-      "sha256": "b9865ff2388883b3bddfd8c03b8a60e47119f93b78004a3a0af86bad8dbef853"
+      "bytes": 1136,
+      "sha256": "7c56ca20bbf6ee832f1e4e77b4deeb3ab80565ff62cb961edbe11e724c762f72"
     },
     {
       "path": "schemas/automation-policy.schema.json",
-      "bytes": 3696,
-      "sha256": "c0050357371c6581579be8117d04dd2b05cf170ba90def776470a52b15774297"
+      "bytes": 4029,
+      "sha256": "001392fe7e6fad135d3c1c7b525293734c00f4cd1065d1a45457015580ade681"
     },
     {
       "path": "schemas/bootstrap-spec.schema.json",
-      "bytes": 4927,
-      "sha256": "db43bd233fbcf81b02efa546482610a6ea52496d4128a3fccff841c37d16ba62"
+      "bytes": 4907,
+      "sha256": "77402ab91d514a99fabfb69f48e2d7423344ea29179760cd878db4de6e9544f3"
     },
     {
       "path": "schemas/candidate-manifest.schema.json",
-      "bytes": 1493,
-      "sha256": "c9727a8e8ba21bbf9f354146c7802694459193e9f38165dc420b7849344ac79d"
+      "bytes": 1773,
+      "sha256": "73af63fbb747c8e6595d31ca3da2265e20abad9a16752a5acf2a7f4e9fa15a78"
     },
     {
       "path": "schemas/case-catalog.schema.json",
       "bytes": 1745,
-      "sha256": "ea166ef23aff7d4b46b86cfbeb8b19dc470c17fad086764640159c22aaceac30"
+      "sha256": "99d1c47b8539515270f981a20022e396640f8a30ab5e8f83de5328edcb2833ad"
     },
     {
       "path": "schemas/execution-evidence.schema.json",
-      "bytes": 2328,
-      "sha256": "30a00758a42996719ef56775ff483d80df44de3be5069a1f5030d5678bda0f90"
+      "bytes": 2688,
+      "sha256": "f6e51a2f71898793fcc535d973f15d5b335115fc6ca1da7c8bdb5991ad1ad490"
     },
     {
       "path": "schemas/external-evidence-attestation.schema.json",
       "bytes": 276,
-      "sha256": "82ff40d837750099aee9f1d4007012e29562493d60ca7817218c9db9b9fa6219"
+      "sha256": "39db98eaeecbabf86b0f8840868a32e74a4c4f38614a8691a8475e727fdc8538"
     },
     {
       "path": "schemas/external-release-audit.schema.json",
       "bytes": 3401,
-      "sha256": "1c9e2bd8424facad9c2776e85e019d323669fc8382699f408838e8079016d137"
+      "sha256": "61c8870c45a67c5a6f9e6f71b6cf9cf506179adf29a9106f5b1fed8c0d3deb3f"
     },
     {
       "path": "schemas/handoff.schema.json",
-      "bytes": 1246,
-      "sha256": "3c7e096d1aef857b4cefd739bdb29b73ab2cd6725b35342313fe8e5116584d5c"
+      "bytes": 1499,
+      "sha256": "bea838177540c8e121e2aa78e93d92c253461282bf00a8025f2ca04a7dd94df1"
     },
     {
       "path": "schemas/key-objectives-lock.schema.json",
       "bytes": 2085,
-      "sha256": "432d9343eeb29616e5171248e4f4909968aefcdc2886c59ab6a71c427149c006"
+      "sha256": "97f65749a908347f4e8c4ba40bd180a3cb4383cdcf0fa8e7fe000351a812114d"
     },
     {
       "path": "schemas/key-objectives-revision.schema.json",
       "bytes": 1757,
-      "sha256": "2754bc45492ffbb3c12e278a8cf9740703dbaa387a2fb53658f2854eacf730f1"
+      "sha256": "62ba7fb677e07b0aca39a96678cd75253feb60027e4938c05f65f4f73ee300a1"
     },
     {
       "path": "schemas/migration-plan.schema.json",
-      "bytes": 1661,
-      "sha256": "32d1030ac9212663add419e41c9ca4bfb419c9f2d86abfaa5ff19270e14beceb"
+      "bytes": 1630,
+      "sha256": "0da2cf072165572344cb16a2f68988bd8cba922fdd3b8e4390e3fd806fc134c1"
     },
     {
       "path": "schemas/migration-spec.schema.json",
       "bytes": 3458,
-      "sha256": "5f5a3c3d7312c41b7f879983653a5e2435510bf94979f5309e2e83e2527513f0"
+      "sha256": "6a425fb4f15fb50f05c3a867513a8be942555b877e4ad2deb2495d88209100d6"
     },
     {
       "path": "schemas/package-audit-evidence-manifest.schema.json",
       "bytes": 3381,
-      "sha256": "1efe38d7cd4059e7a3266c1e1378098ea5716dcd862ba67ae9f70e8c0179dcd7"
+      "sha256": "4e55367150617510fb73987213c7f0b6160b0cdd86fcdcf41705f1bb269eb24d"
     },
     {
       "path": "schemas/package-audit-receipt.schema.json",
       "bytes": 2452,
-      "sha256": "92da667c10c4d1cea3765a1890c2691664354d8752a785f0d7ff3c587c70b63e"
+      "sha256": "ffc75165503cba2ac7cde5b598a7346aea7d1c4cdb22b3ee2547c5d6ee47a649"
     },
     {
       "path": "schemas/package-audit-report.schema.json",
       "bytes": 2044,
-      "sha256": "3069b5babfd9c427743c6f2040acfa58dfe05bc9fd5e984e3c7772289348a572"
+      "sha256": "cde0a4b05547e1e56e1749a6cbfe76df906193fb4fd1e6ef732e39228e926502"
     },
     {
       "path": "schemas/profile.schema.json",
       "bytes": 870,
-      "sha256": "e99d7732dc2bb9ee1b4040a58835645a50e1d24b6d18b032c37326f131c5fcc3"
+      "sha256": "052c0289f945c4078189fcc8545d41fc618edb510acb91866c3c3a17526cae82"
+    },
+    {
+      "path": "schemas/progress-event.schema.json",
+      "bytes": 1455,
+      "sha256": "13cf560b6bca4cfb14ecc8bdd1b1e083bc0b485783432ebc3fb401505959949b"
+    },
+    {
+      "path": "schemas/progress-plan.schema.json",
+      "bytes": 2747,
+      "sha256": "deccddeb17acced34958cfa2e3825e4cf5831254b23d80ec95010dda61a899d4"
+    },
+    {
+      "path": "schemas/progress-report-packet.schema.json",
+      "bytes": 2263,
+      "sha256": "3ecd85847d31bf4f788ab825c2b318c111239740b461453100c3ad2749a77c55"
     },
     {
       "path": "schemas/project-governance-lock.schema.json",
-      "bytes": 3765,
-      "sha256": "f233a68fa67d59844f56e77ace5401aa486aace719ef5b6c2f07c30c37a80995"
+      "bytes": 3784,
+      "sha256": "4ac1f5bb4f467fa5934b7801ac51c7c75afdaa35035e718071ed10c841cb184d"
     },
     {
       "path": "schemas/project-positioning.schema.json",
       "bytes": 3090,
-      "sha256": "f0f0d1e93f91bc5b879898a5e0fef39e92c12612a8584c53641703aef6788938"
+      "sha256": "8c651235a7292c4afe407f74c12592c91fbd0a57f09684dca88d08d1e746c2b1"
     },
     {
       "path": "schemas/release-receipt.schema.json",
       "bytes": 1486,
-      "sha256": "7edceea2e3536721fb3abbd7dc65660e786f77e0fce4ca02b91aba0945f1bb13"
+      "sha256": "9fb3d0d7125560f3064cdafba39ed51c68da7f2b5133004b2037739d144bce3f"
     },
     {
       "path": "schemas/resolved-rule-set.schema.json",
       "bytes": 2427,
-      "sha256": "a5c0ebc4463d8b9621e9d888cabe8bad935f7768a09acc1dfeb03fbbe8fcd183"
+      "sha256": "c1ecc211326b54ad3cfd375ede78ba88b34b130fc00a7a32f0fdfce57410d77a"
     },
     {
       "path": "schemas/review-attestation.schema.json",
-      "bytes": 4677,
-      "sha256": "4aaa0e6c86b4c5afdd7625532af5d4fec98eacafa382952a0ddc956d07e0b9ad"
+      "bytes": 4974,
+      "sha256": "95c64cad985f4c1c3b1c5bb339ef4011799dae1f0f9d76545a8242cddd159240"
     },
     {
       "path": "schemas/rule-overlay.schema.json",
       "bytes": 1122,
-      "sha256": "1a2b68f875214a5b2ae7a74c4e565cad61f95046d76a3b99105063a03d65d068"
+      "sha256": "c622571228169a90f16bbb5ec0c676d4f47769d3da83494b4fbffba477fe6c61"
     },
     {
       "path": "schemas/skill-binding.schema.json",
       "bytes": 725,
-      "sha256": "ecb0df52b5ae3c3719da707fe1b3286a3a9c3c400dcf5d8aee3193df0d740d33"
+      "sha256": "b91b50357f4af910e06278303cf0a929297fbba5d6956f45e16b9c2954c3331c"
     },
     {
       "path": "schemas/stage-state.schema.json",
       "bytes": 1137,
-      "sha256": "1bd5387a3ba263494a7bc00146246284e6296e6987f6db294534e0727ea147f7"
+      "sha256": "27a8204b1ceccccd0412c0ab6a45f866131450579a094a8841f2743f07fcd49c"
     },
     {
       "path": "schemas/task-contract.schema.json",
-      "bytes": 3894,
-      "sha256": "4aabb3fb75ebcf3817b543a38b2d50d1ae6d26c5693028d1e4492dd86298e2eb"
+      "bytes": 12394,
+      "sha256": "300885c959726f91769fc0861b10b43b107aa30ee4468160fc1bb77e2e9adee2"
     },
     {
       "path": "schemas/task-lock.schema.json",
-      "bytes": 1553,
-      "sha256": "fb0fcb1d94652a249a9c75b0a9b76279b31055828cdb2c8d6b46c521af22c449"
+      "bytes": 1865,
+      "sha256": "841db21adf1ddb850e5c637b119669a93eb9d51853c59bff02178806df9844d5"
+    },
+    {
+      "path": "schemas/task-progress.schema.json",
+      "bytes": 8229,
+      "sha256": "d2163be62b074add2634a4e12a84b9d94ef8bcbc207093859fcf9d9021671112"
     },
     {
       "path": "schemas/upgrade-plan.schema.json",
-      "bytes": 3901,
-      "sha256": "c922e2c50c37819296e662542f7ba913cbbefd4c56e9938da5957620d78c6972"
+      "bytes": 4080,
+      "sha256": "45921da5d8f1698a0bc69d82d370d6be53bcf665fa19a5be57b005aab033c964"
     },
     {
       "path": "schemas/upgrade-spec.schema.json",
-      "bytes": 1062,
-      "sha256": "b5b7342c391a7d325e153ab0b96b6c550d90a9748856f48d10fb852a080c9b28"
+      "bytes": 1440,
+      "sha256": "54620a969b02925da90329c8d348a30136bc93e778a9e9fdec9cbb00583e2339"
     },
     {
       "path": "vibe_runtime/__init__.py",
       "bytes": 73,
-      "sha256": "256e97c7350b63731a3e8a695ed751151bcb64384b49cfa811ed2c1a5a70bd54"
+      "sha256": "4e97c705f9476eb5c532d3d916bcd5d2d67c1290f6d1077e6e268a520867477c"
     },
     {
       "path": "vibe_runtime/automation_control.py",
-      "bytes": 28428,
-      "sha256": "769ca566ec8167dea519db0e5339138ff0ab0e93db5778b75d8f2e74ea8e25b0"
+      "bytes": 41216,
+      "sha256": "3fe18b0596a570b302179a77279362406e9457e8e1846831b0891f481600d5da"
     },
     {
       "path": "vibe_runtime/checkpoint_control.py",
-      "bytes": 19701,
-      "sha256": "2898eb9c6f930ad3760192d6e27eb304b2d4b37c5bb2a2ac29230a3caa5e0343"
+      "bytes": 34106,
+      "sha256": "acda9c729fe269f3cd49f49265fb99d5a886fe8dc090b32868b69f6b3be6e710"
     },
     {
       "path": "vibe_runtime/cli.py",
-      "bytes": 9061,
-      "sha256": "9ada5cf209066cfc215fbefc7bd144306afef1f688083754f37b908cf061f7cc"
+      "bytes": 11143,
+      "sha256": "f53617a1a6102177d883341c33f3e338ea824482aa187ca9253b7a2e5e175087"
     },
     {
       "path": "vibe_runtime/common.py",
-      "bytes": 8639,
-      "sha256": "51f4e9991d3201085dc3ce127186d221e5996d4505bfe02fafd15ac238e4d0ae"
+      "bytes": 11945,
+      "sha256": "ea6c3b96b36330b1a9c18488a1a04b85c739eb7f9637a828fcfe5a8f891b00c1"
     },
     {
       "path": "vibe_runtime/controller.py",
-      "bytes": 192925,
-      "sha256": "6ec2522c2a2ca52328b8541fc7f35c29c51f0ef26fb2ff1c124efb8ca977e29c"
+      "bytes": 203923,
+      "sha256": "a0fdd2461d22634800176cf136893ec4dd3fe6c2a27f89e9a2dd73a25839ae58"
     },
     {
       "path": "vibe_runtime/crypto.py",
@@ -235,18 +255,23 @@
     },
     {
       "path": "vibe_runtime/dashboard.py",
-      "bytes": 44420,
-      "sha256": "e947788da45ecaf00b88b5c2542685c9bb36966f07fe6e6550fcbadf0019a334"
+      "bytes": 79132,
+      "sha256": "2da228bfa976066fd9f304262d8570eae960dd792b560fed7e77fc31ff1b35cc"
     },
     {
       "path": "vibe_runtime/package_release.py",
-      "bytes": 42283,
-      "sha256": "1905812f0ac4bee069b099adb7cb31db8c506f8bf7a81028bcdb414ba4ae1328"
+      "bytes": 42449,
+      "sha256": "58e7aafaa38651c3ae1a8e7615dc343e3d03e854e72d24aa24e7106780d00419"
     },
     {
       "path": "vibe_runtime/positioning_control.py",
-      "bytes": 15794,
-      "sha256": "c1cc8e44ef727804cb8d50ce13e3c4da351da7f9f7f14a6072725e5015cfa200"
+      "bytes": 15877,
+      "sha256": "2c95d69f9b6addbac0bce3957bbf52429401fc9d7168d557ed790707b95e9f79"
+    },
+    {
+      "path": "vibe_runtime/progress.py",
+      "bytes": 45172,
+      "sha256": "92a9ddc9d69ce0d519a8d075d08d9aec4b614915f6b4df00a6c8f6915dc5de64"
     },
     {
       "path": "vibe_runtime/project_rules.py",
@@ -255,13 +280,13 @@
     },
     {
       "path": "vibe_runtime/schema.py",
-      "bytes": 2149,
-      "sha256": "00eb063f41ca0646d3f0ec99012c4f18f5c6ad9bd3730e943fd686b052c9a685"
+      "bytes": 2388,
+      "sha256": "4bae8947021207087e82a2e5ba184de9f2b5f7c207dcd66bf89940e2a2149b05"
     },
     {
       "path": "vibe_runtime/upgrade_control.py",
-      "bytes": 45861,
-      "sha256": "0b897a995622114540d265973ac3d8375a6e4d794679e11cd7795d61aa6a24d8"
+      "bytes": 49748,
+      "sha256": "3ee32b8ebb6a3e9b82a359ff358a4fd0cd5517be2948dde6304eff19d10345d5"
     }
   ]
 }

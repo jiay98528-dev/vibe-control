@@ -3,7 +3,7 @@
   "type": "object", "additionalProperties": false,
   "required": ["schemaVersion", "projectId", "keyObjectives"],
   "properties": {
-    "schemaVersion": {"const": "3.2"}, "projectId": {"type": "string", "minLength": 1},
+    "schemaVersion": {"const": "4.0"}, "projectId": {"type": "string", "minLength": 1},
     "keyObjectives": {
       "type": "object", "additionalProperties": false,
       "required": ["document", "documentId", "revision", "status", "sourceDocuments", "objectiveIds", "failureModeIds", "nonGoalIds", "confirmation"],

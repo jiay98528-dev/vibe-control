@@ -9,6 +9,7 @@ from typing import Any
 
 from . import VERSION
 from .common import (
+    SCHEMA_VERSION,
     ControlError,
     canonical_bytes,
     check,
@@ -26,7 +27,6 @@ from .common import (
     write_json_atomic,
 )
 from .controller import (
-    SCHEMA_VERSION,
     _adapter_binding,
     _guard_v3_control_plane,
     assert_dependencies,
@@ -37,6 +37,7 @@ from .controller import (
     runtime_root,
     validate_adapter_case_contract,
 )
+from .automation_control import default_policy_spec, materialize_policy, policy_scope_binding
 from .package_release import validate_development_package
 from .positioning_control import (
     compile_for_project,
@@ -91,6 +92,38 @@ LOCK_SINGLE_REFS = (
 )
 LOCK_ARRAY_REFS = ("authorityFiles", "skillBindings")
 PACKAGE_REFS = ("packageManifest", "runtimeManifest", "assuranceMatrix")
+
+
+def upgrade_actions(source_schema: str) -> list[str]:
+    actions = [
+        "archive-bound-control-plane",
+        f"install-runtime-{VERSION}",
+        "recompile-rules",
+        "replace-package-binding",
+    ]
+    if source_schema == "3.2":
+        actions.append("convert-schema-3.2-to-4.0")
+    actions.extend(["invalidate-downstream", "reset-diagnostic-state"])
+    return actions
+
+
+def upgrade_automation_policy_spec(
+    source_schema: str,
+    project_id: str,
+    confirmation: dict[str, Any],
+    spec: dict[str, Any],
+    existing_policy: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Select policy semantics at the version boundary before materialization."""
+    if source_schema == "3.2":
+        return default_policy_spec(
+            project_id,
+            confirmation,
+            mode=spec.get("automationMode", "AUTO_LOCAL_TO_REVIEW"),
+        )
+    if existing_policy is not None:
+        return existing_policy
+    return default_policy_spec(project_id, confirmation)
 
 
 def _version_tuple(value: Any) -> tuple[int, int, int]:
@@ -267,14 +300,23 @@ def _target_package() -> tuple[Path, dict[str, Any]]:
     return skill_root, binding
 
 
-def _source_context(project: Path) -> tuple[dict[str, Path], Path, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+def _source_context(project: Path) -> tuple[dict[str, Path], Path, dict[str, Any], dict[str, Any], list[dict[str, Any]], str]:
     p = paths(project)
     root = git_root(p["root"])
-    _guard_v3_control_plane(p)
     lock = load_json(p["lock"])
     catalog = load_json(p["cases"])
-    validate_object("project-governance-lock", lock)
-    validate_object("case-catalog", catalog)
+    source_schema = lock.get("schemaVersion") if isinstance(lock, dict) else None
+    state = load_json(p["state"])
+    if source_schema not in {"3.2", SCHEMA_VERSION} or state.get("schemaVersion") != source_schema or catalog.get("schemaVersion") != source_schema:
+        raise ControlError("HC-UPGRADE-SOURCE-SCHEMA", "runtime upgrade requires one internally consistent Schema 3.2 or 4.0 control plane", status="BLOCKED")
+    if source_schema == SCHEMA_VERSION:
+        _guard_v3_control_plane(p)
+        validate_object("project-governance-lock", lock)
+        validate_object("case-catalog", catalog)
+    else:
+        required_lock = {"projectId", "packageMode", "packageBinding", "runtime", "caseCatalog", "keyObjectives", "positioning", "resolvedRuleSet"}
+        if not required_lock.issubset(lock) or not isinstance(catalog.get("cases"), list):
+            raise ControlError("HC-UPGRADE-SOURCE-SCHEMA", "legacy Schema 3.2 source lacks required lock or case-catalog fields", status="BLOCKED")
     if lock.get("packageMode") != "DEVELOPMENT":
         raise ControlError(
             "HC-UPGRADE-PACKAGE-MODE",
@@ -283,7 +325,7 @@ def _source_context(project: Path) -> tuple[dict[str, Path], Path, dict[str, Any
         )
     _validate_lock_reference_closure(root, lock)
     source_files = _snapshot_files(p["control"])
-    return p, root, lock, catalog, source_files
+    return p, root, lock, catalog, source_files, source_schema
 
 
 def _replacement_catalog(
@@ -307,6 +349,7 @@ def _spec_and_ref(
     project_id: str,
     source_version: str,
     target_version: str,
+    source_schema: str,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, dict[str, Any] | None]:
     spec_path = spec_path.resolve()
     spec_ref = file_ref(root, spec_path)
@@ -326,6 +369,8 @@ def _spec_and_ref(
                 "actualTarget": spec["targetRuntimeVersion"],
             },
         )
+    if spec["sourceSchemaVersion"] != source_schema or spec["targetSchemaVersion"] != SCHEMA_VERSION:
+        raise ControlError("HC-UPGRADE-SPEC-SCHEMA", "upgrade spec does not bind the observed source and target schemas", status="INVALIDATED", details={"expectedSource": source_schema, "actualSource": spec["sourceSchemaVersion"], "expectedTarget": SCHEMA_VERSION, "actualTarget": spec["targetSchemaVersion"]})
     summary_sha = sha256_bytes(spec["confirmation"]["summary"].encode("utf-8"))
     if spec["confirmation"]["summarySha256"] != summary_sha:
         raise ControlError("HC-UPGRADE-CONFIRMATION", "upgrade confirmation summary hash is invalid")
@@ -336,7 +381,7 @@ def _spec_and_ref(
 def upgrade_plan(project: Path, spec_path: Path | None = None) -> dict[str, Any]:
     """Return a read-only, content-bound plan for a same-Schema runtime upgrade."""
     assert_dependencies()
-    p, root, lock, _, source_files = _source_context(project)
+    p, root, lock, _, source_files, source_schema = _source_context(project)
     excluded_ephemeral = _ephemeral_files(p["control"])
     _, target_binding = _target_package()
     source_version = lock["packageBinding"]["version"]
@@ -361,6 +406,7 @@ def upgrade_plan(project: Path, spec_path: Path | None = None) -> dict[str, Any]
             project_id=lock["projectId"],
             source_version=source_version,
             target_version=target_binding["version"],
+            source_schema=source_schema,
         )
 
     source_snapshot_sha = sha256_bytes(canonical_bytes(source_files))
@@ -372,26 +418,21 @@ def upgrade_plan(project: Path, spec_path: Path | None = None) -> dict[str, Any]
     }
     base: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
-        "operation": "runtime-upgrade",
+        "operation": "schema-runtime-upgrade" if source_schema == "3.2" else "runtime-upgrade",
         "planId": f"runtime-{source_version}-to-{target_binding['version']}-{source_snapshot_sha[:12]}",
         "project": str(root),
         "projectId": lock["projectId"],
         "gitHead": git(root, "rev-parse", "HEAD"),
         "sourceRuntimeVersion": source_version,
         "targetRuntimeVersion": target_binding["version"],
+        "sourceSchemaVersion": source_schema,
+        "targetSchemaVersion": SCHEMA_VERSION,
         "sourceSnapshotSha256": source_snapshot_sha,
         "sourcePackageBinding": source_binding,
         "targetPackageBinding": target_binding,
         "spec": spec_ref,
         "replacementCaseCatalog": replacement_ref,
-        "actions": [
-            "archive-bound-control-plane",
-            f"install-runtime-{target_binding['version']}",
-            "recompile-rules",
-            "replace-package-binding",
-            "invalidate-downstream",
-            "reset-diagnostic-state",
-        ],
+        "actions": [value.replace(f"install-runtime-{VERSION}", f"install-runtime-{target_binding['version']}") for value in upgrade_actions(source_schema)],
         "invalidates": INVALIDATES,
         "risk": "R2",
     }
@@ -899,7 +940,7 @@ def upgrade_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str, A
 
 
 def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journal: Path) -> dict[str, Any]:
-    """Atomically replace a Schema 3.2 development runtime and invalidate old facts."""
+    """Atomically upgrade runtime/schema and invalidate every old downstream fact."""
     p = paths(project)
     root = git_root(p["root"])
     staging = root / f".vibe-control.upgrade-{plan_hash[:12]}.tmp"
@@ -917,7 +958,7 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
     if planned["planHash"] != plan_hash:
         raise ControlError("HC-UPGRADE-PLAN-HASH", "runtime upgrade plan hash mismatch", status="INVALIDATED")
 
-    p, root, lock, source_catalog, _ = _source_context(project)
+    p, root, lock, source_catalog, _, source_schema = _source_context(project)
     skill_root, target_binding = _target_package()
     spec, spec_ref, replacement_catalog, _ = _spec_and_ref(
         root,
@@ -925,8 +966,11 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
         project_id=lock["projectId"],
         source_version=planned["sourceRuntimeVersion"],
         target_version=planned["targetRuntimeVersion"],
+        source_schema=source_schema,
     )
     catalog = replacement_catalog if replacement_catalog is not None else source_catalog
+    if source_schema == "3.2":
+        catalog = {**catalog, "schemaVersion": SCHEMA_VERSION}
 
     new_state: dict[str, Any] | None = None
     archive_relative = f"legacy/runtime-upgrade-{plan_hash}"
@@ -964,10 +1008,36 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
         _verify_runtime_inventory(new_runtime)
         (staging / ".gitattributes").write_text(CONTROL_ATTRIBUTES, encoding="utf-8", newline="\n")
 
+        for relative in ("key-objectives-lock.json", "project-positioning.json", "rule-inputs.json"):
+            object_path = staging / relative
+            value = load_json(object_path)
+            if isinstance(value, dict):
+                value["schemaVersion"] = SCHEMA_VERSION
+                write_json_atomic(object_path, value)
         validate_object("case-catalog", catalog)
         write_json_atomic(staging / "case-catalog.json", catalog)
         rule_inputs = load_json(staging / "rule-inputs.json")
         positioning = load_json(staging / "project-positioning.json")
+        key_objectives = load_json(staging / "key-objectives-lock.json")
+        old_policy_path = staging / "automation-policy.json"
+        # Schema 3.2 policy semantics are historical input only.  The 4.0
+        # default is automatic local advancement unless this exact upgrade
+        # confirmation explicitly chooses manual operation. Same-Schema 4.0
+        # upgrades preserve the existing policy.
+        selected_policy = upgrade_automation_policy_spec(
+            source_schema,
+            lock["projectId"],
+            positioning["confirmation"],
+            spec,
+            load_json(old_policy_path) if old_policy_path.is_file() else None,
+        )
+        automation_policy = materialize_policy(
+            root,
+            selected_policy,
+            project_id=lock["projectId"],
+            scope_binding=policy_scope_binding(key_objectives, positioning),
+        )
+        write_json_atomic(old_policy_path, automation_policy)
         # The executing target runtime has already byte-verified the copied
         # bundle above. Compile with that exact implementation instead of
         # routing the newly copied path through the legacy-runtime adapter.
@@ -1015,7 +1085,8 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
 
         new_lock = {
             **lock,
-            "lockId": f"lock-{lock['projectId']}-runtime-{VERSION}",
+            "schemaVersion": SCHEMA_VERSION,
+            "lockId": f"lock-{lock['projectId']}-schema-40-runtime-{VERSION}",
             "packageMode": "DEVELOPMENT",
             "packageBinding": package_binding,
             "skill": _staged_ref(staging, "governance/package-manifest.json"),
@@ -1031,10 +1102,7 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
             "skillBindings": skill_binding_refs,
             "lockedAt": now_iso(),
         }
-        if (staging / "automation-policy.json").is_file():
-            new_lock["automationPolicy"] = _staged_ref(staging, "automation-policy.json")
-        else:
-            new_lock.pop("automationPolicy", None)
+        new_lock["automationPolicy"] = _staged_ref(staging, "automation-policy.json")
         if _version_tuple(target_binding["version"]) >= (0, 3, 7):
             new_lock["evidenceBytePolicy"] = _staged_ref(staging, ".gitattributes")
         else:
@@ -1048,7 +1116,7 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
         write_json_atomic(staging / "stage-state.json", new_state)
         upgrade_record = {
             "schemaVersion": SCHEMA_VERSION,
-            "operation": "runtime-upgrade",
+            "operation": planned["operation"],
             "plan": planned,
             "spec": spec_ref,
             "confirmation": spec["confirmation"],
@@ -1121,6 +1189,6 @@ def _upgrade_apply_locked(project: Path, plan_hash: str, spec_path: Path, journa
             "toVersion": planned["targetRuntimeVersion"],
             "legacy": f".vibe-control/{archive_relative}",
             "invalidated": planned["invalidates"],
-            "next": "commit the runtime upgrade, then create and confirm a fresh Schema 3.2 task",
+            "next": "commit the runtime/schema upgrade, then create and confirm a fresh Schema 4.0 task",
         },
     )

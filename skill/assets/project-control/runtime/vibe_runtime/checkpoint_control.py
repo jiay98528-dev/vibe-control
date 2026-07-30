@@ -1,4 +1,4 @@
-"""Deterministic checkpoint-contract helpers for Schema 3.2."""
+"""Deterministic checkpoint and execution-plan helpers for Schema 4.0."""
 from __future__ import annotations
 
 import re
@@ -10,11 +10,17 @@ from .common import ControlError, canonical_bytes, check, sha256_bytes
 
 
 CLAIMS = ("DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY")
-AUDIT_POLICY = {
-    "mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION",
+DEFAULT_AUDIT_POLICY = {
+    "strategy": "PROJECT_DERIVED",
     "maxExploratoryFindings": 3,
     "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED",
+    "requiredReviewRoles": ["INDEPENDENT_AUDITOR"],
+    "triggerReasons": ["MILESTONE_CANDIDATE_READY"],
 }
+# Historical 3.2 fixture import; current task construction uses the project-derived
+# DEFAULT_AUDIT_POLICY and may replace its roles/triggers/form before locking.
+AUDIT_POLICY = DEFAULT_AUDIT_POLICY
+MAX_EXPLORATORY_FINDINGS = 3
 EXPLORATORY_FINDING_CLASSES = {
     "PROCESS_WARNING", "INVESTIGATION", "FUTURE_PROPOSAL", "OUT_OF_SCOPE",
 }
@@ -22,6 +28,23 @@ MINIMUM_CORE_CONTROL_IDS = {
     "RULE-CORE-OBSERVABLE-CANDIDATE",
     "RULE-CORE-FAILURE-CONSERVATION",
 }
+SCORECARD_WEIGHTS = {
+    "FUNCTIONALITY": 40,
+    "ROBUSTNESS_SECURITY": 25,
+    "AUDIT": 20,
+    "PROCESS": 15,
+}
+GUARD_EFFECTS = {
+    "MUTATION": "ACTION_GUARD",
+    "CLAIM": "CLAIM_GUARD",
+    "PROCESS": "ADVISORY",
+    "HUMAN": "HUMAN_DECISION",
+    "ENVIRONMENT": "ENVIRONMENT_BLOCKED",
+}
+PLAIN_LANGUAGE_FIELDS = (
+    "projectPurpose", "whatWasDone", "whatWorksNow", "whatStillDoesNotWork",
+    "userImpact", "canContinue", "canRelease",
+)
 _SPACE = re.compile(r"\s+")
 
 
@@ -92,6 +115,218 @@ def checkpoint_set_sha256(contract: dict[str, Any]) -> str:
     return sha256_bytes(canonical_bytes(checkpoint_set_payload(contract)))
 
 
+def execution_plan_payload(contract: dict[str, Any]) -> dict[str, Any]:
+    """Return every new 4.0 planning surface that must invalidate downstream facts."""
+    return {
+        "milestones": contract["milestones"],
+        "scorecardPlan": contract["scorecardPlan"],
+        "verificationStrategy": contract["verificationStrategy"],
+        "guardPolicy": contract["guardPolicy"],
+        "reportingPolicy": contract["reportingPolicy"],
+    }
+
+
+def execution_plan_sha256(contract: dict[str, Any]) -> str:
+    return sha256_bytes(canonical_bytes(execution_plan_payload(contract)))
+
+
+def guard_effects(contract: dict[str, Any]) -> dict[str, str]:
+    return {item["scope"]: item["effect"] for item in contract["guardPolicy"]["guards"]}
+
+
+def review_requirement(contract: dict[str, Any]) -> dict[str, Any]:
+    """Return the content-locked review form without deriving it from risk.
+
+    Risk continues to govern irreversible/external actions elsewhere.  The
+    review workflow itself is a project decision captured by both the audit
+    policy and verification strategy, so two tasks at the same risk may choose
+    different, explicit review forms.
+    """
+    policy = contract["auditPolicy"]
+    auditor = contract["verificationStrategy"]["auditor"]
+    return {
+        "required": auditor["required"],
+        "form": auditor["form"],
+        "roles": list(policy["requiredReviewRoles"]),
+        "triggerReasons": list(policy["triggerReasons"]),
+        "stopCondition": policy["stopCondition"],
+    }
+
+
+def execution_plan_checks(contract: dict[str, Any], catalog: dict[str, Any]) -> list[dict[str, Any]]:
+    """Enforce cross-field closure for milestones, scorecards, verification and guards."""
+    checkpoints = {item["id"]: item for item in contract["acceptanceCheckpoints"]}
+    task_objectives = set(contract["objectiveRefs"])
+    task_cases = {item["id"]: item for item in catalog["cases"] if item["id"] in contract["requiredCaseIds"]}
+
+    milestone_ids = {item["id"] for item in contract["milestones"]}
+    if len(milestone_ids) != len(contract["milestones"]):
+        raise ControlError("HC-MILESTONE-CLOSURE", "milestone IDs must be unique")
+    milestone_checkpoint_counts: Counter[str] = Counter()
+    work_node_ids: set[str] = set()
+    work_node_minimum_checks: dict[str, set[str]] = {}
+    dependency_graph: dict[str, set[str]] = {}
+    for milestone in contract["milestones"]:
+        if not set(milestone["objectiveRefs"]).issubset(task_objectives):
+            raise ControlError("HC-MILESTONE-CLOSURE", "milestone objectives exceed the current task")
+        dependencies = set(milestone["dependsOn"])
+        if milestone["id"] in dependencies or not dependencies.issubset(milestone_ids):
+            raise ControlError("HC-MILESTONE-CLOSURE", "milestone dependencies must reference other known milestones")
+        dependency_graph[milestone["id"]] = dependencies
+        for node in milestone["workNodes"]:
+            if node["id"] in work_node_ids:
+                raise ControlError("HC-MILESTONE-CLOSURE", "work-node IDs must be unique across the task")
+            work_node_ids.add(node["id"])
+            work_node_minimum_checks[node["id"]] = set(node["minimumChecks"])
+            outside = sorted(set(node["allowedPaths"]) - set(contract["allowedPaths"]))
+            if outside:
+                raise ControlError("HC-MILESTONE-CLOSURE", "work-node paths must be selected from the task path envelope", details={"workNodeId": node["id"], "outside": outside})
+        unknown = sorted(set(milestone["checkpointIds"]) - set(checkpoints))
+        if unknown:
+            raise ControlError("HC-MILESTONE-CLOSURE", "milestone references unknown checkpoints", details=unknown)
+        for checkpoint_id in milestone["checkpointIds"]:
+            milestone_checkpoint_counts[checkpoint_id] += 1
+            if not set(checkpoints[checkpoint_id]["objectiveRefs"]) & set(milestone["objectiveRefs"]):
+                raise ControlError("HC-MILESTONE-CLOSURE", "milestone and checkpoint do not share a task objective", details={"milestoneId": milestone["id"], "checkpointId": checkpoint_id})
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(milestone_id: str) -> None:
+        if milestone_id in visiting:
+            raise ControlError("HC-MILESTONE-CLOSURE", "milestone dependency graph must be acyclic")
+        if milestone_id in visited:
+            return
+        visiting.add(milestone_id)
+        for dependency in dependency_graph[milestone_id]:
+            visit(dependency)
+        visiting.remove(milestone_id)
+        visited.add(milestone_id)
+
+    for milestone_id in sorted(milestone_ids):
+        visit(milestone_id)
+    bad_milestone_coverage = {
+        checkpoint_id: milestone_checkpoint_counts[checkpoint_id]
+        for checkpoint_id in checkpoints
+        if milestone_checkpoint_counts[checkpoint_id] != 1
+    }
+    if bad_milestone_coverage:
+        raise ControlError("HC-MILESTONE-CLOSURE", "every checkpoint must belong to exactly one milestone", details=bad_milestone_coverage)
+
+    scorecard = contract["scorecardPlan"]
+    if scorecard["weights"] != SCORECARD_WEIGHTS:
+        raise ControlError("HC-SCORECARD-CLOSURE", "scorecard weights must equal the fixed 40/25/20/15 allocation")
+    item_ids: set[str] = set()
+    categories: Counter[str] = Counter()
+    scored_checkpoints: Counter[str] = Counter()
+    for item in scorecard["items"]:
+        if item["id"] in item_ids:
+            raise ControlError("HC-SCORECARD-CLOSURE", "scorecard item IDs must be unique")
+        item_ids.add(item["id"])
+        categories[item["category"]] += 1
+        unknown = sorted(set(item["checkpointIds"]) - set(checkpoints))
+        if unknown:
+            raise ControlError("HC-SCORECARD-CLOSURE", "scorecard item references unknown checkpoints", details=unknown)
+        source_kinds = {source["kind"] for source in item["factSources"]}
+        for source in item["factSources"]:
+            refs = set(source["refs"])
+            if source["kind"] == "CHECKPOINT" and not refs.issubset(checkpoints):
+                raise ControlError("HC-SCORECARD-FACT-SOURCE", "scorecard CHECKPOINT facts reference unknown checkpoints", details=sorted(refs - set(checkpoints)))
+            if source["kind"] == "CASE" and not refs.issubset(task_cases):
+                raise ControlError("HC-SCORECARD-FACT-SOURCE", "scorecard CASE facts reference cases outside the task", details=sorted(refs - set(task_cases)))
+            if source["kind"] == "CORE_CONTROL" and not refs.issubset(MINIMUM_CORE_CONTROL_IDS):
+                raise ControlError("HC-SCORECARD-FACT-SOURCE", "scorecard CORE_CONTROL facts must cite the fixed minimum core", details=sorted(refs - MINIMUM_CORE_CONTROL_IDS))
+        required_kinds = {
+            "FUNCTIONALITY": {"CHECKPOINT", "CASE", "EVIDENCE"},
+            "ROBUSTNESS_SECURITY": {"CASE", "EVIDENCE", "CORE_CONTROL"},
+            "AUDIT": {"REVIEW"},
+            "PROCESS": {"CORE_CONTROL"},
+        }[item["category"]]
+        if not source_kinds & required_kinds:
+            raise ControlError("HC-SCORECARD-FACT-SOURCE", "scorecard category lacks an eligible independent fact source", details={"itemId": item["id"], "category": item["category"], "requiredKinds": sorted(required_kinds), "actualKinds": sorted(source_kinds)})
+        scored_checkpoints.update(item["checkpointIds"])
+    missing_categories = sorted(set(SCORECARD_WEIGHTS) - set(categories))
+    missing_scored = sorted(set(checkpoints) - set(scored_checkpoints))
+    if missing_categories or missing_scored:
+        raise ControlError("HC-SCORECARD-CLOSURE", "scorecard must cover all four categories and every task checkpoint", details={"missingCategories": missing_categories, "missingCheckpoints": missing_scored})
+
+    strategy = contract["verificationStrategy"]
+    eligible_observations = set(strategy["eligibleObservations"])
+    ineligible_cases = sorted(
+        case_id for case_id, case in task_cases.items()
+        if case.get("observation") not in eligible_observations
+    )
+    if ineligible_cases:
+        raise ControlError("HC-VERIFICATION-STRATEGY", "verification strategy excludes a required case observation", details=ineligible_cases)
+    mappings = strategy["checkpointCases"]
+    mapped_ids = [item["checkpointId"] for item in mappings]
+    automated = {item["id"]: set(item["caseIds"]) for item in checkpoints.values() if item["type"] == "AUTOMATED"}
+    mapping_closed = len(mapped_ids) == len(set(mapped_ids)) and set(mapped_ids) == set(automated)
+    if mapping_closed:
+        mapping_closed = all(set(item["caseIds"]) == automated[item["checkpointId"]] for item in mappings)
+    executor_closed = set(strategy["executor"]["caseIds"]) == set(contract["requiredCaseIds"])
+    if not mapping_closed or not executor_closed:
+        raise ControlError("HC-VERIFICATION-STRATEGY", "verification strategy must map every automated checkpoint and executor case exactly", details={"mappedCheckpoints": mapped_ids, "executorCases": strategy["executor"]["caseIds"]})
+    quick_check_ids = {item["id"] for item in strategy["implementer"]["quickChecks"]}
+    assertion_ids = {assertion["id"] for item in checkpoints.values() for assertion in item["assertions"]}
+    known_minimum_checks = quick_check_ids | set(task_cases) | set(checkpoints) | assertion_ids
+    unknown_work_checks = {
+        node_id: sorted(values - known_minimum_checks)
+        for node_id, values in work_node_minimum_checks.items()
+        if values - known_minimum_checks
+    }
+    if len(quick_check_ids) != len(strategy["implementer"]["quickChecks"]) or unknown_work_checks:
+        raise ControlError(
+            "HC-VERIFICATION-STRATEGY",
+            "work-node minimum checks must resolve to unique locked quick checks, cases, checkpoints or assertions",
+            details={"unknownWorkChecks": unknown_work_checks},
+        )
+    review = review_requirement(contract)
+    review_policy_closed = (
+        review["required"] == bool(review["roles"] and review["triggerReasons"])
+        and bool(review["roles"]) == bool(review["triggerReasons"])
+        and strategy["auditor"]["stopCondition"] == review["stopCondition"]
+        and ((review["required"] and review["form"] != "NONE") or (not review["required"] and review["form"] == "NONE"))
+    )
+    if not review_policy_closed:
+        raise ControlError(
+            "HC-VERIFICATION-REVIEW-POLICY",
+            "review requirement, form, roles, triggers and stop condition must describe one locked project workflow",
+            details=review,
+        )
+
+    guards = contract["guardPolicy"]["guards"]
+    scopes = [item["scope"] for item in guards]
+    actual_effects = {item["scope"]: item["effect"] for item in guards}
+    if len(scopes) != len(set(scopes)) or actual_effects != GUARD_EFFECTS:
+        raise ControlError("HC-GUARD-POLICY", "guard policy must bind each fixed scope to its fixed effect", details={"expected": GUARD_EFFECTS, "actual": actual_effects})
+    reporting = contract["reportingPolicy"]
+    reporting_ok = (
+        reporting["orientation"] == "ZERO_CONTEXT_ORIENTATION"
+        and reporting["progressMode"] == "NON_BLOCKING"
+        and reporting["reviewPoint"] == "OWNER_REVIEW"
+        and reporting["plainLanguageFields"] == list(PLAIN_LANGUAGE_FIELDS)
+        and set(reporting["nextActions"]) == {"continue", "repair", "humanReview"}
+        and all(reporting["nextActions"][name] for name in ("continue", "repair", "humanReview"))
+    )
+    if not reporting_ok:
+        raise ControlError("HC-REPORTING-POLICY", "reporting policy must orient a new reader, use seven plain-language fields and provide three next-action classes")
+
+    expected_hash = execution_plan_sha256(contract)
+    actual_hash = contract["checkpointConfirmation"].get("executionPlanSha256")
+    if actual_hash != expected_hash:
+        raise ControlError("HC-EXECUTION-PLAN-HASH", "task confirmation does not bind the complete execution plan", details={"expected": expected_hash, "actual": actual_hash})
+    return [
+        check("HC-MILESTONE-CLOSURE", "PASS", "every checkpoint belongs to one bounded milestone"),
+        check("HC-SCORECARD-CLOSURE", "PASS", "fixed weighted scorecard covers all categories and checkpoints"),
+        check("HC-SCORECARD-FACT-SOURCE", "PASS", "scorecard categories bind distinct eligible fact sources"),
+        check("HC-VERIFICATION-STRATEGY", "PASS", "checkpoint, quick-check, executor and auditor work are explicitly locked"),
+        check("HC-VERIFICATION-REVIEW-POLICY", "PASS", "review form is project-derived and content-locked instead of inferred from risk", required=review["required"], form=review["form"]),
+        check("HC-GUARD-POLICY", "PASS", "guard scopes have fixed action, claim, advisory, human, and environment effects"),
+        check("HC-REPORTING-POLICY", "PASS", "reports orient a new reader and expose three concrete next-action classes"),
+        check("HC-EXECUTION-PLAN-HASH", "PASS", "confirmation binds the complete execution plan", executionPlanSha256=expected_hash),
+    ]
+
+
 def checkpoint_by_id(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {item["id"]: item for item in contract["acceptanceCheckpoints"]}
 
@@ -152,8 +387,13 @@ def checkpoint_contract_checks(
     checkpoint_ids = [item["id"] for item in checkpoints]
     if len(checkpoint_ids) != len(set(checkpoint_ids)):
         raise ControlError("HC-CHECKPOINT-DUPLICATE", "checkpoint IDs must be unique")
-    if contract["auditPolicy"] != AUDIT_POLICY:
-        raise ControlError("HC-AUDIT-STOP-CLOSURE", "task auditPolicy must equal the fixed bounded policy")
+    audit_policy = contract["auditPolicy"]
+    if (
+        audit_policy["strategy"] != "PROJECT_DERIVED"
+        or audit_policy["maxExploratoryFindings"] > MAX_EXPLORATORY_FINDINGS
+        or not audit_policy["stopCondition"].strip()
+    ):
+        raise ControlError("HC-AUDIT-STOP-CLOSURE", "project-derived audit policy exceeds the bounded deterministic core")
 
     signal_ids = {item["id"] for item in positioning["firstVerticalSlice"]["successSignals"]}
     gate_ids = {item["id"] for item in positioning["humanQualityGates"]}
@@ -220,7 +460,8 @@ def checkpoint_contract_checks(
         check("HC-CHECKPOINT-SIGNAL-CLOSURE", "PASS", "every task success signal maps exactly once"),
         check("HC-CHECKPOINT-CASE-CLOSURE", "PASS", "every required case maps to a checkpoint"),
         check("HC-CHECKPOINT-CONFIRMATION", "PASS", "one confirmation binds the checkpoint set", checkpointSetSha256=expected_hash),
-        check("HC-AUDIT-STOP-CLOSURE", "PASS", "task uses the fixed bounded audit policy"),
+        check("HC-AUDIT-STOP-CLOSURE", "PASS", "project-derived audit policy stays inside the bounded deterministic core"),
+        *execution_plan_checks(contract, catalog),
     ]
 
 
@@ -286,6 +527,7 @@ def review_checkpoint_checks(
     exploratory = [item for item in review["findings"] if item["classification"] in EXPLORATORY_FINDING_CLASSES]
     budget_ok = len(exploratory) <= contract["auditPolicy"]["maxExploratoryFindings"]
     checks.append(check("HC-AUDIT-EXPLORATION-BUDGET", "PASS" if budget_ok else "FAIL", "exploratory findings stay within the candidate budget" if budget_ok else "exploratory finding budget exceeded", count=len(exploratory), maximum=contract["auditPolicy"]["maxExploratoryFindings"]))
+    checks.append(check("HC-GUARD-PROCESS", "PASS", "ordinary process findings remain advisory and cannot create a claim blocker", effect=guard_effects(contract)["PROCESS"]))
     return checks
 
 
@@ -298,7 +540,8 @@ def owner_checkpoint_checks(decision: dict[str, Any], contract: dict[str, Any]) 
     unknown = sorted(set(ids) - human)
     rejected = sorted(item["checkpointId"] for item in decisions if item["decision"] == "REJECT")
     closed = not duplicate and not missing and not unknown and not rejected
-    return [check("HC-CHECKPOINT-HUMAN-DECISION", "PASS" if closed else "BLOCKED", "one owner decision closes every applicable human checkpoint" if closed else "human checkpoint decision set is incomplete, duplicated, unknown, or rejected", duplicate=duplicate, missing=missing, unknown=unknown, rejected=rejected)]
+    human_effect = guard_effects(contract)["HUMAN"]
+    return [check("HC-CHECKPOINT-HUMAN-DECISION", "PASS" if closed else "BLOCKED", "one owner decision closes every applicable human checkpoint" if closed else "human checkpoint decision set is incomplete, duplicated, unknown, or rejected", duplicate=duplicate, missing=missing, unknown=unknown, rejected=rejected, effect=human_effect)]
 
 
 def finding_structure_checks(

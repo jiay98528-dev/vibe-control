@@ -15,18 +15,18 @@ from typing import Any
 
 from . import VERSION
 from .common import (
-    ControlError, canonical_bytes, check, clean_status, envelope, file_ref, git,
+    SCHEMA_VERSION, ControlError, canonical_bytes, check, clean_status, envelope, file_ref, git,
     git_root, load_json, now_iso, safe_relative, sha256_bytes, sha256_file,
     verify_dependencies, verify_ref, write_json_atomic,
 )
 from .crypto import verify_signature
 from .checkpoint_control import (
-    AUDIT_POLICY, checkpoint_contract_checks, checkpoint_ids_for_case,
-    checkpoint_set_sha256, evaluate_case_oracle, finding_structure_checks, normalize_statement,
+    DEFAULT_AUDIT_POLICY, checkpoint_contract_checks, checkpoint_ids_for_case,
+    checkpoint_set_sha256, evaluate_case_oracle, execution_plan_sha256, finding_structure_checks, normalize_statement,
     owner_checkpoint_checks, positioning_checkpoint_source_checks,
-    review_checkpoint_checks, statement_id, validate_statement_objects,
+    review_checkpoint_checks, review_requirement, statement_id, validate_statement_objects,
 )
-from .automation_control import materialize_policy, policy_scope_binding, verify_policy
+from .automation_control import default_policy_spec, materialize_policy, policy_scope_binding, verify_policy
 from .package_release import validate_development_package, validate_materialized_receipt, validate_package_release
 from .positioning_control import (
     compile_for_project, compiler_checks, coverage_check, fail_on_compile_issues,
@@ -37,7 +37,6 @@ from .schema import validate_object
 
 PHASES = ["DRAFT", "CONTRACT_LOCKED", "IMPLEMENTING", "CANDIDATE_FROZEN", "VERIFIED", "AUDITED", "ACCEPTED", "RELEASE_READY"]
 CLAIMS = ["DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY"]
-SCHEMA_VERSION = "3.2"
 ADAPTER_TOOL_PROBE_TIMEOUT_SECONDS = 180
 SAFE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 OBJECTIVE_ID = re.compile(r"\b(?:KO|KF|NG)-[A-Z0-9][A-Z0-9._-]*\b")
@@ -63,9 +62,18 @@ REQUIRED_ASSURANCE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
     "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
     "CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036",
+    "CTRL-CONFIRMED-037", "CTRL-CONFIRMED-038", "CTRL-CONFIRMED-039",
+    "CTRL-CONFIRMED-040", "CTRL-CONFIRMED-041", "CTRL-CONFIRMED-042",
+    "CTRL-CONFIRMED-043",
 })
 def required_assurance_control_ids(package_version: str) -> frozenset[str]:
-    confirmed_ceiling = {"0.3.4": 29, "0.3.5": 30, "0.3.6": 33}.get(package_version, 36)
+    confirmed_ceiling = {
+        "0.3.4": 29,
+        "0.3.5": 30,
+        "0.3.6": 33,
+        "0.3.7": 36,
+        "0.4.0": 43,
+    }.get(package_version, 43)
     return frozenset(
         item for item in REQUIRED_ASSURANCE_CONTROL_IDS
         if not item.startswith("CTRL-CONFIRMED-") or int(item.rsplit("-", 1)[1]) <= confirmed_ceiling
@@ -353,8 +361,10 @@ def _guard_v3_control_plane(p: dict[str, Path], *, allow_missing: bool = False) 
                 validate_object(kind, value)
             if value.get("schemaVersion") != SCHEMA_VERSION:
                 if value.get("schemaVersion") == "3.1":
-                    raise ControlError("VC-MIGRATION-REQUIRED", "Schema 3.1 control planes remain pinned until migrate --plan establishes a recoverable Schema 3.2 conversion", status="BLOCKED")
-                raise ControlError("VC-REINSTALL-REQUIRED", "only Schema 3.1 has a supported automatic migration path; older control planes require a fresh bootstrap", status="BLOCKED")
+                    raise ControlError("VC-MIGRATION-REQUIRED", "Schema 3.1 control planes remain pinned until migrate --plan establishes a recoverable Schema 4.0 conversion", status="BLOCKED")
+                if value.get("schemaVersion") == "3.2":
+                    raise ControlError("VC-UPGRADE-REQUIRED", "Schema 3.2 control planes require the deterministic upgrade --plan/--apply path before Schema 4.0 commands can run", status="BLOCKED")
+                raise ControlError("VC-REINSTALL-REQUIRED", "unsupported control-plane schema requires a fresh bootstrap", status="BLOCKED")
             if kind == "project-governance-lock":
                 validate_object(kind, value)
                 governance_lock = value
@@ -748,12 +758,11 @@ def _resolved_rule_object(root: Path, p: dict[str, Path], positioning: dict[str,
 def resolve_rules(project: Path, spec_path: Path) -> dict[str, Any]:
     assert_dependencies(); p = paths(project); root = git_root(p["root"])
     spec = load_json(spec_path.resolve())
-    if not isinstance(spec, dict) or "automationPolicy" not in spec:
-        raise ControlError("HC-AUTOMATION-POLICY-REQUIRED", "new projects must explicitly select an automation advancement mode")
     validate_object("bootstrap-spec", spec)
     objective_lock = _key_objectives_from_spec(root, spec)
     positioning = _positioning_from_spec(root, spec)
-    policy = materialize_policy(root, spec["automationPolicy"], project_id=spec["projectId"], scope_binding=policy_scope_binding(objective_lock, positioning))
+    policy_spec = spec.get("automationPolicy") or default_policy_spec(spec["projectId"], spec["confirmation"])
+    policy = materialize_policy(root, policy_spec, project_id=spec["projectId"], scope_binding=policy_scope_binding(objective_lock, positioning))
     compiled = compile_for_project(spec, root, runtime_root())
     checks = key_objective_checks(root, objective_lock) + positioning_checkpoint_source_checks(positioning) + verify_positioning(root, positioning) + compiler_checks(compiled)
     try:
@@ -794,12 +803,11 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
         if package_release.get("formalClaimsAllowed") is not True:
             raise ControlError("HC-PACKAGE-AUDIT-CLOSURE", "the installed sealed Skill package is not bound to an exact independently audited release candidate", status="BLOCKED" if package_release.get("status") == "BLOCKED" else "FAIL", details={"readiness": package_release.get("readiness"), "blockers": package_release.get("blockers", [])})
     spec = load_json(spec_path.resolve())
-    if not isinstance(spec, dict) or "automationPolicy" not in spec:
-        raise ControlError("HC-AUTOMATION-POLICY-REQUIRED", "new projects must explicitly select an automation advancement mode")
     validate_object("bootstrap-spec", spec)
     objective_lock = _key_objectives_from_spec(root, spec)
     positioning = _positioning_from_spec(root, spec)
-    automation_policy = materialize_policy(root, spec["automationPolicy"], project_id=spec["projectId"], scope_binding=policy_scope_binding(objective_lock, positioning))
+    policy_spec = spec.get("automationPolicy") or default_policy_spec(spec["projectId"], spec["confirmation"])
+    automation_policy = materialize_policy(root, policy_spec, project_id=spec["projectId"], scope_binding=policy_scope_binding(objective_lock, positioning))
     compiled = compile_for_project(spec, root, runtime_root())
     compile_checks = compiler_checks(compiled); fail_on_compile_issues(compile_checks)
     catalog = _catalog_from_spec(spec, compiled)
@@ -846,7 +854,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
     if "commit" in binding and "tree" in binding:
         package_binding.update({"commit": binding["commit"], "tree": binding["tree"]})
     lock = {
-        "schemaVersion": SCHEMA_VERSION, "lockId": f"lock-{spec['projectId']}-v32", "projectId": spec["projectId"],
+        "schemaVersion": SCHEMA_VERSION, "lockId": f"lock-{spec['projectId']}-v40", "projectId": spec["projectId"],
         "packageMode": package_mode, "packageBinding": package_binding,
         "skill": content_ref(root, p["governance"] / "package-manifest.json"), "runtime": content_ref(root, p["runtime"] / "runtime-manifest.json"),
         "keyObjectives": content_ref(root, p["key_objectives"]), "automationPolicy": content_ref(root, p["automation_policy"]), "caseCatalog": content_ref(root, p["cases"]),
@@ -862,7 +870,7 @@ def bootstrap(project: Path, spec_path: Path) -> dict[str, Any]:
     validate_object("project-governance-lock", lock); assert_trusted_key_separation(lock); write_json_atomic(p["lock"], lock)
     write_json_atomic(p["state"], initial_state(spec["projectId"], positioning["positioningId"], resolved["ruleSetId"]))
     package_cap = "DEVELOPMENT_CHECKED" if package_mode == "DEVELOPMENT" else RELEASE_INTENT_CAPS[positioning["releaseIntent"]]
-    return envelope(status="BLOCKED", checks=[*key_objective_checks(root, objective_lock), *positioning_checkpoint_source_checks(positioning), *verify_positioning(root, positioning), *compile_checks, check("HC-AUTOMATION-POLICY", "PASS", "explicit automation advancement mode is content-bound"), check("HC-RULE-CASE-COVERAGE", "PASS", "fixed cases cover every applicable rule"), check("VC-BOOTSTRAP-COMMIT-REQUIRED", "BLOCKED", "commit generated Schema 3.2 control files before lock-task")], data={"created": str(p["control"]), "packageMode": package_mode, "releaseIntent": positioning["releaseIntent"], "automationMode": automation_policy["mode"], "maxClaimLevel": package_cap, "positioningId": positioning["positioningId"], "ruleSetId": resolved["ruleSetId"], "warnings": compiled["warnings"], "investigations": compiled["investigations"], "next": "commit-and-lock-task"})
+    return envelope(status="BLOCKED", checks=[*key_objective_checks(root, objective_lock), *positioning_checkpoint_source_checks(positioning), *verify_positioning(root, positioning), *compile_checks, check("HC-AUTOMATION-POLICY", "PASS", "automatic local advancement is the bound default unless the project explicitly selects another mode"), check("HC-RULE-CASE-COVERAGE", "PASS", "fixed cases cover every applicable rule"), check("VC-BOOTSTRAP-COMMIT-REQUIRED", "BLOCKED", "commit generated Schema 4.0 control files before lock-task")], data={"created": str(p["control"]), "packageMode": package_mode, "releaseIntent": positioning["releaseIntent"], "automationMode": automation_policy["mode"], "maxClaimLevel": package_cap, "positioningId": positioning["positioningId"], "ruleSetId": resolved["ruleSetId"], "warnings": compiled["warnings"], "investigations": compiled["investigations"], "next": "commit-and-lock-task"})
 
 
 def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
@@ -907,6 +915,13 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
         raise ControlError("HC-EXTERNAL-RELEASE-R3", "EXTERNAL_RELEASE requires an R3 task before RELEASE_READY")
     if requires_external_release_crypto(lock, contract):
         require_r3_trusted_keys(lock)
+        required_review = review_requirement(contract)
+        if not required_review["required"] or required_review["form"] != "FRESH_INDEPENDENT_REVIEW":
+            raise ControlError(
+                "HC-R3-REVIEW-POLICY",
+                "external R3 release requires a locked fresh independent review workflow",
+                details=required_review,
+            )
     catalog = load_json(p["cases"]); validate_object("case-catalog", catalog)
     known = {item["id"] for item in catalog["cases"]}
     missing = sorted(set(contract["requiredCaseIds"]) - known)
@@ -921,6 +936,7 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
     authorities = [file_ref(root, safe_relative(root, value)) for value in contract["authorityRefs"]]
     checkpoint_confirmation_ref = file_ref(root, safe_relative(root, contract["checkpointConfirmation"]["record"]))
     checkpoint_hash = checkpoint_set_sha256(contract)
+    execution_hash = execution_plan_sha256(contract)
     head = git(root, "rev-parse", "HEAD")
     applicable_rule_ids = sorted(item["id"] for item in compiled["canonical"]["layers"])
     required_capabilities = sorted({capability for item in compiled["canonical"]["layers"] for capability in item["rule"].get("caseCapabilities", [])})
@@ -930,7 +946,8 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
         "keyObjectives": file_ref(root, p["key_objectives"]),
         "positioning": file_ref(root, p["positioning"]), "resolvedRuleSet": file_ref(root, p["resolved_rules"]),
         "authorityBindings": authorities, "applicableRuleIds": applicable_rule_ids, "requiredCaseCapabilities": required_capabilities,
-        "checkpointSetSha256": checkpoint_hash, "checkpointConfirmation": checkpoint_confirmation_ref,
+        "checkpointSetSha256": checkpoint_hash, "executionPlanSha256": execution_hash,
+        "checkpointConfirmation": checkpoint_confirmation_ref,
         "baselineCommit": head, "baselineTree": git(root, "show", "-s", "--format=%T", head), "lockedAt": now_iso(),
     }
     if automation_ref is not None:
@@ -938,7 +955,7 @@ def lock_task(project: Path, contract_path: Path) -> dict[str, Any]:
     validate_object("task-lock", task_lock)
     output = p["task_locks"] / f"{contract['taskId']}.json"; write_json_atomic(output, task_lock)
     state = transition(p, "CONTRACT_LOCKED", "CLEAR", "DEVELOPMENT_CHECKED", "task contract locked", task_id=contract["taskId"])
-    return envelope(status="PASS", checks=[*objective_checks, *source_checks, *positioning_checks, *rule_checks, *checkpoint_checks, task_coverage, check("HC-TASK-OBJECTIVE-CLOSURE", "PASS", "task references current actionable objectives"), check("HC-TASK-LOCK", "PASS", "task inputs, objectives, positioning, checkpoints and rules locked")], state={"declared": state, "derived": state}, data={"taskLock": str(output), "objectiveRefs": contract["objectiveRefs"], "checkpointSetSha256": checkpoint_hash, "packageMode": lock["packageMode"], "releaseIntent": lock["releaseIntent"], "releaseIntentMaxClaimLevel": intent_cap, "applicableRuleIds": applicable_rule_ids, "requiredCaseCapabilities": required_capabilities})
+    return envelope(status="PASS", checks=[*objective_checks, *source_checks, *positioning_checks, *rule_checks, *checkpoint_checks, task_coverage, check("HC-TASK-OBJECTIVE-CLOSURE", "PASS", "task references current actionable objectives"), check("HC-TASK-LOCK", "PASS", "task inputs, objectives, milestones, scorecard, guards, checkpoints and rules locked")], state={"declared": state, "derived": state}, data={"taskLock": str(output), "objectiveRefs": contract["objectiveRefs"], "checkpointSetSha256": checkpoint_hash, "executionPlanSha256": execution_hash, "packageMode": lock["packageMode"], "releaseIntent": lock["releaseIntent"], "releaseIntentMaxClaimLevel": intent_cap, "applicableRuleIds": applicable_rule_ids, "requiredCaseCapabilities": required_capabilities})
 
 
 def path_matches(path: str, pattern: str) -> bool:
@@ -980,6 +997,8 @@ def freeze(project: Path, actor_id: str, session_id: str, contract_path: Path | 
         raise ControlError("HC-FREEZE-PATH-ENVELOPE", "Git diff escapes the task path envelope", details={"forbidden": forbidden, "outsideAllowed": outside})
     if task_lock["checkpointSetSha256"] != checkpoint_set_sha256(contract):
         raise ControlError("HC-CHECKPOINT-HASH", "checkpoint set drifted after task lock", status="INVALIDATED")
+    if task_lock["executionPlanSha256"] != execution_plan_sha256(contract):
+        raise ControlError("HC-EXECUTION-PLAN-HASH", "execution plan drifted after task lock", status="INVALIDATED")
     bindings = [task_lock["contract"], task_lock["governanceLock"], task_lock["keyObjectives"], task_lock["caseCatalog"], task_lock["positioning"], task_lock["resolvedRuleSet"], task_lock["checkpointConfirmation"], *task_lock["authorityBindings"]]
     if "automationPolicy" in task_lock:
         bindings.append(task_lock["automationPolicy"])
@@ -992,7 +1011,7 @@ def freeze(project: Path, actor_id: str, session_id: str, contract_path: Path | 
         "taskLock": file_ref(root, task_lock_path), "commit": head, "tree": git(root, "show", "-s", "--format=%T", head),
         "keyObjectives": task_lock["keyObjectives"], "requirementSources": load_json(p["key_objectives"])["sourceDocuments"],
         "positioning": task_lock["positioning"], "resolvedRuleSet": task_lock["resolvedRuleSet"],
-        "checkpointSetSha256": task_lock["checkpointSetSha256"],
+        "checkpointSetSha256": task_lock["checkpointSetSha256"], "executionPlanSha256": task_lock["executionPlanSha256"],
         "implementer": {"actorId": actor_id, "sessionId": session_id}, "changedPaths": product, "inputBindings": bindings, "frozenAt": now_iso(),
     }
     if "automationPolicy" in task_lock:
@@ -1036,6 +1055,8 @@ def current_objects(p: dict[str, Path]) -> tuple[dict[str, Any], dict[str, Any],
     checkpoint_contract_checks(contract, positioning, catalog, release_intent_cap(lock))
     if task_lock["checkpointSetSha256"] != checkpoint_set_sha256(contract):
         raise ControlError("HC-CHECKPOINT-HASH", "task-lock checkpoint hash differs from the current contract", status="INVALIDATED")
+    if task_lock["executionPlanSha256"] != execution_plan_sha256(contract):
+        raise ControlError("HC-EXECUTION-PLAN-HASH", "task-lock execution-plan hash differs from the current contract", status="INVALIDATED")
     return state, lock, catalog, task_lock, contract
 
 
@@ -1247,7 +1268,17 @@ def execution_result(outputs: list[str], results: list[str], cleanup_error: Cont
     checks = [check("HC-EXECUTE", status, "controller executed requested cases with conserved results")]
     if cleanup_error is not None:
         checks.append(check(cleanup_error.check_id, cleanup_error.status, cleanup_error.message, details=cleanup_error.details))
-    return envelope(status=status, checks=checks, data={"evidence": outputs, "next": "commit evidence and validate"})
+    return envelope(
+        status=status, checks=checks, data={"evidence": outputs, "next": "repair inside the locked contract and execute again" if status == "FAIL" else "commit evidence and validate"},
+        plain_language={
+            "whatWasDone": "已执行锁定的候选检查，并原样保存结果。",
+            "whatWorksNow": "通过的检查只证明其各自覆盖到的候选行为。",
+            "whatStillDoesNotWork": "至少一项执行结果仍未达到预设通过条件。" if status == "FAIL" else "未覆盖的检查和人工判断仍不算完成。",
+            "userImpact": "失败不会被包装成通过；可在原合同范围内修复后重新执行。" if status == "FAIL" else "可以继续提交证据并进入同源验证。",
+            "canContinue": "可以在原合同范围内修复后重新执行。",
+            "canRelease": "所需检查尚未全部通过，现在不能作为最终版本交付。",
+        },
+    )
 
 
 def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] | None) -> dict[str, Any]:
@@ -1334,6 +1365,7 @@ def execute(project: Path, actor_id: str, session_id: str, case_ids: list[str] |
                 "positioning": candidate["positioning"], "resolvedRuleSet": candidate["resolvedRuleSet"],
                 "caseId": case_id, "caseHash": sha256_bytes(canonical_bytes(case)), "oracleHash": sha256_bytes(canonical_bytes(case["oracle"])),
                 "inputHash": sha256_bytes(canonical_bytes(candidate["inputBindings"])), "checkpointSetSha256": candidate["checkpointSetSha256"],
+                "executionPlanSha256": candidate["executionPlanSha256"],
                 "checkpointIds": checkpoint_ids_for_case(contract, case_id), "executor": {"actorId": actor_id, "sessionId": session_id},
                 "observation": "runtime-observed", "adapter": adapter, "capabilitiesObserved": case["capabilities"],
                 "adapterInvocation": content_ref(root, invocation_path), "command": case["command"], "startedAt": started, "finishedAt": finished, "exitCode": run.returncode,
@@ -1391,7 +1423,7 @@ def ingest(project: Path, attestation_path: Path) -> dict[str, Any]:
     assert_candidate_case_lifecycle([case])
     if case["observation"] != "blackbox-observed" or evidence["observation"] != "blackbox-observed":
         raise ControlError("HC-CASE-OBSERVATION-ELIGIBILITY", "external evidence must cover a blackbox-observed case")
-    if evidence["taskId"] != contract["taskId"] or evidence["candidateId"] != candidate["candidateId"] or evidence["candidateCommit"] != candidate["commit"] or ref_key(evidence["positioning"]) != ref_key(candidate["positioning"]) or ref_key(evidence["resolvedRuleSet"]) != ref_key(candidate["resolvedRuleSet"]):
+    if evidence["taskId"] != contract["taskId"] or evidence["candidateId"] != candidate["candidateId"] or evidence["candidateCommit"] != candidate["commit"] or evidence["executionPlanSha256"] != candidate["executionPlanSha256"] or ref_key(evidence["positioning"]) != ref_key(candidate["positioning"]) or ref_key(evidence["resolvedRuleSet"]) != ref_key(candidate["resolvedRuleSet"]):
         raise ControlError("HC-CASE-PROVENANCE", "external evidence identity does not match current candidate")
     if not evidence.get("externalTranscript") or not evidence.get("toolVersion") or not evidence.get("operation"):
         raise ControlError("HC-ADAPTER-CAPABILITY", "external/MCP evidence requires tool version, operation and raw external transcript")
@@ -1428,6 +1460,7 @@ def _current_audit_closure(p: dict[str, Path], contract: dict[str, Any], candida
         and value["candidateId"] == candidate["candidateId"]
         and value["candidateCommit"] == candidate["commit"]
         and value["checkpointSetSha256"] == candidate["checkpointSetSha256"]
+        and value["executionPlanSha256"] == candidate["executionPlanSha256"]
     )
     if not bound:
         raise ControlError("HC-AUDIT-STOP-CLOSURE", "audit closure record does not bind the current candidate", status="INVALIDATED")
@@ -1441,8 +1474,15 @@ def audit(project: Path, review_path: Path) -> dict[str, Any]:
     if state["phase"] != "VERIFIED":
         raise ControlError("HC-AUDIT-PHASE", "audit requires VERIFIED state", status="BLOCKED")
     review = load_json(review_path.resolve()); validate_object("review-attestation", review)
+    required_review = review_requirement(contract)
+    if review["reviewForm"] != required_review["form"] or set(review["reviewRoles"]) != set(required_review["roles"]):
+        raise ControlError(
+            "HC-REVIEW-POLICY-BINDING",
+            "review form and roles do not match the current task policy",
+            details={"expected": required_review, "actualForm": review["reviewForm"], "actualRoles": review["reviewRoles"]},
+        )
     require_identifier(review["reviewId"], "reviewId")
-    if (review["taskId"], review["candidateId"], review["candidateCommit"]) != (contract["taskId"], candidate["candidateId"], candidate["commit"]) or review["checkpointSetSha256"] != candidate["checkpointSetSha256"] or ref_key(review["keyObjectives"]) != ref_key(candidate["keyObjectives"]) or ref_key(review["positioning"]) != ref_key(candidate["positioning"]) or ref_key(review["resolvedRuleSet"]) != ref_key(candidate["resolvedRuleSet"]):
+    if (review["taskId"], review["candidateId"], review["candidateCommit"]) != (contract["taskId"], candidate["candidateId"], candidate["commit"]) or review["checkpointSetSha256"] != candidate["checkpointSetSha256"] or review["executionPlanSha256"] != candidate["executionPlanSha256"] or ref_key(review["keyObjectives"]) != ref_key(candidate["keyObjectives"]) or ref_key(review["positioning"]) != ref_key(candidate["positioning"]) or ref_key(review["resolvedRuleSet"]) != ref_key(candidate["resolvedRuleSet"]):
         raise ControlError("HC-REVIEW-CANDIDATE-BINDING", "review does not bind current candidate")
     closure_path, closure = _current_audit_closure(p, contract, candidate)
     if closure is not None:
@@ -1475,6 +1515,7 @@ def audit(project: Path, review_path: Path) -> dict[str, Any]:
                 "closureId": f"audit-closure-{candidate['candidateId']}",
                 "taskId": contract["taskId"], "candidateId": candidate["candidateId"],
                 "candidateCommit": candidate["commit"], "checkpointSetSha256": candidate["checkpointSetSha256"],
+                "executionPlanSha256": candidate["executionPlanSha256"],
                 "reason": "EXPLORATION_BUDGET_EXHAUSTED", "reviewId": review["reviewId"],
                 "reviewSha256": sha256_file(review_path.resolve()),
                 "findingIds": [item["id"] for item in exploratory], "closedAt": now_iso(),
@@ -1497,7 +1538,8 @@ def audit(project: Path, review_path: Path) -> dict[str, Any]:
     executors = {(item["executor"]["actorId"], item["executor"]["sessionId"]) for item in evidence}
     auditor = (review["auditor"]["actorId"], review["auditor"]["sessionId"])
     implementer = (candidate["implementer"]["actorId"], candidate["implementer"]["sessionId"])
-    if auditor in executors or auditor == implementer or review["auditor"]["actorId"] == candidate["implementer"]["actorId"]:
+    independence_required = required_review["form"] == "FRESH_INDEPENDENT_REVIEW" or requires_external_release_crypto(lock, contract)
+    if independence_required and (auditor in executors or auditor == implementer or review["auditor"]["actorId"] == candidate["implementer"]["actorId"]):
         raise ControlError("HC-REVIEW-INDEPENDENCE", "auditor must be distinct from implementer and executors")
     objective_lock = load_json(p["key_objectives"])
     finding_checks = review_finding_checks(p["root"], review, objective_lock, "VERIFIED", contract)
@@ -1509,8 +1551,8 @@ def audit(project: Path, review_path: Path) -> dict[str, Any]:
         required=requires_external_release_crypto(lock, contract), check_id="HC-AUDITOR-SIGNATURE",
     )
     output = p["reviews"] / f"{review['reviewId']}.json"; write_json_atomic(output, review)
-    new_state = transition(p, "AUDITED", "CLEAR", "VERIFIED", "independent review accepted")
-    return envelope(status="PASS", checks=[*checkpoint_checks, *finding_checks, check("HC-REVIEW-REQUIRED", "PASS", "candidate-bound independent review accepted")], state={"declared": new_state, "derived": new_state}, data={"review": str(output)})
+    new_state = transition(p, "AUDITED", "CLEAR", "VERIFIED", "project-derived review accepted")
+    return envelope(status="PASS", checks=[*checkpoint_checks, *finding_checks, check("HC-PROJECT-REVIEW-GATE", "PASS", "candidate-bound project review accepted", reviewForm=required_review["form"], roles=required_review["roles"])], state={"declared": new_state, "derived": new_state}, data={"review": str(output)})
 
 
 def accept(project: Path, decision_path: Path) -> dict[str, Any]:
@@ -1519,18 +1561,24 @@ def accept(project: Path, decision_path: Path) -> dict[str, Any]:
         raise ControlError("HC-DEVELOPMENT-PACKAGE-CLAIM-CAP", "development package cannot advance a project to ACCEPTED", status="BLOCKED")
     if state["phase"] != "AUDITED":
         raise ControlError("HC-ACCEPT-PHASE", "accept requires AUDITED state", status="BLOCKED")
+    required_review = review_requirement(contract)
     review_paths = sorted(p["reviews"].glob("*.json"))
-    if not review_paths:
+    if required_review["required"] and not review_paths:
         raise ControlError("HC-REVIEW-REQUIRED", "accept requires the current candidate review", status="BLOCKED")
-    review = load_json(review_paths[-1]); validate_object("review-attestation", review)
-    finding_checks = review_finding_checks(p["root"], review, load_json(p["key_objectives"]), "ACCEPTED", contract)
+    if review_paths:
+        review = load_json(review_paths[-1]); validate_object("review-attestation", review)
+        if review["reviewForm"] != required_review["form"] or set(review["reviewRoles"]) != set(required_review["roles"]):
+            raise ControlError("HC-REVIEW-POLICY-BINDING", "review form and roles do not match the current task policy")
+        finding_checks = review_finding_checks(p["root"], review, load_json(p["key_objectives"]), "ACCEPTED", contract)
+    else:
+        finding_checks = [check("HC-PROJECT-REVIEW-GATE", "PASS", "the locked project strategy does not require a review before owner decision")]
     if any(item["status"] != "PASS" for item in finding_checks):
         first = next(item for item in finding_checks if item["status"] != "PASS")
         raise ControlError(first["id"], first["message"], status=first["status"], details=first.get("details"))
     decision_source = decision_path.resolve()
     decision = load_json(decision_source); validate_object("approval-signature", decision)
     require_identifier(decision["decisionId"], "decisionId")
-    if (decision["taskId"], decision["candidateId"], decision["candidateCommit"]) != (contract["taskId"], candidate["candidateId"], candidate["commit"]) or decision["checkpointSetSha256"] != candidate["checkpointSetSha256"] or ref_key(decision["positioning"]) != ref_key(candidate["positioning"]) or ref_key(decision["resolvedRuleSet"]) != ref_key(candidate["resolvedRuleSet"]):
+    if (decision["taskId"], decision["candidateId"], decision["candidateCommit"]) != (contract["taskId"], candidate["candidateId"], candidate["commit"]) or decision["checkpointSetSha256"] != candidate["checkpointSetSha256"] or decision["executionPlanSha256"] != candidate["executionPlanSha256"] or ref_key(decision["positioning"]) != ref_key(candidate["positioning"]) or ref_key(decision["resolvedRuleSet"]) != ref_key(candidate["resolvedRuleSet"]):
         raise ControlError("HC-DECISION-CANDIDATE-BINDING", "decision does not bind current candidate")
     checkpoint_decision_checks = owner_checkpoint_checks(decision, contract)
     if any(item["status"] != "PASS" for item in checkpoint_decision_checks):
@@ -1775,7 +1823,7 @@ def assurance_matrix_checks(p: dict[str, Path]) -> list[dict[str, Any]]:
             receipt = load_json(p["package_receipt"])
             try:
                 validate_object("package-audit-receipt", receipt)
-                receipt_checks = [check("HC-SCHEMA-PACKAGE-AUDIT-RECEIPT", "PASS", "package audit receipt satisfies Schema 3.2")]
+                receipt_checks = [check("HC-SCHEMA-PACKAGE-AUDIT-RECEIPT", "PASS", "package audit receipt satisfies Schema 4.0")]
                 receipt_checks.extend(validate_materialized_receipt(
                     receipt,
                     version=VERSION,
@@ -1857,6 +1905,9 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
     checks.append(check("HC-EXTERNAL-RELEASE-R3", "PASS" if external_release_risk_ok else "FAIL", external_risk_message))
     external_release_crypto = requires_external_release_crypto(lock, contract)
     if external_release_crypto:
+        external_review = review_requirement(contract)
+        review_policy_ok = external_review["required"] and external_review["form"] == "FRESH_INDEPENDENT_REVIEW"
+        checks.append(check("HC-R3-REVIEW-POLICY", "PASS" if review_policy_ok else "FAIL", "external R3 release uses a fresh independent review" if review_policy_ok else "external R3 release cannot waive or weaken fresh independent review", reviewForm=external_review["form"], roles=external_review["roles"]))
         try:
             require_r3_trusted_keys(lock)
             checks.append(check("HC-R3-TRUSTED-KEYS", "PASS", "external R3 release has all distinct externally managed public-key roles"))
@@ -1893,6 +1944,8 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
         checks.append(verify_ref(root, task_lock["automationPolicy"], "HC-AUTOMATION-POLICY-DRIFT"))
     current_checkpoint_hash = checkpoint_set_sha256(contract)
     checks.append(check("HC-CHECKPOINT-HASH", "PASS" if task_lock["checkpointSetSha256"] == current_checkpoint_hash else "INVALIDATED", "task lock binds the current checkpoint set" if task_lock["checkpointSetSha256"] == current_checkpoint_hash else "checkpoint set changed after task lock", expected=current_checkpoint_hash, actual=task_lock["checkpointSetSha256"]))
+    current_execution_hash = execution_plan_sha256(contract)
+    checks.append(check("HC-EXECUTION-PLAN-HASH", "PASS" if task_lock["executionPlanSha256"] == current_execution_hash else "INVALIDATED", "task lock binds milestones, scorecard, verification, guards and reporting" if task_lock["executionPlanSha256"] == current_execution_hash else "execution plan changed after task lock", expected=current_execution_hash, actual=task_lock["executionPlanSha256"]))
     for index, ref in enumerate(task_lock["authorityBindings"]): checks.append(verify_ref(root, ref, f"HC-TASK-AUTHORITY-{index+1}"))
     known_cases = {item["id"] for item in catalog["cases"]}; missing = sorted(set(contract["requiredCaseIds"]) - known_cases)
     checks.append(check("HC-TASK-CASE-CLOSURE", "PASS" if not missing else "FAIL", "task cases close over catalog" if not missing else "task references unknown cases", missing=missing))
@@ -1918,6 +1971,7 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
             automation_bound = candidate.get("automationPolicy") == task_lock.get("automationPolicy")
             checks.append(check("HC-AUTOMATION-POLICY-DRIFT", "PASS" if automation_bound else "INVALIDATED", "candidate binds the current task automation policy" if automation_bound else "candidate automation policy differs from the task lock"))
             checks.append(check("HC-CHECKPOINT-HASH", "PASS" if candidate["checkpointSetSha256"] == task_lock["checkpointSetSha256"] else "INVALIDATED", "candidate binds the locked checkpoint set" if candidate["checkpointSetSha256"] == task_lock["checkpointSetSha256"] else "candidate checkpoint binding drifted"))
+            checks.append(check("HC-EXECUTION-PLAN-HASH", "PASS" if candidate["executionPlanSha256"] == task_lock["executionPlanSha256"] else "INVALIDATED", "candidate binds the locked execution plan" if candidate["executionPlanSha256"] == task_lock["executionPlanSha256"] else "candidate execution-plan binding drifted"))
             objective_bound = ref_key(candidate["keyObjectives"]) == ref_key(task_lock["keyObjectives"]) and refs_equal(candidate["requirementSources"], objective_lock["sourceDocuments"])
             checks.append(check("HC-CANDIDATE-OBJECTIVE-BINDING", "PASS" if objective_bound else "FAIL", "candidate binds current objectives and requirement sources" if objective_bound else "candidate objective or requirement-source binding drifted"))
             positioning_bound = ref_key(candidate["positioning"]) == ref_key(task_lock["positioning"])
@@ -1965,11 +2019,11 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
                 evidence_blob_check = git_blob_ref_check(root, content_ref(root, evidence_path))
                 checks.append(evidence_blob_check)
                 case = get_case(catalog, evidence["caseId"]); expected_case_hash = sha256_bytes(canonical_bytes(case)); expected_oracle_hash = sha256_bytes(canonical_bytes(case["oracle"])); expected_input_hash = sha256_bytes(canonical_bytes(candidate["inputBindings"]))
-                identity_ok = evidence["taskId"] == contract["taskId"] and evidence["candidateId"] == candidate["candidateId"] and evidence["candidateCommit"] == candidate["commit"] and ref_key(evidence["positioning"]) == ref_key(candidate["positioning"]) and ref_key(evidence["resolvedRuleSet"]) == ref_key(candidate["resolvedRuleSet"])
+                identity_ok = evidence["taskId"] == contract["taskId"] and evidence["candidateId"] == candidate["candidateId"] and evidence["candidateCommit"] == candidate["commit"] and evidence["executionPlanSha256"] == candidate["executionPlanSha256"] and ref_key(evidence["positioning"]) == ref_key(candidate["positioning"]) and ref_key(evidence["resolvedRuleSet"]) == ref_key(candidate["resolvedRuleSet"])
                 expected_checkpoint_ids = checkpoint_ids_for_case(contract, evidence["caseId"])
                 provenance_ok = evidence["caseHash"] == expected_case_hash and evidence["oracleHash"] == expected_oracle_hash and evidence["inputHash"] == expected_input_hash and evidence["checkpointSetSha256"] == candidate["checkpointSetSha256"] and evidence["checkpointIds"] == expected_checkpoint_ids
                 counters = evidence["counters"]; count_ok = counters["executed"] > 0 and counters["skipped"] == 0 and counters["executed"] == counters["passed"] + counters["failed"] + counters["skipped"] and counters["failed"] == 0 and evidence["result"] == "PASS" and evidence["exitCode"] == case["oracle"]["exitCode"]
-                observation_ok = evidence["observation"] in {"runtime-observed", "blackbox-observed"} and evidence["observation"] == case["observation"]
+                observation_ok = evidence["observation"] in set(contract["verificationStrategy"]["eligibleObservations"]) and evidence["observation"] == case["observation"]
                 ref_ok = verify_ref(root, evidence["transcript"], f"HC-TRANSCRIPT-{evidence['evidenceId']}"); checks.append(ref_ok)
                 invocation_ok = verify_ref(root, evidence["adapterInvocation"], f"HC-ADAPTER-INVOCATION-{evidence['evidenceId']}"); checks.append(invocation_ok)
                 byte_refs = [evidence["transcript"], evidence["adapterInvocation"], *evidence["artifacts"]]
@@ -2048,6 +2102,7 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
                 ))
         except ControlError as exc:
             checks.append(check(exc.check_id, exc.status, exc.message))
+    required_review = review_requirement(contract)
     reviews = sorted(p["reviews"].glob("*.json")); valid_review = None; valid_review_path: Path | None = None
     if reviews and derived_phase == "VERIFIED":
         try:
@@ -2058,10 +2113,12 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
             for index, ref in enumerate(review["evidenceRefs"]): checks.append(verify_ref(root, ref, f"HC-REVIEW-EVIDENCE-REF-{index+1}"))
             evidence_ref_checks_ok = all(item["status"] == "PASS" for item in checks if item["id"].startswith("HC-REVIEW-EVIDENCE-REF-"))
             result_ok = review["result"] == "PASS"
-            bound = review["taskId"] == contract["taskId"] and review["candidateId"] == candidate["candidateId"] and review["candidateCommit"] == candidate["commit"] and review["checkpointSetSha256"] == candidate["checkpointSetSha256"] and ref_key(review["keyObjectives"]) == ref_key(candidate["keyObjectives"]) and ref_key(review["positioning"]) == ref_key(candidate["positioning"]) and ref_key(review["resolvedRuleSet"]) == ref_key(candidate["resolvedRuleSet"]) and set(review["evidenceIds"]) == {item["evidenceId"] for item in evidence_by_case.values()} and review_evidence_refs_ok
+            policy_bound = review["reviewForm"] == required_review["form"] and set(review["reviewRoles"]) == set(required_review["roles"])
+            bound = review["taskId"] == contract["taskId"] and review["candidateId"] == candidate["candidateId"] and review["candidateCommit"] == candidate["commit"] and review["checkpointSetSha256"] == candidate["checkpointSetSha256"] and review["executionPlanSha256"] == candidate["executionPlanSha256"] and ref_key(review["keyObjectives"]) == ref_key(candidate["keyObjectives"]) and ref_key(review["positioning"]) == ref_key(candidate["positioning"]) and ref_key(review["resolvedRuleSet"]) == ref_key(candidate["resolvedRuleSet"]) and set(review["evidenceIds"]) == {item["evidenceId"] for item in evidence_by_case.values()} and review_evidence_refs_ok and policy_bound
             auditor_identity = (review["auditor"]["actorId"], review["auditor"]["sessionId"])
             implementer_identity = (candidate["implementer"]["actorId"], candidate["implementer"]["sessionId"])
-            independent = auditor_identity not in executors and auditor_identity != implementer_identity and review["auditor"]["actorId"] != candidate["implementer"]["actorId"]
+            independence_required = required_review["form"] == "FRESH_INDEPENDENT_REVIEW" or external_release_crypto
+            independent = not independence_required or (auditor_identity not in executors and auditor_identity != implementer_identity and review["auditor"]["actorId"] != candidate["implementer"]["actorId"])
             checkpoint_review_checks = review_checkpoint_checks(review, contract, evidence_by_case)
             checks.extend(checkpoint_review_checks)
             checkpoint_review_ok = all(item["status"] == "PASS" for item in checkpoint_review_checks)
@@ -2070,7 +2127,7 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
             findings_ok = all(item["status"] == "PASS" for item in finding_checks)
             transcript_ok = verify_ref(root, review["transcript"], f"HC-REVIEW-TRANSCRIPT-{review['reviewId']}"); checks.append(transcript_ok)
             checks.append(check("HC-REVIEW-RESULT", "PASS" if result_ok else "FAIL", "review result is PASS" if result_ok else "review result is FAIL"))
-            checks.append(check("HC-REVIEW-REQUIRED", "PASS" if bound and independent and checkpoint_review_ok and findings_ok and result_ok else "FAIL", "review is bound, independent, checkpoint-complete, and admitted against current objectives" if bound and independent and checkpoint_review_ok and findings_ok and result_ok else "review binding/independence/checkpoint/result/finding admission failed"))
+            checks.append(check("HC-PROJECT-REVIEW-GATE", "PASS" if bound and independent and checkpoint_review_ok and findings_ok and result_ok else "FAIL", "review matches the locked project form, roles, candidate and checkpoints" if bound and independent and checkpoint_review_ok and findings_ok and result_ok else "project review policy, binding, identity, checkpoint, result or finding admission failed", reviewForm=required_review["form"], roles=required_review["roles"]))
             signature_ok = True
             try:
                 signed = verify_record_signature(review, lock, "auditor", review["auditor"]["actorId"], required=external_release_crypto, check_id="HC-AUDITOR-SIGNATURE")
@@ -2081,12 +2138,18 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
             if bound and independent and checkpoint_review_ok and findings_ok and result_ok and signature_ok and review_tracked["status"] == "PASS" and transcript_ok["status"] == "PASS" and evidence_ref_checks_ok:
                 valid_review = review; valid_review_path = review_path; derived_phase = "AUDITED"
         except ControlError as exc: checks.append(check(exc.check_id, exc.status, exc.message))
-    elif PHASES.index(state["phase"]) >= PHASES.index("AUDITED"):
-        checks.append(check("HC-REVIEW-REQUIRED", "FAIL", "audited-or-higher state lacks valid review"))
+    elif derived_phase == "VERIFIED" and not required_review["required"]:
+        checks.append(check("HC-PROJECT-REVIEW-GATE", "PASS", "the locked project strategy does not require a separate review", reviewForm="NONE", roles=[]))
+        # Preserve one-step phase transitions: first establish VERIFIED, then
+        # record that the project-selected no-review policy closes AUDITED.
+        if PHASES.index(state["phase"]) >= PHASES.index("VERIFIED"):
+            derived_phase = "AUDITED"
+    elif PHASES.index(state["phase"]) >= PHASES.index("AUDITED") and required_review["required"]:
+        checks.append(check("HC-PROJECT-REVIEW-GATE", "FAIL", "audited-or-higher state lacks the review required by the locked project strategy"))
     decisions = sorted(p["decisions"].glob("*.json")); valid_decision = None; valid_decision_path: Path | None = None
     if decisions and derived_phase == "AUDITED":
         try:
-            acceptance_finding_checks = review_finding_checks(root, valid_review, load_json(p["key_objectives"]), "ACCEPTED", contract) if valid_review else [check("HC-REVIEW-REQUIRED", "BLOCKED", "acceptance requires a valid review")]
+            acceptance_finding_checks = review_finding_checks(root, valid_review, load_json(p["key_objectives"]), "ACCEPTED", contract) if valid_review else ([check("HC-PROJECT-REVIEW-GATE", "PASS", "the locked project strategy does not require a separate review before owner decision")] if not required_review["required"] else [check("HC-PROJECT-REVIEW-GATE", "BLOCKED", "acceptance requires the project-selected review")])
             checks.extend(acceptance_finding_checks)
             acceptance_findings_ok = all(item["status"] == "PASS" for item in acceptance_finding_checks)
             decision_path = decisions[-1]; decision = load_json(decision_path); validate_object("approval-signature", decision)
@@ -2094,7 +2157,7 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
             checkpoint_decision_checks = owner_checkpoint_checks(decision, contract)
             checks.extend(checkpoint_decision_checks)
             checkpoint_decision_ok = all(item["status"] == "PASS" for item in checkpoint_decision_checks)
-            bound = decision["taskId"] == contract["taskId"] and decision["candidateId"] == candidate["candidateId"] and decision["candidateCommit"] == candidate["commit"] and decision["checkpointSetSha256"] == candidate["checkpointSetSha256"] and ref_key(decision["positioning"]) == ref_key(candidate["positioning"]) and ref_key(decision["resolvedRuleSet"]) == ref_key(candidate["resolvedRuleSet"]) and sorted(decision["scope"]) == sorted(candidate["changedPaths"])
+            bound = decision["taskId"] == contract["taskId"] and decision["candidateId"] == candidate["candidateId"] and decision["candidateCommit"] == candidate["commit"] and decision["checkpointSetSha256"] == candidate["checkpointSetSha256"] and decision["executionPlanSha256"] == candidate["executionPlanSha256"] and ref_key(decision["positioning"]) == ref_key(candidate["positioning"]) and ref_key(decision["resolvedRuleSet"]) == ref_key(candidate["resolvedRuleSet"]) and sorted(decision["scope"]) == sorted(candidate["changedPaths"])
             expired = bool(decision.get("expiresAt") and dt.datetime.fromisoformat(decision["expiresAt"]) <= dt.datetime.now(dt.timezone.utc).astimezone())
             signature_ok = True
             try:
@@ -2119,8 +2182,8 @@ def validate(project: Path, *, mutate_state: bool = True) -> dict[str, Any]:
         derived_phase = "CANDIDATE_FROZEN"
     if lock["packageMode"] == "DEVELOPMENT":
         checks.append(check("HC-DEVELOPMENT-PACKAGE-CLAIM-CAP", "BLOCKED", "development package cannot derive VERIFIED, AUDITED, ACCEPTED, or RELEASE_READY"))
-    review_gate_ok = contract["risk"] not in {"R2", "R3"} or PHASES.index(derived_phase) >= PHASES.index("AUDITED")
-    checks.append(check("HC-RISK-REVIEW-GATE", "PASS" if review_gate_ok else "BLOCKED", "risk-level review prerequisite is closed" if review_gate_ok else "R2/R3 formal eligibility requires an independent review"))
+    review_gate_ok = not required_review["required"] or PHASES.index(derived_phase) >= PHASES.index("AUDITED")
+    checks.append(check("HC-PROJECT-REVIEW-GATE", "PASS" if review_gate_ok else "BLOCKED", "project-selected review prerequisite is closed" if review_gate_ok else "the locked project review form has not been completed", reviewForm=required_review["form"], roles=required_review["roles"], triggerReasons=required_review["triggerReasons"]))
     if valid_decision and receipt_ok and state["phase"] == "RELEASE_READY": derived_phase = "RELEASE_READY"
     phase_claim = {"DRAFT":"DIAGNOSTIC","CONTRACT_LOCKED":"DEVELOPMENT_CHECKED","IMPLEMENTING":"DEVELOPMENT_CHECKED","CANDIDATE_FROZEN":"DEVELOPMENT_CHECKED","VERIFIED":"VERIFIED","AUDITED":"VERIFIED","ACCEPTED":"ACCEPTED","RELEASE_READY":"RELEASE_READY"}[derived_phase]
     case_ceiling = min((CLAIMS.index(get_case(catalog, case_id)["maxClaimLevel"]) for case_id in contract["requiredCaseIds"]), default=0)
@@ -2244,13 +2307,16 @@ def release_check(project: Path) -> dict[str, Any]:
 def handoff(project: Path, output: Path | None) -> dict[str, Any]:
     p = paths(project); report = validate(project); state = load_json(p["state"])
     checkpoint_hash = None
+    execution_hash = None
     if state.get("taskId"):
         task_lock_path = p["task_locks"] / f"{state['taskId']}.json"
         if task_lock_path.is_file():
-            checkpoint_hash = load_json(task_lock_path).get("checkpointSetSha256")
+            task_lock = load_json(task_lock_path)
+            checkpoint_hash = task_lock.get("checkpointSetSha256")
+            execution_hash = task_lock.get("executionPlanSha256")
     evidence_ids = [load_json(path).get("evidenceId") for path in p["evidence"].glob("*.json") if not path.name.endswith(("attestation.json", "adapter-invocation.json"))]
     reviews = sorted(p["reviews"].glob("*.json")); decisions = sorted(p["decisions"].glob("*.json"))
-    value = {"schemaVersion":SCHEMA_VERSION,"handoffId":f"handoff-{uuid.uuid4().hex[:12]}","taskId":state.get("taskId") or "NONE","candidateId":state.get("candidateId"),"checkpointSetSha256":checkpoint_hash,"positioningId":state["positioningId"],"ruleSetId":state["ruleSetId"],"phase":state["phase"],"health":state["health"],"claimLevel":state["claimLevel"],"evidenceIds":evidence_ids,"reviewId":load_json(reviews[-1])["reviewId"] if reviews else None,"decisionId":load_json(decisions[-1])["decisionId"] if decisions else None,"blockers":report["formal"]["blockers"],"createdAt":now_iso()}
+    value = {"schemaVersion":SCHEMA_VERSION,"handoffId":f"handoff-{uuid.uuid4().hex[:12]}","taskId":state.get("taskId") or "NONE","candidateId":state.get("candidateId"),"checkpointSetSha256":checkpoint_hash,"executionPlanSha256":execution_hash,"positioningId":state["positioningId"],"ruleSetId":state["ruleSetId"],"phase":state["phase"],"health":state["health"],"claimLevel":state["claimLevel"],"evidenceIds":evidence_ids,"reviewId":load_json(reviews[-1])["reviewId"] if reviews else None,"decisionId":load_json(decisions[-1])["decisionId"] if decisions else None,"blockers":report["formal"]["blockers"],"createdAt":now_iso()}
     lock = load_json(p["lock"])
     if lock.get("automationPolicy") is not None:
         value["automationPolicy"] = lock["automationPolicy"]
@@ -2381,7 +2447,7 @@ def _migration_source(p: dict[str, Path]) -> tuple[dict[str, Any], dict[str, Any
     lock = load_json(p["lock"]); state = load_json(p["state"]); positioning = load_json(p["positioning"]); catalog = load_json(p["cases"])
     versions = {value.get("schemaVersion") for value in (lock, state, positioning, catalog) if isinstance(value, dict)}
     if versions != {"3.1"}:
-        raise ControlError("HC-MIGRATION-SOURCE-VERSION", "3.1 to 3.2 migration requires one consistent Schema 3.1 control plane", status="BLOCKED", details={"observed": sorted(str(value) for value in versions)})
+        raise ControlError("HC-MIGRATION-SOURCE-VERSION", "3.1 to 4.0 migration requires one consistent Schema 3.1 control plane", status="BLOCKED", details={"observed": sorted(str(value) for value in versions)})
     root = p["root"]
     objective_probe = {**load_json(p["key_objectives"]), "schemaVersion": SCHEMA_VERSION}
     source_checks = key_objective_checks(root, objective_probe)
@@ -2437,10 +2503,68 @@ def _migration_spec_checks(
         "objectiveRefs": draft_objectives, "allowedPaths": ["**"], "forbiddenPaths": [],
         "requiredCaseIds": [item["id"] for item in cases], "risk": "R2", "maxClaimLevel": CLAIMS[max_index],
         "authorityRefs": [], "acceptanceCheckpoints": spec["checkpointDrafts"],
-        "checkpointConfirmation": {"actorId": spec["confirmation"]["actorId"], "summary": spec["confirmation"]["summary"], "checkpointSetSha256": "0" * 64, "record": "MIGRATION-SPEC.json", "confirmedAt": spec["confirmation"]["confirmedAt"]},
-        "auditPolicy": AUDIT_POLICY,
+        "checkpointConfirmation": {"actorId": spec["confirmation"]["actorId"], "summary": spec["confirmation"]["summary"], "checkpointSetSha256": "0" * 64, "executionPlanSha256": "0" * 64, "record": "MIGRATION-SPEC.json", "confirmedAt": spec["confirmation"]["confirmedAt"]},
+        "auditPolicy": DEFAULT_AUDIT_POLICY,
+        "milestones": [
+            {
+                "id": f"MS-{index:03d}", "outcome": item["statement"], "objectiveRefs": item["objectiveRefs"],
+                "dependsOn": [],
+                "workNodes": [{
+                    "id": f"WN-{index:03d}", "title": f"Close {item['id']}", "kind": "VERIFICATION",
+                    "allowedPaths": ["**"], "minimumChecks": [assertion["id"] for assertion in item["assertions"]] or item["caseIds"] or [item["id"]],
+                    "ownerRole": "IMPLEMENTER",
+                }],
+                "checkpointIds": [item["id"]], "expectedPassConditions": [f"{item['id']} reports {item['expected']['status']}"],
+            }
+            for index, item in enumerate(spec["checkpointDrafts"], start=1)
+        ],
+        "scorecardPlan": {
+            "weights": {"FUNCTIONALITY": 40, "ROBUSTNESS_SECURITY": 25, "AUDIT": 20, "PROCESS": 15},
+            "items": [
+                {
+                    "id": f"SC-{index:03d}", "category": category, "statement": f"migrated {category.lower()} evidence",
+                    "checkpointIds": [item["id"] for item in spec["checkpointDrafts"]],
+                    "factSources": [{
+                        "kind": {"FUNCTIONALITY": "CHECKPOINT", "ROBUSTNESS_SECURITY": "CASE", "AUDIT": "REVIEW", "PROCESS": "CORE_CONTROL"}[category],
+                        "refs": {
+                            "FUNCTIONALITY": [item["id"] for item in spec["checkpointDrafts"]],
+                            "ROBUSTNESS_SECURITY": [item["id"] for item in cases],
+                            "AUDIT": ["FRESH-INDEPENDENT-REVIEW"],
+                            "PROCESS": ["RULE-CORE-OBSERVABLE-CANDIDATE"],
+                        }[category],
+                    }],
+                }
+                for index, category in enumerate(("FUNCTIONALITY", "ROBUSTNESS_SECURITY", "AUDIT", "PROCESS"), start=1)
+            ],
+        },
+        "verificationStrategy": {
+            "mode": "CANDIDATE_BOUND", "failureDisposition": "REPAIR_WITHIN_CONTRACT",
+            "eligibleObservations": sorted({item["observation"] for item in cases}), "requireZeroSkipped": True,
+            "checkpointCases": [{"checkpointId": item["id"], "caseIds": item["caseIds"]} for item in spec["checkpointDrafts"] if item["type"] == "AUTOMATED"],
+            "implementer": {"quickChecks": [{"id": "QC-MIGRATION", "command": ["validate-migrated-task"], "requiredBeforeMilestone": True}]},
+            "executor": {"caseIds": [item["id"] for item in cases], "evidenceRequirements": ["candidate-bound transcript", "nonzero counters", "zero skipped cases"]},
+            "auditor": {"required": True, "form": "FRESH_INDEPENDENT_REVIEW", "inputs": ["candidate", "case evidence", "checkpoint expectations"], "stopCondition": DEFAULT_AUDIT_POLICY["stopCondition"]},
+            "notProven": ["legacy evidence remains historical and cannot prove the migrated candidate"],
+        },
+        "guardPolicy": {"defaultEffect": "ADVISORY", "guards": [
+            {"id": "GUARD-ACTION", "scope": "MUTATION", "effect": "ACTION_GUARD"},
+            {"id": "GUARD-CLAIM", "scope": "CLAIM", "effect": "CLAIM_GUARD"},
+            {"id": "GUARD-PROCESS", "scope": "PROCESS", "effect": "ADVISORY"},
+            {"id": "GUARD-HUMAN", "scope": "HUMAN", "effect": "HUMAN_DECISION"},
+            {"id": "GUARD-ENVIRONMENT", "scope": "ENVIRONMENT", "effect": "ENVIRONMENT_BLOCKED"},
+        ]},
+        "reportingPolicy": {
+            "orientation": "ZERO_CONTEXT_ORIENTATION", "progressMode": "NON_BLOCKING", "reviewPoint": "OWNER_REVIEW",
+            "plainLanguageFields": ["projectPurpose", "whatWasDone", "whatWorksNow", "whatStillDoesNotWork", "userImpact", "canContinue", "canRelease"],
+            "nextActions": {
+                "continue": ["continue the next locked migration milestone"],
+                "repair": ["repair the failed migrated check within the task boundary"],
+                "humanReview": ["review the migrated candidate at the locked owner checkpoint"],
+            },
+        },
     }
     draft_contract["checkpointConfirmation"]["checkpointSetSha256"] = checkpoint_set_sha256(draft_contract)
+    draft_contract["checkpointConfirmation"]["executionPlanSha256"] = execution_plan_sha256(draft_contract)
     validate_object("task-contract", draft_contract)
     assert_objective_refs(draft_contract, objective_lock)
     checkpoint_contract_checks(draft_contract, migrated_positioning, {"cases": cases}, RELEASE_INTENT_CAPS[positioning["releaseIntent"]])
@@ -2460,7 +2584,7 @@ def migration_plan(project: Path, spec_path: Path | None = None) -> dict[str, An
     source_sha = sha256_bytes(canonical_bytes(source_files))
     base = {
         "schemaVersion": SCHEMA_VERSION,
-        "planId": f"schema-3.2-{source_sha[:12]}", "project": str(root), "projectId": lock["projectId"],
+        "planId": f"schema-4.0-{source_sha[:12]}", "project": str(root), "projectId": lock["projectId"],
         "fromSchemaVersion": "3.1", "toSchemaVersion": SCHEMA_VERSION, "toVersion": VERSION,
         "sourceSnapshotSha256": source_sha, "specSha256": spec_sha,
         "signalConversions": signals, "humanGateConversions": gates,
@@ -2610,4 +2734,4 @@ def migration_apply(project: Path, plan_hash: str, spec_path: Path) -> dict[str,
         if staging.exists():
             shutil.rmtree(staging, ignore_errors=True)
         raise
-    return envelope(status="BLOCKED", checks=[check("HC-MIGRATION-INVALIDATION", "BLOCKED", "Schema 3.1 control objects were archived; no downstream claim was inherited")], formal={"eligible": False, "maxClaimLevel": "DIAGNOSTIC", "blockers": ["HC-MIGRATION-INVALIDATION"]}, state={"declared": new_state, "derived": new_state}, data={"planHash": plan_hash, "legacy": f".vibe-control/legacy/schema-3.1/{plan_hash}", "invalidated": planned["invalidates"], "next": "commit migration, then create and confirm a fresh Schema 3.2 task"})
+    return envelope(status="BLOCKED", checks=[check("HC-MIGRATION-INVALIDATION", "BLOCKED", "Schema 3.1 control objects were archived; no downstream claim was inherited")], formal={"eligible": False, "maxClaimLevel": "DIAGNOSTIC", "blockers": ["HC-MIGRATION-INVALIDATION"]}, state={"declared": new_state, "derived": new_state}, data={"planHash": plan_hash, "legacy": f".vibe-control/legacy/schema-3.1/{plan_hash}", "invalidated": planned["invalidates"], "next": "commit migration, then create and confirm a fresh Schema 4.0 task"})

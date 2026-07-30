@@ -21,7 +21,7 @@ sys.path.insert(0, str(RUNTIME))
 
 from vibe_runtime.checkpoint_control import (  # noqa: E402
     AUDIT_POLICY, checkpoint_contract_checks, checkpoint_set_sha256,
-    evaluate_case_oracle, finding_structure_checks, normalize_statement,
+    evaluate_case_oracle, execution_plan_sha256, finding_structure_checks, normalize_statement,
     owner_checkpoint_checks, review_checkpoint_checks, statement_id,
     validate_statement_objects,
 )
@@ -43,7 +43,7 @@ def _positioning() -> dict:
 
 
 def _catalog() -> dict:
-    return {"cases": [{"id": "CASE-001", "maxClaimLevel": "ACCEPTED"}]}
+    return {"cases": [{"id": "CASE-001", "maxClaimLevel": "ACCEPTED", "observation": "runtime-observed"}]}
 
 
 def _contract(*, claim: str = "VERIFIED", human: bool = False) -> dict:
@@ -62,12 +62,69 @@ def _contract(*, claim: str = "VERIFIED", human: bool = False) -> dict:
             "requiredForClaim": "ACCEPTED", "caseIds": [], "assertions": [],
             "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"}, "notProven": ["automatic product taste"],
         })
+    checkpoint_ids = [item["id"] for item in checkpoints]
+    policy = {
+        "strategy": "PROJECT_DERIVED", "maxExploratoryFindings": 3,
+        "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED",
+        "requiredReviewRoles": ["INDEPENDENT_AUDITOR"],
+        "triggerReasons": ["MILESTONE_CANDIDATE_READY"],
+    }
     value = {
-        "objectiveRefs": ["KO-001", "KF-001"], "requiredCaseIds": ["CASE-001"], "maxClaimLevel": claim,
-        "acceptanceCheckpoints": checkpoints, "auditPolicy": AUDIT_POLICY,
-        "checkpointConfirmation": {"checkpointSetSha256": "0" * 64},
+        "schemaVersion": "4.0", "taskId": "TASK-001", "goal": "prove the locked command outcome",
+        "objectiveRefs": ["KO-001", "KF-001"], "allowedPaths": ["fixture.py"],
+        "forbiddenPaths": [".vibe-control/**"], "requiredCaseIds": ["CASE-001"],
+        "risk": "R2", "maxClaimLevel": claim, "authorityRefs": ["REQUIREMENTS.md"],
+        "nonGoals": [], "humanDecisionPoints": [],
+        "acceptanceCheckpoints": checkpoints, "auditPolicy": policy,
+        "milestones": [{
+            "id": "MS-001", "outcome": "close the observable command outcome",
+            "objectiveRefs": ["KO-001"], "dependsOn": [],
+            "workNodes": [{
+                "id": "WN-001", "title": "implement and check the command", "kind": "IMPLEMENTATION",
+                "allowedPaths": ["fixture.py"], "minimumChecks": ["QC-001", "CASE-001"],
+                "ownerRole": "IMPLEMENTER",
+            }],
+            "checkpointIds": checkpoint_ids,
+            "expectedPassConditions": ["all locked checkpoints report PASS"],
+        }],
+        "scorecardPlan": {
+            "weights": {"FUNCTIONALITY": 40, "ROBUSTNESS_SECURITY": 25, "AUDIT": 20, "PROCESS": 15},
+            "items": [
+                {"id": "SC-001", "category": "FUNCTIONALITY", "statement": "the command outcome works", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "CHECKPOINT", "refs": checkpoint_ids}]},
+                {"id": "SC-002", "category": "ROBUSTNESS_SECURITY", "statement": "failures remain observable", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "CASE", "refs": ["CASE-001"]}]},
+                {"id": "SC-003", "category": "AUDIT", "statement": "the candidate receives a fresh review", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "REVIEW", "refs": ["FRESH-INDEPENDENT-REVIEW"]}]},
+                {"id": "SC-004", "category": "PROCESS", "statement": "the minimum proof boundary remains closed", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "CORE_CONTROL", "refs": ["RULE-CORE-OBSERVABLE-CANDIDATE"]}]},
+            ],
+        },
+        "verificationStrategy": {
+            "mode": "CANDIDATE_BOUND", "failureDisposition": "REPAIR_WITHIN_CONTRACT",
+            "eligibleObservations": ["runtime-observed"], "requireZeroSkipped": True,
+            "checkpointCases": [{"checkpointId": "CP-001", "caseIds": ["CASE-001"]}],
+            "implementer": {"quickChecks": [{"id": "QC-001", "command": [sys.executable, "-m", "py_compile", "fixture.py"], "requiredBeforeMilestone": True}]},
+            "executor": {"caseIds": ["CASE-001"], "evidenceRequirements": ["candidate-bound transcript", "nonzero counters", "zero skipped cases"]},
+            "auditor": {"required": True, "form": "FRESH_INDEPENDENT_REVIEW", "inputs": ["candidate", "case evidence", "checkpoint expectations"], "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"},
+            "notProven": ["external distribution readiness"],
+        },
+        "guardPolicy": {"defaultEffect": "ADVISORY", "guards": [
+            {"id": "GUARD-ACTION", "scope": "MUTATION", "effect": "ACTION_GUARD"},
+            {"id": "GUARD-CLAIM", "scope": "CLAIM", "effect": "CLAIM_GUARD"},
+            {"id": "GUARD-PROCESS", "scope": "PROCESS", "effect": "ADVISORY"},
+            {"id": "GUARD-HUMAN", "scope": "HUMAN", "effect": "HUMAN_DECISION"},
+            {"id": "GUARD-ENVIRONMENT", "scope": "ENVIRONMENT", "effect": "ENVIRONMENT_BLOCKED"},
+        ]},
+        "reportingPolicy": {
+            "orientation": "ZERO_CONTEXT_ORIENTATION", "progressMode": "NON_BLOCKING", "reviewPoint": "OWNER_REVIEW",
+            "plainLanguageFields": ["projectPurpose", "whatWasDone", "whatWorksNow", "whatStillDoesNotWork", "userImpact", "canContinue", "canRelease"],
+            "nextActions": {"continue": ["continue the locked work"], "repair": ["repair a failed locked check"], "humanReview": ["review the candidate"]},
+        },
+        "checkpointConfirmation": {
+            "actorId": "owner", "summary": "checkpoint and execution plan confirmed",
+            "checkpointSetSha256": "0" * 64, "executionPlanSha256": "0" * 64,
+            "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-30T00:00:00Z",
+        },
     }
     value["checkpointConfirmation"]["checkpointSetSha256"] = checkpoint_set_sha256(value)
+    value["checkpointConfirmation"]["executionPlanSha256"] = execution_plan_sha256(value)
     return value
 
 
@@ -270,10 +327,12 @@ def test_bounded_exploration_and_stop_closure() -> None:
                 "minimumFix": "no current-task fix", "addedGovernanceCost": "none",
             } for index in range(first, first + count)]
             value = {
-                "schemaVersion": "3.2", "reviewId": review_id, "taskId": "TASK-001",
+                "schemaVersion": "4.0", "reviewId": review_id, "taskId": "TASK-001",
                 "candidateId": candidate["candidateId"], "candidateCommit": candidate["commit"],
                 "checkpointSetSha256": candidate["checkpointSetSha256"], "keyObjectives": candidate["keyObjectives"],
+                "executionPlanSha256": candidate["executionPlanSha256"],
                 "positioning": candidate["positioning"], "resolvedRuleSet": candidate["resolvedRuleSet"],
+                "reviewForm": "FRESH_INDEPENDENT_REVIEW", "reviewRoles": ["INDEPENDENT_AUDITOR"],
                 "auditor": {"actorId": "bounded-auditor", "sessionId": review_id.lower()},
                 "evidenceIds": [execution["evidenceId"]], "evidenceRefs": [fx.ref(root, evidence_path)],
                 "checkpointResults": [{"checkpointId": "CP-001", "expectedStatus": "PASS", "observedStatus": "PASS", "evidenceIds": [execution["evidenceId"]], "deviationFindingId": None}],
@@ -425,4 +484,4 @@ TESTS = [
 if __name__ == "__main__":
     for test in TESTS:
         test()
-    print(json.dumps({"status": "PASS", "tests": len(TESTS), "schemaVersion": "3.2"}))
+    print(json.dumps({"status": "PASS", "tests": len(TESTS), "schemaVersion": "4.0"}))

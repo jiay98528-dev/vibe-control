@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pinned entry shim for vibe-control 0.3.7 development runtime."""
+"""Pinned entry shim for vibe-control 0.4.0 development runtime."""
 
 import datetime as dt
 import importlib.metadata
@@ -15,7 +15,7 @@ from vibe_runtime import VERSION as RUNTIME_VERSION
 
 def _dependency_report(checks: list[dict], message: str) -> dict:
     return {
-        "schemaVersion": "3.2",
+        "schemaVersion": "4.0",
         "runtimeVersion": RUNTIME_VERSION,
         "status": "BLOCKED",
         "checkedAt": dt.datetime.now(dt.timezone.utc).astimezone().isoformat(timespec="seconds"),
@@ -34,6 +34,15 @@ def _dependency_report(checks: list[dict], message: str) -> dict:
         },
         "state": None,
         "error": {"id": "DEPENDENCY_BLOCKED", "message": message, "details": checks},
+        "plainLanguage": {
+            "projectPurpose": "这个工具帮助项目记录目标、检查结果和继续工作的边界。",
+            "whatWasDone": "本次启动前置检查已经结束。",
+            "whatWorksNow": "仍可查看问题并修复开发环境。",
+            "whatStillDoesNotWork": "当前运行环境不满足继续执行检查的条件。",
+            "userImpact": "项目功能没有因此被判定为损坏，但本次结果不能作为完成或发行依据。",
+            "canContinue": "可以先修复所列环境问题，再重新运行。",
+            "canRelease": "不能据此发行。",
+        },
     }
 
 

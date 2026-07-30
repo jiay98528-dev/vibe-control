@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Schema 3.2 key-objective restraint regressions."""
+"""Schema 4.0 key-objective restraint regressions and historical migration checks."""
 
 from __future__ import annotations
 
@@ -98,15 +98,9 @@ def test_task_unknown_objective_fails() -> None:
     else:
         raise AssertionError("unknown objective reference was accepted")
 
-    missing = {
-        "schemaVersion": "3.2", "taskId": "TASK-NO-OBJECTIVE", "goal": "invalid",
-        "allowedPaths": ["src/**"], "forbiddenPaths": [], "requiredCaseIds": ["CASE-001"],
-        "risk": "R1", "maxClaimLevel": "DEVELOPMENT_CHECKED", "authorityRefs": ["REQUIREMENTS.md"],
-        "nonGoals": [], "humanDecisionPoints": [],
-        "acceptanceCheckpoints": [{"id": "CP-001", "sourceRefs": ["SIG-000000000000"], "objectiveRefs": ["KO-001"], "statement": "case passes", "type": "AUTOMATED", "requiredForClaim": "DEVELOPMENT_CHECKED", "caseIds": ["CASE-001"], "assertions": [{"id": "ASRT-001", "statement": "case passes", "caseIds": ["CASE-001"]}], "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"}, "notProven": []}],
-        "checkpointConfirmation": {"actorId": "owner", "summary": "confirmed", "checkpointSetSha256": "0" * 64, "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-28T00:00:00+08:00"},
-        "auditPolicy": {"mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"},
-    }
+    missing = json.loads((ROOT / "assets" / "project-control" / "templates" / "task-contract-light.json").read_text(encoding="utf-8-sig"))
+    missing["taskId"] = "TASK-NO-OBJECTIVE"
+    missing.pop("objectiveRefs")
     try:
         validate_object("task-contract", missing)
     except ControlError as exc:
@@ -166,7 +160,7 @@ def test_revise_objectives_invalidates_downstream() -> None:
         git(root, "add", "KEY_OBJECTIVES.md", "OBJECTIVES_CONFIRMATION_R2.json")
         source = objective_source(revision=2, objective_ids=["KO-001", "KO-002"], confirmation="OBJECTIVES_CONFIRMATION_R2.json")
         source["sourceDocuments"] = ["PROJECT_BRIEF.md"]
-        spec_path = Path(root.parent) / "objective-revision.json"; write_json(spec_path, {"schemaVersion": "3.2", "projectId": "fixture", "keyObjectives": source})
+        spec_path = Path(root.parent) / "objective-revision.json"; write_json(spec_path, {"schemaVersion": "4.0", "projectId": "fixture", "keyObjectives": source})
         _, planned = fx.command(root, "revise-objectives", "--spec", str(spec_path), "--plan", expect=2)
         _, applied = fx.command(root, "revise-objectives", "--spec", str(spec_path), "--apply", planned["data"]["planHash"], expect=2)
         state = fx.load(root / ".vibe-control" / "stage-state.json")
@@ -214,17 +208,19 @@ def test_review_schema_requires_bound_direct_blockers() -> None:
         "evidenceRefs": [ref], "minimumFix": "minimal fix", "addedGovernanceCost": "one check",
     }
     review = {
-        "schemaVersion": "3.2", "reviewId": "REVIEW-1", "taskId": "TASK-1", "candidateId": "candidate-1",
-        "candidateCommit": "a" * 40, "checkpointSetSha256": "b" * 64, "keyObjectives": ref, "positioning": ref, "resolvedRuleSet": ref,
+        "schemaVersion": "4.0", "reviewId": "REVIEW-1", "taskId": "TASK-1", "candidateId": "candidate-1",
+        "candidateCommit": "a" * 40, "checkpointSetSha256": "b" * 64, "executionPlanSha256": "c" * 64,
+        "keyObjectives": ref, "positioning": ref, "resolvedRuleSet": ref,
+        "reviewForm": "FRESH_INDEPENDENT_REVIEW", "reviewRoles": ["INDEPENDENT_AUDITOR"],
         "auditor": {"actorId": "auditor", "sessionId": "session"}, "evidenceIds": ["E-1"], "evidenceRefs": [ref],
         "checkpointResults": [{"checkpointId": "CP-001", "expectedStatus": "PASS", "observedStatus": "FAIL", "evidenceIds": ["E-1"], "deviationFindingId": "F-1"}],
         "findings": [base_finding], "transcript": ref, "result": "FAIL", "reviewedAt": "2026-07-27T00:00:00+08:00",
     }
     assert not list(validator.iter_errors(review))
     review["findings"] = [{**base_finding, "objectiveRefs": [], "evidenceRefs": []}]
-    assert list(validator.iter_errors(review)), "unmapped and evidence-free safety override passed Schema 3.2"
+    assert list(validator.iter_errors(review)), "unmapped and evidence-free safety override passed Schema 4.0"
     review["findings"] = [{**base_finding, "classification": "CURRENT_GOAL_DEFECT", "objectiveRefs": ["KO-001"], "affectedClaims": [], "evidenceRefs": []}]
-    assert list(validator.iter_errors(review)), "claimless and evidence-free current-goal blocker passed Schema 3.2"
+    assert list(validator.iter_errors(review)), "claimless and evidence-free current-goal blocker passed Schema 4.0"
 
 
 def main() -> int:

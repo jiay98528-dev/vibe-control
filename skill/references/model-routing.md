@@ -4,7 +4,7 @@
 
 ## 先解析协调后端
 
-模型选择与协调载体是两个独立问题。先按 [multi-session-routing.md](multi-session-routing.md) 枚举当前宿主真实工具并解析 `CODEX_THREADS | SUBAGENTS | SERIAL`，再为其中的 responsible、worker、auditor 角色选择模型。非 Codex 宿主没有 thread/cursor 能力时，只要具备子智能体工具，就显式使用 `SUBAGENTS`；两者都没有时使用 `SERIAL`。
+模型选择与协调载体是两个独立问题。先按 [multi-session-routing.md](multi-session-routing.md) 枚举当前宿主真实工具并解析 `TEAM | SUBAGENT | SERIAL`，再为 Coordinator、Implementer、Executor、Auditor 选择模型。Codex Threads、AgentTeam 与 IDE Team 都映射为 `TEAM` provider；Team 不可用但有子智能体工具时使用 `SUBAGENT`，两者都没有时使用 `SERIAL`。
 
 不得因某个模型支持长上下文就假定它支持 Codex 跨会话工具，也不得因 Skill 不设置固定 worker 数量上限就超过宿主容量、文件所有权或隔离条件。
 
@@ -49,7 +49,7 @@
 
 全局研究缓存保存于 Skill 管理目录，默认有效期 90 天。缓存至少含来源 URL 或本地出处、抓取日期、摘要、画像、置信度及失效日期。模型名单、平台能力或项目禁令变化时立即失效并重新枚举。
 
-首次为项目确认路由时，在 `.vibe-control/model-routing.json` 保存不可变选择快照：运行时枚举结果、协调后端、观测到的协调能力、`NO_SKILL_FIXED_LIMIT` 数量策略、来源引用、能力向量、选择理由、排除项、用户确认和生成时间。项目快照不会因全局缓存刷新而静默改写；只能由显式 `configure-models` 更新。
+首次为项目确认路由时，在 `.vibe-control/model-routing.json` 保存不可变选择快照：运行时枚举结果、协调后端/provider、观测到的协调能力、`NO_SKILL_FIXED_LIMIT` 数量策略、来源引用、能力向量、选择理由、排除项、需要的宿主授权和生成时间。项目快照不会因全局缓存刷新而静默改写；只能由显式 `configure-models` 更新。
 
 ## 低置信降级
 

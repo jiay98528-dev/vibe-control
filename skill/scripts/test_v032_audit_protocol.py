@@ -47,8 +47,8 @@ def automation_policy(project_id: str) -> dict:
     ])
     semantic = {
         "projectId": project_id,
-        "mode": "MANUAL_STAGE_CONFIRMATION",
-        "commitPolicy": "MANUAL",
+        "mode": "AUTO_LOCAL_TO_REVIEW",
+        "commitPolicy": "MILESTONE_COMMITS",
         "pushPolicy": "NONE",
         "stopConditions": stop_conditions,
     }
@@ -73,24 +73,67 @@ def checkpoint_contract() -> dict:
         "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"},
         "notProven": [],
     }
-    policy = {"mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"}
+    policy = {
+        "strategy": "PROJECT_DERIVED", "maxExploratoryFindings": 3,
+        "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED",
+        "requiredReviewRoles": ["INDEPENDENT_AUDITOR"],
+        "triggerReasons": ["MILESTONE_CANDIDATE_READY"],
+    }
     checkpoint_hash = hashlib.sha256(json.dumps({"acceptanceCheckpoints": [checkpoint], "auditPolicy": policy}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    planning = {
+        "milestones": [{
+            "id": "MS-001", "outcome": "close the observable fixture outcome", "objectiveRefs": ["KO-001"],
+            "dependsOn": [], "workNodes": [{
+                "id": "WN-001", "title": "implement and check the fixture", "kind": "IMPLEMENTATION",
+                "allowedPaths": ["fixture.py"], "minimumChecks": ["QC-001", "CASE-001"], "ownerRole": "IMPLEMENTER",
+            }], "checkpointIds": ["CP-001"], "expectedPassConditions": ["CP-001 reports PASS with no skipped work"],
+        }],
+        "scorecardPlan": {"weights": {"FUNCTIONALITY": 40, "ROBUSTNESS_SECURITY": 25, "AUDIT": 20, "PROCESS": 15}, "items": [
+            {"id": "SC-001", "category": "FUNCTIONALITY", "statement": "fixture behavior works", "checkpointIds": ["CP-001"], "factSources": [{"kind": "CHECKPOINT", "refs": ["CP-001"]}]},
+            {"id": "SC-002", "category": "ROBUSTNESS_SECURITY", "statement": "fixture failures stay observable", "checkpointIds": ["CP-001"], "factSources": [{"kind": "CASE", "refs": ["CASE-001"]}]},
+            {"id": "SC-003", "category": "AUDIT", "statement": "fixture evidence receives fresh review", "checkpointIds": ["CP-001"], "factSources": [{"kind": "REVIEW", "refs": ["FRESH-INDEPENDENT-REVIEW"]}]},
+            {"id": "SC-004", "category": "PROCESS", "statement": "fixture keeps the minimum proof boundary", "checkpointIds": ["CP-001"], "factSources": [{"kind": "CORE_CONTROL", "refs": ["RULE-CORE-OBSERVABLE-CANDIDATE"]}]},
+        ]},
+        "verificationStrategy": {
+            "mode": "CANDIDATE_BOUND", "failureDisposition": "REPAIR_WITHIN_CONTRACT",
+            "eligibleObservations": ["runtime-observed"], "requireZeroSkipped": True,
+            "checkpointCases": [{"checkpointId": "CP-001", "caseIds": ["CASE-001"]}],
+            "implementer": {"quickChecks": [{"id": "QC-001", "command": [sys.executable, "-m", "py_compile", "fixture.py"], "requiredBeforeMilestone": True}]},
+            "executor": {"caseIds": ["CASE-001"], "evidenceRequirements": ["candidate-bound transcript", "nonzero counters", "zero skipped cases"]},
+            "auditor": {"required": True, "form": "FRESH_INDEPENDENT_REVIEW", "inputs": ["candidate", "case evidence", "checkpoint expectations"], "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"},
+            "notProven": ["external distribution readiness"],
+        },
+        "guardPolicy": {"defaultEffect": "ADVISORY", "guards": [
+            {"id": "GUARD-ACTION", "scope": "MUTATION", "effect": "ACTION_GUARD"},
+            {"id": "GUARD-CLAIM", "scope": "CLAIM", "effect": "CLAIM_GUARD"},
+            {"id": "GUARD-PROCESS", "scope": "PROCESS", "effect": "ADVISORY"},
+            {"id": "GUARD-HUMAN", "scope": "HUMAN", "effect": "HUMAN_DECISION"},
+            {"id": "GUARD-ENVIRONMENT", "scope": "ENVIRONMENT", "effect": "ENVIRONMENT_BLOCKED"},
+        ]},
+        "reportingPolicy": {
+            "orientation": "ZERO_CONTEXT_ORIENTATION", "progressMode": "NON_BLOCKING", "reviewPoint": "OWNER_REVIEW",
+            "plainLanguageFields": ["projectPurpose", "whatWasDone", "whatWorksNow", "whatStillDoesNotWork", "userImpact", "canContinue", "canRelease"],
+            "nextActions": {"continue": ["continue the locked fixture work"], "repair": ["repair the failed fixture check"], "humanReview": ["review the fixture candidate"]},
+        },
+    }
+    execution_hash = hashlib.sha256(json.dumps(planning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return {
-        "schemaVersion": "3.2", "taskId": "TASK-001", "goal": "test cap", "objectiveRefs": ["KO-001"],
+        "schemaVersion": "4.0", "taskId": "TASK-001", "goal": "test cap", "objectiveRefs": ["KO-001"],
         "allowedPaths": ["fixture.py"], "forbiddenPaths": [], "requiredCaseIds": ["CASE-001"],
         "risk": "R2", "maxClaimLevel": "ACCEPTED", "authorityRefs": ["REQUIREMENTS.md"],
         "nonGoals": [], "humanDecisionPoints": [], "acceptanceCheckpoints": [checkpoint],
-        "checkpointConfirmation": {"actorId": "owner", "summary": "checkpoint contract confirmed", "checkpointSetSha256": checkpoint_hash, "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-28T00:00:00+08:00"},
-        "auditPolicy": policy,
+        "checkpointConfirmation": {"actorId": "owner", "summary": "checkpoint contract confirmed", "checkpointSetSha256": checkpoint_hash, "executionPlanSha256": execution_hash, "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-28T00:00:00+08:00"},
+        "auditPolicy": policy, **planning,
     }
 
 
 def test_checkout_protocol_is_consistent() -> None:
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     assurance = (ROOT / "references" / "controller-assurance.md").read_text(encoding="utf-8")
-    command = "clone --no-local --branch <candidate-branch-or-tag> --single-branch"
-    assert command in skill and "clone --no-local --branch <candidate-tag-or-branch> --single-branch" in assurance
-    assert "clone --no-local --no-checkout" not in skill
+    command = "clone --no-local --branch <candidate-tag-or-branch> --single-branch"
+    assert "[controller-assurance.md](references/controller-assurance.md)" in skill
+    assert command in assurance
+    assert "clone --no-local --no-checkout" not in skill and "clone --no-local --no-checkout" not in assurance
 
 
 def test_audit_path_budget_blocks_long_root_and_accepts_short_root() -> None:
@@ -112,9 +155,9 @@ def test_missing_release_and_audit_tags_are_aggregated() -> None:
 
     temp, root = package_fixture.package_copy()
     try:
-        report = package_fixture.package_report(root, expect=2)
+        report = package_fixture.package_report(root, expect=3)
         failed = {item["id"] for item in report["checks"] if item["status"] != "PASS"}
-        assert {"PKG-AUDIT-RELEASE-TAG-MISSING", "PKG-AUDIT-REPORT-TAG-MISSING"} <= failed
+        assert {"PKG-AUDIT-RELEASE-TAG-MISSING", "PKG-AUDIT-REPORT-TAG-MISSING", "PKG-AUDIT-CONTENT-CLOSURE"} <= failed
 
         runtime_file = root / "assets" / "project-control" / "runtime" / "vibe_runtime" / "common.py"
         runtime_file.write_text(runtime_file.read_text(encoding="utf-8") + "\n# stale-inventory aggregation mutation\n", encoding="utf-8", newline="\n")
@@ -135,7 +178,7 @@ def test_development_package_never_grants_high_claims() -> None:
         run(sys.executable, str(skill / "scripts" / "build_manifest.py"), "--root", str(skill), cwd=skill)
         git(skill, "add", "-A"); git(skill, "commit", "-m", "development candidate")
         dev = json.loads(run(sys.executable, "-c", "import json,sys;sys.path.insert(0,r'" + str(skill / "assets" / "project-control" / "runtime") + "');from vibe_runtime.package_release import validate_development_package;print(json.dumps(validate_development_package(__import__('pathlib').Path(r'" + str(skill) + "'))))").stdout)
-        assert dev["status"] == "PASS" and dev["formalClaimsAllowed"] is False and dev["maxClaimLevel"] == "DEVELOPMENT_CHECKED"
+        assert dev["status"] == "PASS" and dev["formalClaimsAllowed"] is False and dev["maxClaimLevel"] == "DEVELOPMENT_CHECKED", dev
 
         project = base / "project"; project.mkdir(); git(project, "init"); git(project, "config", "user.email", "fixture@example.invalid"); git(project, "config", "user.name", "Fixture")
         (project / "REQUIREMENTS.md").write_text("# Requirement\n", encoding="utf-8")
@@ -148,7 +191,7 @@ def test_development_package_never_grants_high_claims() -> None:
         positioning = {"primaryExperience":"SERVICE","capabilityDomains":["BACKEND_API"],"deliveryObjective":"VERTICAL_SLICE","releaseIntent":"PRIVATE_OPERATION","runtimeTargets":["python"],"targetEnvironments":[{"id":"dev","operatingSystem":"Windows","deviceClass":"desktop"}],"distributionChannels":[],"humanQualityGates":[],"nonGoals":[],"firstVerticalSlice":{"outcome":"x","included":["one command"],"excluded":[],"successSignals":[{"id":source_id("SIG","CASE-001 passes"),"statement":"CASE-001 passes"}]}}
         positioning_hash = hashlib.sha256(json.dumps(positioning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         objective_summary = "confirmed"
-        spec = {"schemaVersion":"3.2","projectId":"dev-fixture",**positioning,"confirmation":{"actorId":"owner","summary":"positioning","summarySha256":positioning_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":{"document":"KEY_OBJECTIVES.md","documentId":"DEV-OBJECTIVES","revision":1,"status":"CONFIRMED","sourceDocuments":["REQUIREMENTS.md"],"objectiveIds":["KO-001"],"failureModeIds":["KF-001"],"nonGoalIds":["NG-001"],"confirmation":{"actorId":"owner","summary":objective_summary,"summarySha256":hashlib.sha256(objective_summary.encode()).hexdigest(),"record":"OBJECTIVES_CONFIRMATION.json"}},"automationPolicy":automation_policy("dev-fixture"),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["REQUIREMENTS.md"],"trustedKeys":[],"cases":[{"id":"CASE-001","command":[sys.executable,"fixture.py"],"observation":"runtime-observed","maxClaimLevel":"ACCEPTED","oracle":{"exitCode":0,"stdoutContainsAll":[],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":{"id":"generic-command","version":"1.0.0","sha256":"pending"}}]}
+        spec = {"schemaVersion":"4.0","projectId":"dev-fixture",**positioning,"confirmation":{"actorId":"owner","summary":"positioning","summarySha256":positioning_hash,"record":"POSITIONING_CONFIRMATION.json"},"keyObjectives":{"document":"KEY_OBJECTIVES.md","documentId":"DEV-OBJECTIVES","revision":1,"status":"CONFIRMED","sourceDocuments":["REQUIREMENTS.md"],"objectiveIds":["KO-001"],"failureModeIds":["KF-001"],"nonGoalIds":["NG-001"],"confirmation":{"actorId":"owner","summary":objective_summary,"summarySha256":hashlib.sha256(objective_summary.encode()).hexdigest(),"record":"OBJECTIVES_CONFIRMATION.json"}},"automationPolicy":automation_policy("dev-fixture"),"capabilityProfiles":[],"profileBindings":[],"runtimeAdapters":["generic-command"],"skillBindings":[],"projectOverlay":[],"authorityFiles":["REQUIREMENTS.md"],"trustedKeys":[],"cases":[{"id":"CASE-001","command":[sys.executable,"fixture.py"],"observation":"runtime-observed","maxClaimLevel":"ACCEPTED","oracle":{"exitCode":0,"stdoutContainsAll":[],"stderrContainsNone":[]},"artifacts":[],"satisfiesRuleIds":["RULE-CORE-OBSERVABLE-CANDIDATE","RULE-CORE-FAILURE-CONSERVATION","RULE-PROFILE-API-CONTRACT","RULE-ADAPTER-GENERIC_COMMAND"],"capabilities":["candidate-integrity","failure-conservation","api-contract-runtime","generic-command-execution"],"adapter":{"id":"generic-command","version":"1.0.0","sha256":"pending"}}]}
         adapters = json.loads((skill / "assets" / "project-control" / "runtime" / "rules" / "v1" / "adapters.json").read_text(encoding="utf-8"))
         descriptor = next(item for item in adapters["adapters"] if item["id"] == "generic-command")
         spec["cases"][0]["adapter"]["sha256"] = hashlib.sha256(json.dumps(descriptor, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

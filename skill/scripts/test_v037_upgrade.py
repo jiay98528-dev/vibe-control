@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused same-Schema runtime-upgrade regressions for vibe-control 0.3.7."""
+"""Inherited Schema 3.2 to 4.0 runtime-upgrade regressions."""
 
 from __future__ import annotations
 
@@ -78,7 +78,9 @@ def content_ref(root: Path, path: Path) -> dict:
     }
 
 
-def previous_patch(version: str) -> str:
+def legacy_source_version(version: str) -> str:
+    if version == "0.4.0":
+        return "0.3.7"
     major, minor, patch = (int(part) for part in version.split("."))
     assert patch > 0
     return f"{major}.{minor}.{patch - 1}"
@@ -124,7 +126,7 @@ def make_project(base: Path, package: Path, name: str) -> tuple[Path, str, str]:
     git(project, "commit", "-m", "authority")
 
     target = (package / "VERSION").read_text(encoding="utf-8-sig").strip()
-    source = previous_patch(target)
+    source = legacy_source_version(target)
     spec_path = base / f"{name}-bootstrap.json"
     policy = automation_policy(name, "MANUAL_STAGE_CONFIRMATION")
     spec = bootstrap_spec(name, policy)
@@ -177,6 +179,7 @@ def make_project(base: Path, package: Path, name: str) -> tuple[Path, str, str]:
     lock_path = control / "project-governance-lock.json"
     lock = load_json(lock_path)
     lock["lockId"] = f"lock-{name}-runtime-{source}"
+    lock["schemaVersion"] = "3.2"
     lock["packageBinding"]["version"] = source
     for key in ("runtime", "ruleCompiler", "profileDirectory", "adapterDirectory"):
         old_path = lock[key]["path"].replace(f"runtime/{target}/", f"runtime/{source}/")
@@ -184,6 +187,12 @@ def make_project(base: Path, package: Path, name: str) -> tuple[Path, str, str]:
     lock["packageBinding"]["runtimeManifest"] = dict(lock["runtime"])
     if "evidenceBytePolicy" in lock:
         lock["evidenceBytePolicy"] = content_ref(project, control / ".gitattributes")
+    for relative in ("stage-state.json", "case-catalog.json"):
+        historical_path = control / relative
+        historical = load_json(historical_path)
+        historical["schemaVersion"] = "3.2"
+        write_json(historical_path, historical)
+    lock["caseCatalog"] = content_ref(project, control / "case-catalog.json")
     write_json(lock_path, lock)
     git(project, "add", "-A")
     git(project, "commit", "-m", "pin previous development runtime")
@@ -194,12 +203,17 @@ def add_upgrade_spec(project: Path, source: str, target: str, *, replacement: bo
     replacement_path = project / "replacement-case-catalog.json"
     if replacement:
         shutil.copy2(project / ".vibe-control/case-catalog.json", replacement_path)
+        replacement_value = load_json(replacement_path)
+        replacement_value["schemaVersion"] = "4.0"
+        write_json(replacement_path, replacement_value)
     summary = f"owner confirms diagnostic runtime upgrade from {source} to {target}"
     spec = {
-        "schemaVersion": "3.2",
+        "schemaVersion": "4.0",
         "projectId": project.name,
         "sourceRuntimeVersion": source,
         "targetRuntimeVersion": target,
+        "sourceSchemaVersion": "3.2",
+        "targetSchemaVersion": "4.0",
         "replacementCaseCatalog": replacement_path.name if replacement else None,
         "confirmation": {
             "actorId": "owner",
@@ -254,6 +268,9 @@ def test_plan_is_read_only_and_apply_invalidates(base: Path, package: Path) -> N
     _, planned = command(package, project, "--plan", "--spec", str(spec), expect=2)
     assert planned["data"]["sourceRuntimeVersion"] == source
     assert planned["data"]["targetRuntimeVersion"] == target
+    assert planned["data"]["sourceSchemaVersion"] == "3.2"
+    assert planned["data"]["targetSchemaVersion"] == "4.0"
+    assert planned["data"]["operation"] == "schema-runtime-upgrade"
     assert planned["data"]["gitHead"] == git(project, "rev-parse", "HEAD")
     assert planned["data"]["spec"]["sha256"] == sha(spec)
     assert planned["data"]["replacementCaseCatalog"]["sha256"] == sha(project / "replacement-case-catalog.json")
@@ -273,7 +290,10 @@ def test_plan_is_read_only_and_apply_invalidates(base: Path, package: Path) -> N
     assert [path.name for path in (control / "runtime").iterdir()] == [target]
     assert (control / ".gitattributes").read_bytes() == b"evidence/** -text -filter -working-tree-encoding\n"
     lock = load_json(control / "project-governance-lock.json")
+    assert lock["schemaVersion"] == "4.0"
     assert lock["packageBinding"]["version"] == target
+    policy = load_json(control / "automation-policy.json")
+    assert policy["schemaVersion"] == "4.0" and policy["mode"] == "AUTO_LOCAL_TO_REVIEW"
     if tuple(int(part) for part in target.split(".")) >= (0, 3, 7):
         assert lock["evidenceBytePolicy"]["sha256"] == sha(control / ".gitattributes")
     assert load_json(control / "case-catalog.json") == load_json(project / "replacement-case-catalog.json")
@@ -369,8 +389,9 @@ def test_dirty_wrong_hash_untracked_and_plan_drift(base: Path, package: Path) ->
     summary = f"upgrade {source} to {target}"
     untracked_spec = untracked_project / "untracked-upgrade.json"
     write_json(untracked_spec, {
-        "schemaVersion": "3.2", "projectId": untracked_project.name,
+        "schemaVersion": "4.0", "projectId": untracked_project.name,
         "sourceRuntimeVersion": source, "targetRuntimeVersion": target,
+        "sourceSchemaVersion": "3.2", "targetSchemaVersion": "4.0",
         "replacementCaseCatalog": None,
         "confirmation": {"actorId": "owner", "summary": summary, "summarySha256": hashlib.sha256(summary.encode()).hexdigest(), "confirmedAt": "2026-07-29T20:00:00+08:00"},
     })
@@ -652,7 +673,7 @@ def main(argv: list[str] | None = None) -> int:
     passed = bool(results) and counters["passed"] == len(results)
     value = {
         "status": "PASS" if passed else "FAIL",
-        "test": "vibe-control-0.3.7-upgrade",
+        "test": "vibe-control-0.4.0-schema-upgrade-inherited",
         "jobs": args.jobs,
         "caseTimeoutSeconds": args.case_timeout,
         "suiteTimeoutSeconds": args.suite_timeout,

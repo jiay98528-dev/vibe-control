@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused 0.3.7 regressions for read-only Dashboard state projection."""
+"""Inherited 0.4.0 regressions for read-only Dashboard state projection."""
 
 from __future__ import annotations
 
@@ -277,7 +277,7 @@ def main() -> int:
         "skipped": 0,
     }
     report = {
-        "test": "vibe-control-0.3.7-dashboard-projection",
+        "test": "vibe-control-0.4.0-dashboard-projection-inherited",
         "status": "PASS" if passed == len(results) else "FAIL",
         "counters": counters,
         "cases": results,

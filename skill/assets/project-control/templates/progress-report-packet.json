@@ -1,0 +1,21 @@
+{
+  "taskId": null,
+  "reason": "OWNER_REVIEW",
+  "summary": "已到达需要负责人复核的位置。",
+  "actorId": "coordinator",
+  "sessionId": "current-session",
+  "plainLanguage": {
+    "projectPurpose": "说明这个项目为用户解决什么问题。",
+    "whatWasDone": "说明这次已经完成了什么。",
+    "whatWorksNow": "说明现在已经可以使用什么。",
+    "whatStillDoesNotWork": "说明还有什么没有完成或没有确认。",
+    "userImpact": "说明这些未完成事项会给用户带来什么影响。",
+    "canContinue": "说明是否可以继续下一步工作。",
+    "canRelease": "说明现在是否可以作为最终版本交付。"
+  },
+  "nextActions": [
+    {"type": "RECOMMENDED", "statement": "按推荐方案继续", "impact": "保持当前目标和范围，继续推进。", "risk": "低；不改变目标和权限。", "humanEffort": "到下一个复核点前不需要持续盯守。", "sourceRefs": ["NODE-001"]},
+    {"type": "ALTERNATIVE", "statement": "先查看结果再继续", "impact": "暂时停下自动推进，先核对当前结果。", "risk": "低；会延后完成时间。", "humanEffort": "需要现在查看当前结果。", "sourceRefs": ["NODE-001"]},
+    {"type": "OPEN", "statement": "提出其他做法", "impact": "可以输入其他方向；改变目标时需要重新整理计划。", "risk": "取决于新方向。", "humanEffort": "需要说明希望改变的内容。", "sourceRefs": ["NODE-001"]}
+  ]
+}

@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "projectId", "primaryExperience", "capabilityDomains", "deliveryObjective", "releaseIntent", "runtimeTargets", "targetEnvironments", "distributionChannels", "humanQualityGates", "nonGoals", "firstVerticalSlice", "confirmation", "keyObjectives", "automationPolicy", "capabilityProfiles", "profileBindings", "runtimeAdapters", "skillBindings", "projectOverlay", "authorityFiles", "trustedKeys", "cases"],
+  "required": ["schemaVersion", "projectId", "primaryExperience", "capabilityDomains", "deliveryObjective", "releaseIntent", "runtimeTargets", "targetEnvironments", "distributionChannels", "humanQualityGates", "nonGoals", "firstVerticalSlice", "confirmation", "keyObjectives", "capabilityProfiles", "profileBindings", "runtimeAdapters", "skillBindings", "projectOverlay", "authorityFiles", "trustedKeys", "cases"],
   "properties": {
-    "schemaVersion": {"const": "3.2"},
+    "schemaVersion": {"const": "4.0"},
     "projectId": {"type": "string", "minLength": 1},
     "primaryExperience": {"enum": ["GAMEPLAY", "INTERACTIVE_APPLICATION", "SERVICE", "DATA_OR_MODEL_SYSTEM"]},
     "capabilityDomains": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["USER_INTERFACE", "REALTIME_ENGINE", "BACKEND_API", "PERSISTENCE", "DATA_PIPELINE", "LLM", "HARDWARE_INTEGRATION"]}},

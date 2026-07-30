@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Proof-boundary regressions for the 0.3.6 runtime adapters."""
+"""Proof-boundary regressions for the Schema 4.0 runtime adapters."""
 from __future__ import annotations
 
 import json
@@ -174,7 +174,7 @@ def test_evidence_binds_command_invocation_capabilities_and_each_artifact() -> N
         ],
     }
     invocation = {
-        "schemaVersion": "3.2", "evidenceId": evidence["evidenceId"], "candidateCommit": evidence["candidateCommit"], "caseId": case["id"],
+        "schemaVersion": "4.0", "evidenceId": evidence["evidenceId"], "candidateCommit": evidence["candidateCommit"], "caseId": case["id"],
         "adapter": adapter, "command": case["command"], "requestedArtifacts": case["artifacts"],
         "operation": "execute-locked-case", "executionRoot": "detached-candidate-worktree",
         "toolVersion": "Version 1.2.3",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Baseline capability tests for the Schema 3.2 envelope."""
+"""Baseline capability tests for the Schema 4.0 envelope."""
 from __future__ import annotations
 import json, sys
 from pathlib import Path
@@ -10,10 +10,10 @@ def test_inspect():
     try:
         result=fx.run(sys.executable,str(fx.WRAPPER),"inspect","--project",str(root)); assert json.loads(result.stdout)["status"]=="PASS"
     finally: temp.cleanup()
-def test_bootstrap_schema3():
+def test_bootstrap_schema4():
     temp,root,_=fx.setup_project();
     try:
-        assert fx.load(root/".vibe-control"/"stage-state.json")["schemaVersion"]=="3.2"
+        assert fx.load(root/".vibe-control"/"stage-state.json")["schemaVersion"]=="4.0"
         assert (root/".vibe-control"/"key-objectives-lock.json").is_file()
         assert (root/".vibe-control"/"project-positioning.json").is_file()
         assert (root/".vibe-control"/"resolved-rule-set.json").is_file()
@@ -72,13 +72,13 @@ def test_release():
             assert report["formal"]["eligible"] is False and "HC-ASSURANCE-MATRIX-FORMAL" in report["formal"]["blockers"]
         assert "HC-RELEASE-RECEIPT" not in report["formal"]["blockers"]
     finally: temp.cleanup()
-def test_schema32_does_not_remigrate():
+def test_schema4_does_not_use_legacy_migrate():
     temp,root,_=fx.setup_project();
     try:
         _,report=fx.command(root,"migrate","--plan",expect=2)
         assert report["error"]["id"]=="HC-MIGRATION-SOURCE-VERSION" and report["formal"]["eligible"] is False
     finally: temp.cleanup()
-TESTS=[test_inspect,test_bootstrap_schema3,test_runtime_bundle_excludes_bytecode_cache,test_risk,test_freeze,test_execute,test_skip_rejected,test_zero_rejected,test_counter_conservation_rejected,test_review,test_accept,test_release,test_schema32_does_not_remigrate]
+TESTS=[test_inspect,test_bootstrap_schema4,test_runtime_bundle_excludes_bytecode_cache,test_risk,test_freeze,test_execute,test_skip_rejected,test_zero_rejected,test_counter_conservation_rejected,test_review,test_accept,test_release,test_schema4_does_not_use_legacy_migrate]
 def main():
     out=[]
     for test in TESTS:

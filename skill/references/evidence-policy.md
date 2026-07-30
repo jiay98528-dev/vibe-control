@@ -1,6 +1,6 @@
 # 证据、硬检查与非硬发现
 
-> `vibe-control 0.3.7` 的正式声明先受定位锁中的 `releaseIntent` 限定：`LOCAL_EXPERIMENT` 最高 `VERIFIED`，`PRIVATE_OPERATION` 最高 `ACCEPTED`，`EXTERNAL_RELEASE` 才可能到 `RELEASE_READY`。任何路径还要求项目锁绑定有效的 Skill 包级审计收据、`project-positioning.json`、`resolved-rule-set.json` 与已确认 checkpoint set；外部 R3 正式发行另需绑定当前项目候选、owner decision、已签 external-release-audit 与当前 package/runtime/matrix 的项目级 release receipt。缺失、重放、漂移、失败结果或无效的**必需**签名一律 fail-closed。
+> `vibe-control 0.4.0` 的正式声明先受定位锁中的 `releaseIntent` 限定：`LOCAL_EXPERIMENT` 最高 `VERIFIED`，`PRIVATE_OPERATION` 最高 `ACCEPTED`，`EXTERNAL_RELEASE` 才可能到 `RELEASE_READY`。任何路径还要求项目锁绑定有效的 Skill 包级审计收据、`project-positioning.json`、`resolved-rule-set.json` 与已确认 task action map；外部 R3 正式发行另需绑定当前项目候选、owner decision、已签 external-release-audit 与当前 package/runtime/matrix 的项目级 release receipt。缺失、重放、漂移、失败结果或无效的**必需**签名一律 fail-closed。
 
 Release receipt 不是包级“曾审过”的通行证，也不能单独授权任何项目候选。R2 与私有 R3 的 review/owner decision 是受版本管理、候选绑定的人工记录，不要求密码学身份；真实性仍由人负责。只有 `EXTERNAL_RELEASE + risk=R3 + maxClaimLevel=RELEASE_READY` 的任务要求 `executor`、`auditor`、`release-auditor`、`owner` 的 Ed25519 公钥与签名闭包，这些 actor/公钥不得复用，release-auditor 还必须与内部 review auditor 分离。私钥不得写入 runtime、Skill 或项目受管目录，也不用于 Skill 安装、授权、收费或本地 tag。
 
@@ -55,7 +55,7 @@ Release receipt 不是包级“曾审过”的通行证，也不能单独授权�
 - `browser-runtime` 可以证明真实浏览器/Playwright 路径及截图、trace、日志和 counters；它不能证明 Tauri/Electron/Capacitor 原生壳、安装包、目标设备、GPU/能耗或主观视觉质量。
 - `browser-webgl-game-runtime` 只在 `GAMEPLAY` 与显式 WebGL target 同时成立时，以直接锁定的 `playwright test`、合同锁定时已验证的安全产物路径、执行前清理后新生成的候选绑定产物证明浏览器玩法切片；`--help`、`--version`、`--list`、UI 模式和允许零测试等非执行入口不合格。控制器只记录宿主平台和实际 Playwright 版本，浏览器、视口和 WebGL 细节仅在锁定产物实际记录时才进入证明范围。它不能证明原生壳、Android 真机、目标硬件、GPU/热稳定、游戏感、人工批准或发行资格。
 - `godot-runtime` 必须绑定 `project.godot`、Godot 可执行文件和精确版本；headless smoke 不能证明渲染玩法、目标硬件表现或游戏感。
-- Tauri、Electron、Unreal 与 Capacitor 在 0.3.6 没有正式 adapter；发现它们只能产生 investigation。已闭合的 Browser/generic 证据只在其原有范围内有效。
+- Tauri、Electron、Unreal 与 Capacitor 在 0.4.0 没有正式 adapter；发现它们只能产生 investigation。已闭合的 Browser/generic 证据只在其原有范围内有效。
 - MCP 不由 Python runtime 直连。其结果只能作为 external evidence 导入，且必须绑定 adapter、工具版本、操作、原始 transcript、产物、candidate、case、positioning 与 rule-set；命令返回文本或工具自报成功不能覆盖 required case。
 - Required Skill 可生产证据，advisory Skill 可给启发式意见，但所有 Skill 都必须 `canApprove=false`。无法内容寻址的 Skill 只能 advisory；安装 Skill 需要用户批准但不需要私钥。
 

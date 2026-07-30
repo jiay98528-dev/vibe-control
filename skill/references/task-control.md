@@ -1,13 +1,14 @@
-# 任务控制：强边界、弱流程（Schema 3.2）
+# 任务控制：强边界、弱流程（Schema 4.0）
 
 模型可以在已确认定位和合同内自由选择架构、算法、实现顺序、调试方式和任务拆分。控制面只锁定会导致项目跑偏、证据失真或声明越界的边界。
 
-## 风险自适应
+## 风险与项目派生流程
 
-- `R0`：只读调查；记录范围和证据，不创建候选。
-- `R1`：精简任务卡、既有事实源导出的机械 case、负责会话复核。
-- `R2`：完整合同、外部可观察 case、候选冻结、独立只读审核。
-- `R3`：在 R2 上增加当前显式授权、恢复方案与执行/审核分离。
+- `R0` 只读，不创建候选。
+- `R1/R2` 描述影响与验证深度，但不机械规定固定阶段、审核次数或统一门禁类型。
+- `R3`、权限扩大和不可逆操作始终需要当前授权、恢复方案与执行/审核分离。
+
+模型从当前目标、里程碑、检查点、Profile、适配器和最低核心生成 `verificationStrategy`。固定阶段、风险到审核形式、审核频次和一般质量卡点只是建议；Task 必须写清本项目实际采用的执行与停止条件。
 
 以下变化必须暂停并回到边界决定：目标或非目标、允许路径、事实源、产品语义、checkpoint/assertion、case/oracle、风险、外部状态、权限、不可逆性、声明上限，或已锁定 positioning/Profile/adapter/Skill/overlay。定位变化不得藏在普通任务合同中；使用 `reposition`。关键目标变化使用 `revise-objectives`，并使 task 及全部下游对象失效。
 
@@ -35,13 +36,15 @@ Skill 的安装、更新、Git commit 或 tag 不是项目 `EXTERNAL_RELEASE`，
 
 合同只能增加限制或缩小工作范围，不能删除、覆盖或降低派生值。每个 applicable rule 必须由 lifecycle 为 `CANDIDATE_EXECUTION` 的 required case 的 `satisfiesRuleIds[]` 覆盖；总 case 数、测试文件名、一个万能 case 或 `BOOTSTRAP_DIAGNOSTIC` 接入自检不能替代逐规则覆盖。后者进入任务时由 `HC-CASE-LIFECYCLE-SCOPE` 阻断，其余覆盖缺口由 `HC-RULE-CASE-COVERAGE` 阻断 lock。
 
-Adapter 只可支持 descriptor 明确列出的证据能力：generic command 不证明真实 UI/部署，Browser 不证明原生壳/安装包/目标硬件，Browser WebGL 只在 `GAMEPLAY` 与显式 WebGL target 下通过直接 `playwright test` 和执行后新产物证明候选绑定的浏览器玩法切片；未被锁定产物记录的环境事实及游戏感仍不在证明范围。Godot headless 不证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在 0.3.7 只能形成 investigation。MCP transcript 按外部证据导入，不由 runtime 自报为本地执行。
+Adapter 只可支持 descriptor 明确列出的证据能力：generic command 不证明真实 UI/部署，Browser 不证明原生壳/安装包/目标硬件，Browser WebGL 只在 `GAMEPLAY` 与显式 WebGL target 下通过直接 `playwright test` 和执行后新产物证明候选绑定的浏览器玩法切片；未被锁定产物记录的环境事实及游戏感仍不在证明范围。Godot headless 不证明渲染玩法或游戏感。Tauri、Electron、Unreal 与 Capacitor 在 0.4.0 只能形成 investigation。MCP transcript 按外部证据导入，不由 runtime 自报为本地执行。
 
 Required Skill 缺失、不可寻址或 tree hash 漂移会阻断其任务；advisory Skill 缺失只产生 warning。安装 required Skill 必须获得当前人工批准，安装后重新发现、哈希和解析；所有 Skill 均 `canApprove=false`。
 
 ## R1 精简任务卡
 
 使用精简 task-contract 模板。必须固定目标、可观察成功标准、允许/禁止路径、权威引用、机械 case、检查点、审计停止条件和最大声明。自动 case 必须逐项说明它来自哪条已锁定事实或 rule ID；不能追溯的 case 只能是草案。控制面 bootstrap/DRAFT 闭包属于接入诊断，不得包装成候选 required case，否则候选锁定后会制造自我依赖。
+
+无论风险等级，Schema 4.0 合同还要锁定 `milestones[]`、四域 `scorecardPlan[]`、`verificationStrategy`、`guardPolicy` 与 `reportingPolicy`。这些字段决定行动地图、量化分母、实现检查和候选后验收；冻结后变化会失效下游对象。
 
 ## R2/R3 完整合同
 
@@ -73,19 +76,21 @@ Required Skill 缺失、不可寻址或 tree hash 漂移会阻断其任务；adv
 
 ## 启动与恢复
 
-`start`/`resume` 是 Skill 工作流名称，不伪装成 CLI。负责上下文从项目机器对象恢复，不从聊天摘要猜状态：先验证治理锁、定位、规则集、task lock、candidate 与证据，只恢复未完成动作。存在漂移时由固定失效边回退。
+`start`/`resume` 是 Skill 工作流名称，不伪装成 CLI。第一步是在项目外缓存初始化或恢复 progress ledger 和 Dashboard，再从项目机器对象恢复；不能从聊天摘要猜状态。验证治理锁、定位、规则集、task lock、candidate 与证据后，只恢复未完成动作。存在漂移时由固定失效边回退。
 
-需要多个执行上下文时，先按 [multi-session-routing.md](multi-session-routing.md) 从实际工具解析 `CODEX_THREADS | SUBAGENTS | SERIAL`。创建用户可见的 Codex 任务只请求一次任务级授权；非 Codex 宿主显式降级为子智能体，既无 thread 也无 subagent 工具时串行执行。每个任务包写明目标、输入、允许文件、禁止文件、基线、验收命令、停止条件和机器回报格式。Skill 不设置 worker/子智能体固定数量上限；宿主容量、所有权和隔离仍是硬边界。Worker 和启发式 reviewer 可以生产证据或建议，但不能批准候选。
+需要多个执行上下文时，按 [multi-session-routing.md](multi-session-routing.md) 从实际工具解析 `TEAM → SUBAGENT → SERIAL`。只有宿主规定创建持久 Team 必须显式授权时才询问一次，否则默认使用。Skill 不设置 worker/子智能体固定数量上限；宿主容量、所有权和隔离仍是硬边界。
+
+Implementer 只获得轻量 run-card 并运行本次改动的最小开发检查；不得盲跑完整门禁。候选冻结后由 Executor 执行 locked cases、Auditor 在新鲜只读上下文审核。Coordinator 是控制面、progress ledger、整合和候选的唯一写入者。详细边界见 [execution-routing.md](execution-routing.md)。
 
 ## 冻结与整合
 
-负责会话先复核 worker diff、无关改动和文件所有权，再运行与风险相称的测试。正式冻结要求 Git、完整 commit/tree 和冻结时干净工作树。Candidate 必须直接内容绑定当前 positioning、resolved rule set、task lock、checkpoint set、合同、case/oracle、权威文件和输入。
+Coordinator 先复核 worker diff、无关改动和文件所有权，再运行最小整合检查。完整 case 不在实现阶段盲跑；正式冻结后交给 Executor。正式候选要求 Git、完整 commit/tree 和冻结时干净工作树，并直接绑定 positioning、resolved rule set、task action map、checkpoint set、合同、case/oracle、权威文件和输入。
 
 冻结后产品、合同、case、oracle、定位、规则目录、Profile、adapter、Skill binding、依赖或环境发生变化，都必须按固定失效边使对应 execution、review、decision、receipt 和 handoff 失效。状态文件不得自报“仍然有效”。
 
 Evidence 创建时记录工作副本字节身份；提交后 `validate` 必须从 Git blob 复核 transcript、artifact 与 invocation。项目根级换行策略不能覆盖 `.vibe-control/.gitattributes` 中的 evidence `-text -filter -working-tree-encoding` 规则。嵌套策略缺失、漂移或未跟踪时不得沿用旧 PASS。
 
-并行 worker 的提交由负责会话整合。不得自动 push、发布、解锁里程碑、安装缺失 Skill 或执行 R3 操作。
+并行 worker 的提交由 Coordinator 整合。默认允许通过检查的本地里程碑提交，不允许自动 push、发布、解锁人工里程碑、安装缺失 Skill 或执行 R3 操作。
 
 ## 重定位
 
@@ -93,6 +98,6 @@ Evidence 创建时记录工作副本字节身份；提交后 `validate` 必须�
 
 ## 同 Schema runtime 升级
 
-Schema 3.2 项目更换固定 runtime 时使用 `upgrade`，不能手工替换 `.vibe-control/runtime/` 或重绑定旧 evidence。无 spec 的 `upgrade --plan` 只读报告旧/新 package、runtime、matrix、治理锁、case catalog、当前 HEAD 和失效集合；带已确认 spec 的 plan 生成内容绑定的 plan hash。Apply 必须重新核对这些输入、干净工作树和确认记录。
+Schema 4.0 项目更换固定 runtime 时使用 `upgrade`，不能手工替换 `.vibe-control/runtime/` 或重绑定旧 evidence。无 spec 的 `upgrade --plan` 只读报告旧/新 package、runtime、matrix、治理锁、case catalog、当前 HEAD 和失效集合；带已确认 spec 的 plan 生成内容绑定的 plan hash。Apply 必须重新核对这些输入、干净工作树和确认记录。
 
 Apply 在 staging 中构建并完整验证新控制面，把旧 runtime、task、candidate、evidence、review、decision 与 handoff 复制到 `.vibe-control/legacy/runtime-upgrade-<plan-hash>/`，生成逐文件 bytes/SHA-256 manifest，再原子替换 runtime、Schema、规则与治理锁。中途失败必须恢复旧控制面。升级完成后固定回到 `DRAFT / BLOCKED / DIAGNOSTIC`；归档对象只用于历史诊断，任何旧 PASS、候选或人工决定都不得继承。Case catalog 的有意变化属于确认 spec，且仍受 `CANDIDATE_EXECUTION | BOOTSTRAP_DIAGNOSTIC` 生命周期边界约束。

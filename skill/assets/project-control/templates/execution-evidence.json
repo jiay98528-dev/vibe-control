@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "3.2",
+  "schemaVersion": "4.0",
   "evidenceId": "EVIDENCE-001",
   "taskId": "TASK-001",
   "candidateId": "replace-with-candidate-id",
@@ -11,6 +11,7 @@
   "oracleHash": "replace-with-64-char-sha256",
   "inputHash": "replace-with-64-char-sha256",
   "checkpointSetSha256": "replace-with-64-char-sha256",
+  "executionPlanSha256": "replace-with-64-char-sha256",
   "checkpointIds": ["CP-001"],
   "executor": {"actorId": "executor", "sessionId": "session-id"},
   "observation": "runtime-observed",

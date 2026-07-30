@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Skill-binding, orchestration-compatibility, and package-structure tests for 0.3.6."""
+"""Skill-binding, orchestration-compatibility, and package-structure tests for 0.4.0."""
 from __future__ import annotations
 
 import hashlib
@@ -37,7 +37,6 @@ LOCKED_CHECK_IDS = {
     "HC-AUDIT-STOP-CLOSURE",
     "VC-SKILL-INSTALL-APPROVAL",
     "VC-REINSTALL-REQUIRED",
-    "HC-AUTOMATION-POLICY-REQUIRED",
     "HC-AUTOMATION-PLAN-HASH",
     "HC-AUTOMATION-POLICY-DRIFT",
     "HC-AUTOMATION-MANUAL",
@@ -58,6 +57,10 @@ LOCKED_CHECK_IDS = {
     "HC-UPGRADE-PLAN-HASH",
     "HC-UPGRADE-INVALIDATION",
     "HC-UPGRADE-ARCHIVE",
+    "HC-PROGRESS-STOPPED",
+    "HC-PROGRESS-REPORT-BINDING",
+    "HC-DASHBOARD-DESTINATION-OWNERSHIP",
+    "HC-GUARD-POLICY",
 }
 
 
@@ -134,20 +137,20 @@ def test_unaddressed_advisory_skill_warns_without_blocking() -> None:
 def test_all_locked_check_ids_are_consumed_by_runtime() -> None:
     sources = "\n".join(path.read_text(encoding="utf-8-sig") for path in sorted((RUNTIME / "vibe_runtime").glob("*.py")))
     missing = sorted(check_id for check_id in LOCKED_CHECK_IDS if check_id not in sources)
-    assert not missing, f"locked 0.3.7 check IDs are not consumed by runtime: {missing}"
+    assert not missing, f"locked 0.4.0 check IDs are not consumed by runtime: {missing}"
 
 
-def test_skill_routes_schema3_positioning_and_reinstall_boundary() -> None:
+def test_skill_routes_schema4_observable_automation_boundary() -> None:
     text = (ROOT / "SKILL.md").read_text(encoding="utf-8-sig")
     required_phrases = [
-        "0.3.7", "Schema 3.2", "resolve-rules", "reposition", "upgrade",
-        "project-positioning.md", ".vibe-control/automation-policy.json", "checkpoint-contract.md",
-        "ALL_REQUIRED_CHECKPOINTS_REPORTED", "VC-REINSTALL-REQUIRED",
-        "automation", "dashboard", "AUTO_LOCAL_TO_REVIEW", "AUTO_PUSH_TO_REVIEW",
+        "0.4.0", "Schema 4.0", "resolve-rules", "reposition", "upgrade",
+        "project-positioning.md", "progress-dashboard.md", "checkpoint-contract.md",
+        "TEAM → SUBAGENT → SERIAL", "MILESTONE_COMMITS", "push",
+        "automation", "dashboard", "AUTO_LOCAL_TO_REVIEW", "plainLanguage",
     ]
     missing = [phrase for phrase in required_phrases if phrase not in text]
-    assert not missing, f"SKILL.md is missing 0.3.7 route language: {missing}"
-    assert "private key is never required to install" in text.lower()
+    assert not missing, f"SKILL.md is missing 0.4.0 route language: {missing}"
+    assert "do not require or create private keys" in text.lower()
     assert (ROOT / "scripts" / "validate_installation.py").is_file()
     assert "validate_installation.py" in text and "PORTABLE_COPY" in text
 
@@ -160,19 +163,19 @@ def test_orchestration_compatibility_layer_is_capability_driven_and_unbounded() 
     template = json.loads(template_text)
 
     combined = "\n".join((skill, routing, model_routing))
-    for backend in ("CODEX_THREADS", "SUBAGENTS", "SERIAL"):
+    for backend in ("TEAM", "SUBAGENT", "SERIAL"):
         assert backend in combined, f"missing orchestration backend {backend}"
     assert "non Codex" in combined or "非 Codex" in combined
-    assert "sole control-plane writer" in skill
-    assert "fresh isolated context" in skill
+    assert "Coordinator alone writes" in skill
+    assert "fresh audit" in skill
     assert "NO_SKILL_FIXED_LIMIT" in routing and "NO_SKILL_FIXED_LIMIT" in model_routing
     assert template["coordination"]["requestedBackend"] == "AUTO"
     assert template["coordination"]["workerCountPolicy"] == "NO_SKILL_FIXED_LIMIT"
     assert "maxConcurrentWorkers" not in template_text
     forbidden_caps = ("Default to at most three workers", "默认最多 3 个执行会话并发")
     assert not any(value in combined for value in forbidden_caps)
-    assert "cursor" in routing and "CODEX_THREADS" in routing
-    assert "mailbox/wait/notification" in routing and "SUBAGENTS" in routing
+    assert "增量 wait" in routing and "TEAM" in routing
+    assert "mailbox/wait" in routing and "SUBAGENT" in routing
 
 
 def test_schema_and_rule_resources_exist_in_public_and_runtime_bundles() -> None:
@@ -208,7 +211,12 @@ def test_automation_dashboard_surface_and_assurance_controls_exist() -> None:
 
     matrix = json.loads((ROOT / "references" / "controller-assurance-matrix.json").read_text(encoding="utf-8-sig"))
     controls = {item["id"]: item for item in matrix["confirmedControls"]}
-    for control_id in ("CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"):
+    for control_id in (
+        "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
+        "CTRL-CONFIRMED-037", "CTRL-CONFIRMED-038", "CTRL-CONFIRMED-039",
+        "CTRL-CONFIRMED-040", "CTRL-CONFIRMED-041", "CTRL-CONFIRMED-042",
+        "CTRL-CONFIRMED-043",
+    ):
         item = controls[control_id]
         assert item["implementationStatus"] == "IMPLEMENTED"
         assert item["independentValidation"] == "PENDING"
@@ -219,7 +227,7 @@ TESTS = [
     test_required_drift_blocks_and_requests_user_approved_install,
     test_unaddressed_advisory_skill_warns_without_blocking,
     test_all_locked_check_ids_are_consumed_by_runtime,
-    test_skill_routes_schema3_positioning_and_reinstall_boundary,
+    test_skill_routes_schema4_observable_automation_boundary,
     test_orchestration_compatibility_layer_is_capability_driven_and_unbounded,
     test_schema_and_rule_resources_exist_in_public_and_runtime_bundles,
     test_automation_dashboard_surface_and_assurance_controls_exist,

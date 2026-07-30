@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused regressions for vibe-control 0.3.7 milestone commits."""
+"""Inherited regressions for vibe-control 0.4.0 milestone commits."""
 
 from __future__ import annotations
 
@@ -117,7 +117,7 @@ def main() -> int:
             results.append({"test": test.__name__, "status": "FAIL", "durationSeconds": round(time.monotonic() - started, 3), "errorType": type(exc).__name__, "error": str(exc)})
     passed = sum(item["status"] == "PASS" for item in results)
     output = {
-        "suite": "vibe-control-0.3.7-automation-commit",
+        "suite": "vibe-control-0.4.0-automation-commit-inherited",
         "status": "PASS" if passed == len(results) else "FAIL",
         "counters": {"total": len(results), "passed": passed, "failed": len(results) - passed, "skipped": 0, "timedOut": 0},
         "tests": results,

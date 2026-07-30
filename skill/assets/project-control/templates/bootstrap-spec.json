@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "3.2",
+  "schemaVersion": "4.0",
   "projectId": "replace-me",
   "primaryExperience": "INTERACTIVE_APPLICATION",
   "capabilityDomains": ["USER_INTERFACE"],
@@ -24,13 +24,14 @@
     "confirmation": {"actorId": "product-owner", "summary": "replace-with-confirmed-objective-summary", "summarySha256": "replace-with-64-char-sha256", "record": "OBJECTIVES_CONFIRMATION.json"}
   },
   "automationPolicy": {
-    "schemaVersion": "1.0",
-    "policyId": "REQUIRES_USER_SELECTION",
+    "schemaVersion": "4.0",
+    "policyId": "automation-000000000000",
     "projectId": "replace-me",
-    "mode": "REQUIRES_USER_SELECTION",
-    "commitPolicy": "REQUIRES_USER_SELECTION",
-    "pushPolicy": "REQUIRES_USER_SELECTION",
-    "stopConditions": ["AUTOMATED_CHECKPOINTS_COMPLETE", "HUMAN_CHECKPOINT", "OWNER_DECISION", "BOUNDARY_CHANGE", "R3_OR_IRREVERSIBLE_ACTION", "HARD_FAILURE", "PUSH_CONFLICT", "USER_INTERRUPT"],
+    "mode": "AUTO_LOCAL_TO_REVIEW",
+    "commitPolicy": "MILESTONE_COMMITS",
+    "pushPolicy": "NONE",
+    "stopConditions": ["AUTOMATED_CHECKPOINTS_COMPLETE", "HUMAN_CHECKPOINT", "OWNER_DECISION", "BOUNDARY_CHANGE", "R3_OR_IRREVERSIBLE_ACTION", "ACTION_GUARD", "ENVIRONMENT_BLOCKED", "PUSH_CONFLICT", "USER_INTERRUPT"],
+    "coordination": {"requestedBackend": "AUTO", "resolvedBackend": "SERIAL", "observedCapabilities": [], "workerLimit": "HOST_CAPACITY_ONLY", "hostRequiresAuthorization": false, "authorizationGranted": false, "authorizationPromptRequired": false},
     "confirmation": {"actorId": "product-owner", "summary": "replace-with-canonical-policy-summary", "summarySha256": "replace-with-64-char-sha256", "record": "AUTOMATION_CONFIRMATION.json", "confirmedAt": "replace-with-date-time"}
   },
   "capabilityProfiles": [],

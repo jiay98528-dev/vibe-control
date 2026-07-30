@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supplementary side-effect and stop-boundary regressions for vibe-control 0.3.6."""
+"""Inherited side-effect and stop-boundary regressions for vibe-control 0.4.0."""
 from __future__ import annotations
 
 import hashlib
@@ -146,13 +146,18 @@ def test_boundary_drift_staged_changes_and_unknown_control_paths_stop() -> None:
 
 
 def test_hard_failure_and_completed_automation_stop() -> None:
+    """The stable test ID now distinguishes a repairable claim failure from a review stop."""
     fixture = base.Fixture("AUTO_LOCAL_TO_REVIEW")
     try:
         state_path = fixture.root / ".vibe-control" / "stage-state.json"
         state = json.loads(state_path.read_text(encoding="utf-8")); state["health"] = "FAILED"
         base.write_json(state_path, state); base.git(fixture.root, "add", "-A"); base.git(fixture.root, "commit", "-m", "fixture failed state")
         _, failed = fixture.command("automation", "--action", "continue")
-        assert failed["status"] == "BLOCKED" and failed["error"]["id"] == "HC-AUTOMATION-HARD-FAILURE", failed
+        assert failed["status"] == "PASS", failed
+        assert failed["data"]["repairRequired"] is True, failed
+        repair_check = next(item for item in failed["integrity"]["checks"] if item["id"] == "HC-AUTOMATION-CLAIM-GUARD")
+        assert repair_check["details"]["effect"] == "CLAIM_GUARD", failed
+        assert failed["formal"]["eligible"] is False, failed
 
         state["health"] = "CLEAR"; state["phase"] = "VERIFIED"
         base.write_json(state_path, state); base.git(fixture.root, "add", "-A"); base.git(fixture.root, "commit", "-m", "fixture review point")
@@ -264,12 +269,15 @@ def test_automation_commits_new_active_task_lock_file() -> None:
 def test_assurance_requirements_follow_bound_package_version() -> None:
     legacy = required_assurance_control_ids("0.3.4")
     previous = required_assurance_control_ids("0.3.6")
-    current = required_assurance_control_ids("0.3.7")
+    v037 = required_assurance_control_ids("0.3.7")
+    current = required_assurance_control_ids("0.4.0")
     assert "CTRL-CONFIRMED-029" in legacy
     assert not {"CTRL-CONFIRMED-030", "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"} & legacy
     assert {"CTRL-CONFIRMED-030", "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033"} <= previous
     assert not {"CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036"} & previous
-    assert {"CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036"} <= current
+    assert {"CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036"} <= v037
+    assert not {"CTRL-CONFIRMED-037", "CTRL-CONFIRMED-038", "CTRL-CONFIRMED-039", "CTRL-CONFIRMED-040", "CTRL-CONFIRMED-041", "CTRL-CONFIRMED-042", "CTRL-CONFIRMED-043"} & v037
+    assert {f"CTRL-CONFIRMED-{value:03d}" for value in range(37, 44)} <= current
 
 
 def main() -> int:
@@ -292,7 +300,7 @@ def main() -> int:
         except Exception as exc:
             results.append({"test": test.__name__, "status": "FAIL", "durationSeconds": round(time.monotonic() - started, 3), "errorType": type(exc).__name__, "error": str(exc)})
     passed = sum(item["status"] == "PASS" for item in results)
-    output = {"suite": "vibe-control-0.3.6-boundaries", "status": "PASS" if passed == len(results) else "FAIL", "counters": {"total": len(results), "passed": passed, "failed": len(results) - passed, "skipped": 0, "timedOut": 0}, "tests": results}
+    output = {"suite": "vibe-control-0.4.0-boundaries-inherited", "status": "PASS" if passed == len(results) else "FAIL", "counters": {"total": len(results), "passed": passed, "failed": len(results) - passed, "skipped": 0, "timedOut": 0}, "tests": results}
     print(json.dumps(output, ensure_ascii=False))
     return 0 if output["status"] == "PASS" else 1
 

@@ -42,6 +42,8 @@ def terminate_process_tree(process: subprocess.Popen[str], *, cleanup_timeout: f
                 ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=cleanup_timeout,
                 check=False,
             )
@@ -125,10 +127,17 @@ def run_supervised_command(
     active: dict[str, subprocess.Popen[str]] | None = None,
     active_lock: threading.Lock | None = None,
     cancelled: threading.Event | None = None,
+    env_overrides: dict[str, str] | None = None,
 ) -> dict:
     case_temp = temp_root / case_id
     case_temp.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
+    if env_overrides:
+        reserved = {"TEMP", "TMP", "TMPDIR", "PYTHONDONTWRITEBYTECODE"}
+        overlap = reserved & {str(key).upper() for key in env_overrides}
+        if overlap:
+            raise ValueError(f"env_overrides cannot replace runner isolation variables: {sorted(overlap)}")
+        env.update({str(key): str(value) for key, value in env_overrides.items()})
     env.update({"TEMP": str(case_temp), "TMP": str(case_temp), "TMPDIR": str(case_temp), "PYTHONDONTWRITEBYTECODE": "1"})
     kwargs: dict = {
         "cwd": str(Path(__file__).resolve().parent),
@@ -185,6 +194,7 @@ def run_suite(
     protocol_id: str,
     timeout_id: str,
     suite_timeout_id: str,
+    env_overrides: dict[str, str] | None = None,
 ) -> tuple[list[dict], float]:
     started = time.monotonic()
     execution_budget = suite_execution_budget(suite_timeout)
@@ -214,6 +224,7 @@ def run_suite(
             active=active,
             active_lock=active_lock,
             cancelled=cancelled,
+            env_overrides=env_overrides,
         )
         emit_progress({"event": "case-complete", **result})
         return result

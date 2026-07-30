@@ -132,8 +132,8 @@
   "candidateAuditsAreHistorical": true,
   "subject": {
     "skill": "vibe-control",
-    "guidanceVersion": "0.3.7",
-    "runtimeVersion": "0.3.7"
+    "guidanceVersion": "0.4.0",
+    "runtimeVersion": "0.4.0"
   },
   "formalClaimsAllowed": false,
   "requirements": [
@@ -480,15 +480,15 @@
       "statement": "Normal installation self-check is separate from formal package sealing, and both deep regression suites expose leaf listing/execution, bounded daemon workers, per-case and suite timeouts, an explicit 30-second process-tree cleanup budget, flushed JSONL progress and conserved final counters with zero skip required for PASS.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["scripts/validate_installation.py", "scripts/bounded_test_runner.py", "scripts/test_package_release_audit.py", "scripts/test_assurance_regressions.py"],
-      "regressionTests": ["test_installation_and_formal_validation_are_separate", "test_bounded_deep_suite_protocol", "test_assurance_runner_protocol"],
+      "regressionTests": ["test_installation_and_formal_validation_are_separate", "test_bounded_deep_suite_protocol", "test_assurance_runner_protocol", "test_windows_taskkill_decode_policy"],
       "independentValidation": "PENDING"
     },
     {
       "id": "CTRL-CONFIRMED-031",
-      "statement": "Automatic advancement requires one explicit content-bound mode selection, propagates that policy through the governance lock, task and candidate, preserves a manual legacy default, and gates milestone commit or non-force push side effects on the locked task, path envelope, branch, upstream and credential-stripped remote identity.",
+      "statement": "Automatic advancement remains content-bound through the governance lock, task and candidate, while milestone commit or non-force push side effects are gated on the locked task, path envelope, branch, upstream and credential-stripped remote identity; Schema 4.0 changes the safe default without widening remote authority.",
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/cli.py", "assets/project-control/schemas/automation-policy.schema.json", "references/automation-advancement.md"],
-      "regressionTests": ["test_bootstrap_requires_explicit_policy_without_writes", "test_modes_and_task_binding", "test_legacy_opt_in_and_plan_hash", "test_action_guards_and_r3_stop", "test_push_binding_dirty_and_remote_drift", "test_commit_and_push_are_real_bounded_side_effects", "test_clean_forbidden_commit_cannot_be_pushed", "test_boundary_drift_staged_changes_and_unknown_control_paths_stop", "test_hard_failure_and_completed_automation_stop"],
+      "regressionTests": ["test_bootstrap_defaults_to_local_automation", "test_modes_and_task_binding", "test_legacy_opt_in_and_plan_hash", "test_action_guards_and_r3_stop", "test_push_binding_dirty_and_remote_drift", "test_commit_and_push_are_real_bounded_side_effects", "test_clean_forbidden_commit_cannot_be_pushed", "test_boundary_drift_staged_changes_and_unknown_control_paths_stop"],
       "independentValidation": "PENDING"
     },
     {
@@ -544,6 +544,62 @@
       "implementationStatus": "IMPLEMENTED",
       "implementationRefs": ["assets/project-control/runtime/vibe_runtime/controller.py", "assets/project-control/runtime/vibe_runtime/positioning_control.py", "assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/vibe_runtime/upgrade_control.py", "assets/project-control/runtime/schemas/case-catalog.schema.json"],
       "regressionTests": ["test_case_lifecycle_is_not_candidate_coverage", "test_default_subject_is_conventional", "test_explicit_subject_and_cli_scope", "test_hook_failure_keeps_worktree_and_clears_automation_staging", "test_plan_is_read_only_and_apply_invalidates", "test_staging_failure_preserves_live_control"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-037",
+      "statement": "Every controller execution, gate and audit envelope ends with seven nonempty plain-language fields that explain project function, result, remaining limitation and consequence without internal identifiers or engineering control terminology.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/common.py", "assets/project-control/runtime/vibe_runtime/dashboard.py", "references/progress-dashboard.md"],
+      "regressionTests": ["test_plain_language_is_universal_and_overrideable", "test_non_git_init_revision_dashboard_and_stop"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-038",
+      "statement": "A local external-cache progress ledger uses project/task identity, revisioned single-writer events, operating-system locks and atomic snapshots; its four typed score domains are recomputed from distinct facts and the Dashboard remains non-authoritative.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/progress.py", "assets/project-control/runtime/vibe_runtime/dashboard.py", "assets/project-control/runtime/schemas/task-progress.schema.json"],
+      "regressionTests": ["test_non_git_init_revision_dashboard_and_stop", "test_scorecard_is_recomputed_from_checkpoint_facts", "test_cycle_cache_scope_and_dirty_byte_drift"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-039",
+      "statement": "Coordination resolves only from observed host capability as TEAM, then SUBAGENT, then SERIAL; TEAM requires persistent task, isolated context, messaging, waiting and work isolation, and host-required authorization causes a prompt or safe downgrade rather than invented capability.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/schemas/automation-policy.schema.json", "references/execution-routing.md"],
+      "regressionTests": ["test_automatic_default_and_capability_routing"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-040",
+      "statement": "Coordinator, Implementer, Executor, Auditor and Owner have separate write and approval boundaries; Implementer receives a lightweight run-card and narrow checks while full candidate execution and fresh audit occur after freeze.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["SKILL.md", "references/execution-routing.md", "references/multi-session-routing.md", "assets/project-control/runtime/vibe_runtime/checkpoint_control.py"],
+      "regressionTests": ["test_schema_and_execution_plan", "test_project_derived_audit_policy_is_bounded_not_fixed"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-041",
+      "statement": "New and upgraded Schema 4.0 projects default to local automatic advancement and milestone commits without push; remote, irreversible, R3 and human approval actions remain outside default authority and every candidate stops for Owner review.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/vibe_runtime/upgrade_control.py", "references/automation-advancement.md"],
+      "regressionTests": ["test_automatic_default_and_capability_routing", "test_schema_32_upgrade_selects_auto_unless_explicitly_manual", "test_legacy_32_upgrade_plan_is_deterministic_and_invalidates_facts"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-042",
+      "statement": "Observed problems are deterministically separated into action guards, claim guards, human decisions, environment blocks and advisories so repair can continue in scope without granting a claim or turning ordinary process advice into a blocker.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/checkpoint_control.py", "assets/project-control/runtime/vibe_runtime/automation_control.py", "assets/project-control/runtime/schemas/task-contract.schema.json"],
+      "regressionTests": ["test_failure_is_repairable_but_never_claim_eligible", "test_plan_mutations_fail_closed"],
+      "independentValidation": "PENDING"
+    },
+    {
+      "id": "CTRL-CONFIRMED-043",
+      "statement": "Milestones, checkpoints, typed score facts, verification strategy and audit form are derived and locked from the current project objective; deterministic identity/evidence/permission closure stays hard while generic stage sequences, audit counts and unrelated adversarial exploration remain advisory.",
+      "implementationStatus": "IMPLEMENTED",
+      "implementationRefs": ["assets/project-control/runtime/vibe_runtime/checkpoint_control.py", "assets/project-control/runtime/schemas/task-contract.schema.json", "references/checkpoint-contract.md"],
+      "regressionTests": ["test_project_derived_audit_policy_is_bounded_not_fixed", "test_same_risk_can_lock_different_review_workflows", "test_execution_hash_is_required_downstream"],
       "independentValidation": "PENDING"
     }
   ]

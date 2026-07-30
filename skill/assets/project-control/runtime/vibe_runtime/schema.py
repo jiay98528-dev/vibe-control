@@ -40,5 +40,9 @@ def validate_object(kind: str, value: Any) -> None:
             "adapter-descriptor": "HC-ADAPTER-CAPABILITY",
             "adapter-invocation": "HC-ADAPTER-INVOCATION",
             "skill-binding": "HC-SKILL-BINDING",
+            "progress-plan": "HC-SCHEMA-PROGRESS-PLAN",
+            "progress-event": "HC-SCHEMA-PROGRESS-EVENT",
+            "progress-report-packet": "HC-SCHEMA-PROGRESS-REPORT",
+            "task-progress": "HC-SCHEMA-PROGRESS-LEDGER",
         }
         raise ControlError(stable_ids.get(kind, f"HC-SCHEMA-{kind.upper().replace('-', '_')}"), f"{kind} schema violation at {location}: {first.message}")

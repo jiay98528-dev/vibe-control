@@ -1,0 +1,8 @@
+{
+  "taskId": null,
+  "nodeId": "NODE-001",
+  "status": "ACTIVE",
+  "summary": "已开始处理这个行动节点。",
+  "actorId": "coordinator",
+  "sessionId": "current-session"
+}

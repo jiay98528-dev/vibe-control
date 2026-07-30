@@ -1,9 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object", "additionalProperties": false,
-  "required": ["schemaVersion", "taskId", "goal", "objectiveRefs", "allowedPaths", "forbiddenPaths", "requiredCaseIds", "risk", "maxClaimLevel", "authorityRefs", "acceptanceCheckpoints", "checkpointConfirmation", "auditPolicy"],
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "taskId", "goal", "objectiveRefs", "allowedPaths", "forbiddenPaths",
+    "requiredCaseIds", "risk", "maxClaimLevel", "authorityRefs", "acceptanceCheckpoints",
+    "checkpointConfirmation", "auditPolicy", "milestones", "scorecardPlan",
+    "verificationStrategy", "guardPolicy", "reportingPolicy"
+  ],
   "properties": {
-    "schemaVersion": {"const": "3.2"},
+    "schemaVersion": {"const": "4.0"},
     "taskId": {"type": "string", "minLength": 1},
     "goal": {"type": "string", "minLength": 1},
     "objectiveRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^K[OF]-[A-Z0-9][A-Z0-9._-]*$"}},
@@ -18,16 +24,76 @@
     "acceptanceCheckpoints": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/checkpoint"}},
     "checkpointConfirmation": {
       "type": "object", "additionalProperties": false,
-      "required": ["actorId", "summary", "checkpointSetSha256", "record", "confirmedAt"],
+      "required": ["actorId", "summary", "checkpointSetSha256", "executionPlanSha256", "record", "confirmedAt"],
       "properties": {
         "actorId": {"type": "string", "minLength": 1},
         "summary": {"type": "string", "minLength": 1},
         "checkpointSetSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "executionPlanSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "record": {"type": "string", "minLength": 1},
         "confirmedAt": {"type": "string", "format": "date-time"}
       }
     },
-    "auditPolicy": {"const": {"mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"}}
+    "auditPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["strategy", "maxExploratoryFindings", "stopCondition", "requiredReviewRoles", "triggerReasons"],
+      "properties": {
+        "strategy": {"const": "PROJECT_DERIVED"},
+        "maxExploratoryFindings": {"type": "integer", "minimum": 0, "maximum": 3},
+        "stopCondition": {"type": "string", "minLength": 1},
+        "requiredReviewRoles": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "triggerReasons": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "milestones": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/milestone"}},
+    "scorecardPlan": {"$ref": "#/$defs/scorecardPlan"},
+    "verificationStrategy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["mode", "failureDisposition", "eligibleObservations", "requireZeroSkipped", "checkpointCases", "implementer", "executor", "auditor", "notProven"],
+      "properties": {
+        "mode": {"const": "CANDIDATE_BOUND"},
+        "failureDisposition": {"const": "REPAIR_WITHIN_CONTRACT"},
+        "eligibleObservations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["runtime-observed", "blackbox-observed"]}},
+        "requireZeroSkipped": {"const": true},
+        "checkpointCases": {"type": "array", "items": {"$ref": "#/$defs/checkpointCase"}},
+        "implementer": {"type": "object", "additionalProperties": false, "required": ["quickChecks"], "properties": {"quickChecks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/quickCheck"}}}},
+        "executor": {"type": "object", "additionalProperties": false, "required": ["caseIds", "evidenceRequirements"], "properties": {"caseIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}, "evidenceRequirements": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+        "auditor": {
+          "type": "object", "additionalProperties": false,
+          "required": ["required", "form", "inputs", "stopCondition"],
+          "properties": {
+            "required": {"type": "boolean"},
+            "form": {"type": "string", "minLength": 1},
+            "inputs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "stopCondition": {"type": "string", "minLength": 1}
+          },
+          "allOf": [
+            {"if": {"properties": {"required": {"const": true}}}, "then": {"properties": {"form": {"not": {"const": "NONE"}}, "inputs": {"minItems": 1}}}},
+            {"if": {"properties": {"required": {"const": false}}}, "then": {"properties": {"form": {"const": "NONE"}, "inputs": {"maxItems": 0}}}}
+          ]
+        },
+        "notProven": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "guardPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["defaultEffect", "guards"],
+      "properties": {
+        "defaultEffect": {"const": "ADVISORY"},
+        "guards": {"type": "array", "minItems": 5, "maxItems": 5, "items": {"$ref": "#/$defs/guard"}}
+      }
+    },
+    "reportingPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["orientation", "progressMode", "reviewPoint", "plainLanguageFields", "nextActions"],
+      "properties": {
+        "orientation": {"const": "ZERO_CONTEXT_ORIENTATION"},
+        "progressMode": {"const": "NON_BLOCKING"},
+        "reviewPoint": {"const": "OWNER_REVIEW"},
+        "plainLanguageFields": {"const": ["projectPurpose", "whatWasDone", "whatWorksNow", "whatStillDoesNotWork", "userImpact", "canContinue", "canRelease"]},
+        "nextActions": {"type": "object", "additionalProperties": false, "required": ["continue", "repair", "humanReview"], "properties": {"continue": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "repair": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "humanReview": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}}
+      }
+    }
   },
   "$defs": {
     "claim": {"enum": ["DIAGNOSTIC", "DEVELOPMENT_CHECKED", "VERIFIED", "ACCEPTED", "RELEASE_READY"]},
@@ -51,6 +117,77 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "statement", "caseIds"],
       "properties": {"id": {"type": "string", "pattern": "^ASRT-[A-Z0-9][A-Z0-9._-]*$"}, "statement": {"type": "string", "minLength": 1}, "caseIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}}
+    },
+    "milestone": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "outcome", "objectiveRefs", "dependsOn", "workNodes", "checkpointIds", "expectedPassConditions"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^MS-[A-Z0-9][A-Z0-9._-]*$"},
+        "outcome": {"type": "string", "minLength": 1},
+        "objectiveRefs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^K[OF]-[A-Z0-9][A-Z0-9._-]*$"}},
+        "dependsOn": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^MS-[A-Z0-9][A-Z0-9._-]*$"}},
+        "workNodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/workNode"}},
+        "checkpointIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"}},
+        "expectedPassConditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "workNode": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "title", "kind", "allowedPaths", "minimumChecks", "ownerRole"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^WN-[A-Z0-9][A-Z0-9._-]*$"},
+        "title": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["IMPLEMENTATION", "VERIFICATION", "INTEGRATION", "DOCUMENTATION"]},
+        "allowedPaths": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "minimumChecks": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "ownerRole": {"type": "string", "minLength": 1}
+      }
+    },
+    "checkpointCase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkpointId", "caseIds"],
+      "properties": {"checkpointId": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"}, "caseIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}}
+    },
+    "quickCheck": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "command", "requiredBeforeMilestone"],
+      "properties": {"id": {"type": "string", "pattern": "^QC-[A-Z0-9][A-Z0-9._-]*$"}, "command": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "requiredBeforeMilestone": {"const": true}}
+    },
+    "scorecardPlan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["weights", "items"],
+      "properties": {
+        "weights": {"const": {"FUNCTIONALITY": 40, "ROBUSTNESS_SECURITY": 25, "AUDIT": 20, "PROCESS": 15}},
+        "items": {"type": "array", "minItems": 4, "items": {"$ref": "#/$defs/scorecardItem"}}
+      }
+    },
+    "scorecardItem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "category", "statement", "checkpointIds", "factSources"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^SC-[A-Z0-9][A-Z0-9._-]*$"},
+        "category": {"enum": ["FUNCTIONALITY", "ROBUSTNESS_SECURITY", "AUDIT", "PROCESS"]},
+        "statement": {"type": "string", "minLength": 1},
+        "checkpointIds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^CP-[A-Z0-9][A-Z0-9._-]*$"}},
+        "factSources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/factSource"}}
+      }
+    },
+    "factSource": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "refs"],
+      "properties": {
+        "kind": {"enum": ["CHECKPOINT", "CASE", "EVIDENCE", "REVIEW", "CORE_CONTROL"]},
+        "refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "guard": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "scope", "effect"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^GUARD-[A-Z0-9][A-Z0-9._-]*$"},
+        "scope": {"enum": ["MUTATION", "CLAIM", "PROCESS", "HUMAN", "ENVIRONMENT"]},
+        "effect": {"enum": ["ACTION_GUARD", "CLAIM_GUARD", "ADVISORY", "HUMAN_DECISION", "ENVIRONMENT_BLOCKED"]}
+      }
     }
   }
 }

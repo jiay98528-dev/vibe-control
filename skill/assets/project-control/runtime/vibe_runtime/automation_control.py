@@ -13,10 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from .common import (
-    ControlError, canonical_bytes, check, clean_status, envelope, file_ref, git,
+    SCHEMA_VERSION, ControlError, canonical_bytes, check, clean_status, envelope, file_ref, git,
     git_root, load_json, now_iso, safe_relative, sha256_bytes, sha256_file,
     verify_ref, write_json_atomic,
 )
+from .checkpoint_control import guard_effects
 from .schema import validate_object
 
 
@@ -26,11 +27,22 @@ STOP_CONDITIONS = frozenset({
     "OWNER_DECISION",
     "BOUNDARY_CHANGE",
     "R3_OR_IRREVERSIBLE_ACTION",
-    "HARD_FAILURE",
+    "ACTION_GUARD",
+    "ENVIRONMENT_BLOCKED",
     "PUSH_CONFLICT",
     "USER_INTERRUPT",
 })
 ACTIONS = frozenset({"dispatch", "continue", "commit", "push"})
+PRE_CANDIDATE_CLAIM_BLOCKERS = frozenset({
+    # These checks describe facts that can only close after implementation is
+    # committed and a candidate is frozen.  They deny claims, but they do not
+    # make an in-scope implementation commit unsafe.
+    "HC-DEVELOPMENT-PACKAGE-CLAIM-CAP",
+    "HC-ASSURANCE-MATRIX-INDEPENDENT",
+    "HC-ASSURANCE-MATRIX-FORMAL",
+    "HC-PROJECT-REVIEW-GATE",
+})
+PRE_CANDIDATE_COMMIT_BLOCKERS = PRE_CANDIDATE_CLAIM_BLOCKERS | {"HC-WORKTREE-CLEAN"}
 AUTOMATED_CONTROL_OUTPUTS = (
     ".vibe-control/stage-state.json",
     ".vibe-control/candidates/**",
@@ -41,6 +53,12 @@ AUTOMATED_CONTROL_OUTPUTS = (
     ".vibe-control/external-audits/**",
     ".vibe-control/handoffs/**",
 )
+TEAM_CAPABILITIES = frozenset({
+    "team.create", "team.message", "team.wait", "team.inspect",
+    "team.persistent_tasks", "team.independent_context", "team.work_isolation",
+})
+SUBAGENT_CAPABILITIES = frozenset({"subagent.spawn", "subagent.message", "subagent.wait"})
+LEGACY_BACKENDS = {"CODEX_THREADS": "TEAM", "SUBAGENTS": "SUBAGENT"}
 
 
 def _paths(project: Path) -> dict[str, Path]:
@@ -75,6 +93,7 @@ def _semantic(policy: dict[str, Any]) -> dict[str, Any]:
         "commitPolicy": policy.get("commitPolicy"),
         "pushPolicy": policy.get("pushPolicy"),
         "stopConditions": sorted(policy.get("stopConditions", [])),
+        "coordination": policy.get("coordination"),
     }
     if "remoteBinding" in policy:
         value["remoteBinding"] = policy["remoteBinding"]
@@ -87,6 +106,175 @@ def _canonical_summary(policy: dict[str, Any]) -> str:
 
 def _expected_policy_id(policy: dict[str, Any]) -> str:
     return f"automation-{sha256_bytes(_canonical_summary(policy).encode('utf-8'))[:12]}"
+
+
+def resolve_coordination_backend(
+    capabilities: list[str] | set[str], requested: str = "AUTO", *,
+    host_requires_authorization: bool = False, authorization_granted: bool = False,
+) -> dict[str, Any]:
+    """Resolve host capability data without imposing a Skill-level worker limit."""
+    normalized_request = LEGACY_BACKENDS.get(requested, requested)
+    observed = set(capabilities)
+    if normalized_request not in {"AUTO", "TEAM", "SUBAGENT", "SERIAL"}:
+        raise ControlError("HC-AUTOMATION-COORDINATION", "unknown coordination backend")
+    available = []
+    if TEAM_CAPABILITIES.issubset(observed):
+        available.append("TEAM")
+    if SUBAGENT_CAPABILITIES.issubset(observed):
+        available.append("SUBAGENT")
+    available.append("SERIAL")
+    team_requires_prompt = "TEAM" in available and host_requires_authorization and not authorization_granted
+    selectable = [item for item in available if item != "TEAM" or not team_requires_prompt]
+    resolved = selectable[0] if normalized_request == "AUTO" else normalized_request
+    if resolved == "TEAM" and team_requires_prompt:
+        resolved = "SUBAGENT" if "SUBAGENT" in selectable else "SERIAL"
+    if resolved == "TEAM" and "TEAM" not in available:
+        resolved = "SUBAGENT" if "SUBAGENT" in available else "SERIAL"
+    if resolved == "SUBAGENT" and "SUBAGENT" not in available:
+        resolved = "SERIAL"
+    return {
+        "requestedBackend": normalized_request,
+        "resolvedBackend": resolved,
+        "observedCapabilities": sorted(observed),
+        "workerLimit": "HOST_CAPACITY_ONLY",
+        "hostRequiresAuthorization": host_requires_authorization,
+        "authorizationGranted": authorization_granted,
+        "authorizationPromptRequired": team_requires_prompt,
+    }
+
+
+def guard_effect_from_checks(contract: dict[str, Any], checks: list[dict[str, Any]]) -> str:
+    """Classify observed failures; health alone never implies an environment failure."""
+    active = {item.get("id", "") for item in checks if item.get("status") != "PASS"}
+    effects = guard_effects(contract)
+    if any(value == "DEPENDENCY_BLOCKED" or value.startswith(("HC-DEPENDENCY-", "HC-EXECUTABLE-RESOLUTION", "HC-EVIDENCE-GIT-BYTE-POLICY", "VC-GIT-")) for value in active):
+        return effects["ENVIRONMENT"]
+    if any(value.startswith(("HC-AUTOMATION-BOUNDARY-CHANGE", "HC-AUTOMATION-PATH-SCOPE", "HC-CANDIDATE-DRIFT")) for value in active):
+        return effects["MUTATION"]
+    if any(value.startswith(("HC-CHECKPOINT-HUMAN-DECISION", "HC-AUTOMATION-REVIEW-POINT", "HC-AUTOMATION-R3-STOP")) for value in active):
+        return effects["HUMAN"]
+    if active:
+        return effects["CLAIM"]
+    return effects["PROCESS"]
+
+
+def failure_disposition(
+    contract: dict[str, Any],
+    action: str,
+    health: str,
+    active_effect: str | None = None,
+    *,
+    allow_claim_guarded_milestone: bool = False,
+) -> dict[str, Any]:
+    """Keep claim failures repairable; admit side effects only via a narrow caller proof."""
+    effects = guard_effects(contract)
+    effect = active_effect or (effects["CLAIM"] if health in {"BLOCKED", "FAILED"} else effects["PROCESS"])
+    repair_required = health in {"BLOCKED", "FAILED"} or effect == effects["CLAIM"]
+    if effect in {effects["ENVIRONMENT"], effects["MUTATION"], effects["HUMAN"]}:
+        return {"allowed": False, "repairRequired": repair_required, "effect": effect, "claimEligible": False}
+    if repair_required and action in {"commit", "push"} and allow_claim_guarded_milestone and effect == effects["CLAIM"]:
+        return {"allowed": True, "repairRequired": True, "effect": effect, "claimEligible": False}
+    if repair_required and action in {"commit", "push"}:
+        return {"allowed": False, "repairRequired": True, "effect": effects["MUTATION"], "claimEligible": False}
+    return {"allowed": True, "repairRequired": repair_required, "effect": effect, "claimEligible": False}
+
+
+def pre_candidate_milestone_side_effect_allowed(
+    action: str,
+    state: dict[str, Any],
+    candidate_id: str | None,
+    validation_checks: list[dict[str, Any]],
+    observed_effect: str,
+    contract: dict[str, Any],
+) -> bool:
+    """Allow only the narrow claim-blocked side effect before candidate freeze.
+
+    A pre-candidate project is expected to lack later review/claim facts.  That
+    absence must not prevent saving an authorized implementation milestone.
+    Any integrity failure, invalidation, unknown blocker, candidate-bound
+    failure, non-clear declared health, or non-claim guard keeps the old
+    fail-closed behavior.  A dirty-worktree blocker is expected for commit but
+    is deliberately ineligible for push; the existing action-specific scope,
+    history, remote and fast-forward checks still run after this admission.
+    """
+    if (
+        action not in {"commit", "push"}
+        or candidate_id is not None
+        or state.get("phase") not in {"CONTRACT_LOCKED", "IMPLEMENTING"}
+        or state.get("health") != "CLEAR"
+        or observed_effect != guard_effects(contract)["CLAIM"]
+    ):
+        return False
+    nonpassing = [item for item in validation_checks if item.get("status") != "PASS"]
+    allowed_blockers = PRE_CANDIDATE_COMMIT_BLOCKERS if action == "commit" else PRE_CANDIDATE_CLAIM_BLOCKERS
+    return bool(nonpassing) and all(
+        item.get("status") == "BLOCKED" and item.get("id") in allowed_blockers
+        for item in nonpassing
+    )
+
+
+def _normalize_policy_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    policy = copy.deepcopy(spec)
+    legacy = policy.get("schemaVersion") == "1.0"
+    policy["schemaVersion"] = SCHEMA_VERSION
+    stop_conditions = set(policy.get("stopConditions", []))
+    if "HARD_FAILURE" in stop_conditions:
+        stop_conditions.remove("HARD_FAILURE")
+        stop_conditions.update({"ACTION_GUARD", "ENVIRONMENT_BLOCKED"})
+    policy["stopConditions"] = sorted(stop_conditions or STOP_CONDITIONS)
+    raw_coordination = policy.get("coordination") or {}
+    requested = raw_coordination.get("requestedBackend", raw_coordination.get("backend", "AUTO"))
+    capabilities = raw_coordination.get("observedCapabilities", raw_coordination.get("capabilities", []))
+    policy["coordination"] = resolve_coordination_backend(
+        capabilities, requested,
+        host_requires_authorization=bool(raw_coordination.get("hostRequiresAuthorization", False)),
+        authorization_granted=bool(raw_coordination.get("authorizationGranted", False)),
+    )
+    if legacy:
+        confirmation = policy.get("confirmation", {})
+        summary = _canonical_summary(policy)
+        confirmation["summary"] = summary
+        confirmation["summarySha256"] = sha256_bytes(summary.encode("utf-8"))
+        policy["confirmation"] = confirmation
+        policy["policyId"] = _expected_policy_id(policy)
+    return policy
+
+
+def default_policy_spec(
+    project_id: str,
+    confirmation: dict[str, Any],
+    *,
+    mode: str = "AUTO_LOCAL_TO_REVIEW",
+) -> dict[str, Any]:
+    """Derive the low-friction default from the already confirmed project positioning."""
+    if mode not in {"AUTO_LOCAL_TO_REVIEW", "MANUAL_STAGE_CONFIRMATION"}:
+        raise ControlError("HC-AUTOMATION-MODE", "derived local policy supports automatic-local or explicit manual mode")
+    automatic = mode == "AUTO_LOCAL_TO_REVIEW"
+    policy: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "policyId": "pending",
+        "projectId": project_id,
+        "mode": mode,
+        "commitPolicy": "MILESTONE_COMMITS" if automatic else "MANUAL",
+        "pushPolicy": "NONE",
+        "stopConditions": sorted(STOP_CONDITIONS),
+        "coordination": resolve_coordination_backend([], "AUTO"),
+        "confirmation": {
+            "actorId": confirmation["actorId"],
+            "summary": "pending",
+            "summarySha256": "0" * 64,
+            "record": confirmation["record"],
+            # The default is derived from an already confirmed project record.
+            # A fixed fallback keeps bootstrap/upgrade materialization reproducible
+            # when the source confirmation format has no timestamp field.
+            "confirmedAt": confirmation.get("confirmedAt", "1970-01-01T00:00:00+00:00"),
+        },
+    }
+    summary = _canonical_summary(policy)
+    policy["confirmation"]["summary"] = summary
+    policy["confirmation"]["summarySha256"] = sha256_bytes(summary.encode("utf-8"))
+    policy["policyId"] = _expected_policy_id(policy)
+    return policy
 
 
 def normalized_remote_url(value: str) -> str:
@@ -113,6 +301,14 @@ def _validate_semantics(policy: dict[str, Any], *, project_id: str | None = None
         raise ControlError("HC-AUTOMATION-CONFIRMATION", "automation confirmation does not bind the canonical policy summary")
     if policy["policyId"] != f"automation-{digest[:12]}":
         raise ControlError("HC-AUTOMATION-POLICY-ID", "automation policy ID does not match its canonical semantics")
+    expected_coordination = resolve_coordination_backend(
+        policy["coordination"]["observedCapabilities"],
+        policy["coordination"]["requestedBackend"],
+        host_requires_authorization=policy["coordination"]["hostRequiresAuthorization"],
+        authorization_granted=policy["coordination"]["authorizationGranted"],
+    )
+    if policy["coordination"] != expected_coordination:
+        raise ControlError("HC-AUTOMATION-COORDINATION", "coordination result does not match observed host capabilities")
 
 
 def policy_scope_binding(key_objectives: dict[str, Any], positioning: dict[str, Any]) -> dict[str, str]:
@@ -129,7 +325,7 @@ def materialize_policy(
     project_id: str,
     scope_binding: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    policy = copy.deepcopy(spec)
+    policy = _normalize_policy_spec(spec)
     _validate_semantics(policy, project_id=project_id)
     if scope_binding is not None:
         policy["scopeBinding"] = copy.deepcopy(scope_binding)
@@ -186,7 +382,7 @@ def automation_plan(project: Path, spec_path: Path) -> dict[str, Any]:
     proposed = materialize_policy(p["root"], raw, project_id=lock["projectId"], scope_binding=scope_binding_from_lock(p["root"], lock))
     current = lock.get("automationPolicy")
     plan = {
-        "schemaVersion": "1.0",
+        "schemaVersion": SCHEMA_VERSION,
         "operation": "configure-automation",
         "projectId": lock["projectId"],
         "from": current or {"mode": "MANUAL_STAGE_CONFIRMATION", "legacyDefault": True},
@@ -227,7 +423,7 @@ def automation_apply(project: Path, spec_path: Path, plan_hash: str) -> dict[str
     write_json_atomic(p["lock"], lock)
     state = load_json(p["state"])
     state = {
-        "schemaVersion": "3.2", "projectId": lock["projectId"],
+        "schemaVersion": SCHEMA_VERSION, "projectId": lock["projectId"],
         "positioningId": state.get("positioningId"), "ruleSetId": state.get("ruleSetId"),
         "phase": "DRAFT", "health": "BLOCKED", "claimLevel": "DIAGNOSTIC",
         "taskId": None, "candidateId": None, "revision": 0, "phaseHistory": [], "updatedAt": now_iso(),
@@ -419,11 +615,44 @@ def automation_action(project: Path, action: str, message: str | None = None) ->
     _assert_locked_inputs(p["root"], task_lock_path, task_lock)
     if contract["risk"] == "R3":
         raise ControlError("HC-AUTOMATION-R3-STOP", "R3 work requires an explicit human review before automatic advancement", status="BLOCKED")
-    if state["health"] in {"FAILED"}:
-        raise ControlError("HC-AUTOMATION-HARD-FAILURE", "failed state stops automatic advancement", status="BLOCKED")
+    # A dirty tree is a concrete push precondition failure, not a generic claim
+    # blocker.  Report it before the read-only validation projection so callers
+    # receive the stable, actionable reason while the push remains fail-closed.
+    if action == "push":
+        dirty_for_push = clean_status(p["root"])
+        if dirty_for_push:
+            raise ControlError(
+                "HC-AUTOMATION-WORKTREE-CLEAN",
+                "automatic push requires a clean worktree",
+                status="BLOCKED",
+                details={"entries": dirty_for_push},
+            )
+    from .controller import validate as project_validate
+    projection = project_validate(project, mutate_state=False)
+    validation_checks = projection.get("integrity", {}).get("checks", [])
+    observed_effect = guard_effect_from_checks(contract, validation_checks)
+    allow_claim_guarded_milestone = pre_candidate_milestone_side_effect_allowed(
+        action, state, candidate_id, validation_checks, observed_effect, contract,
+    )
+    disposition = failure_disposition(
+        contract,
+        action,
+        state["health"],
+        observed_effect,
+        allow_claim_guarded_milestone=allow_claim_guarded_milestone,
+    )
+    repair_mode = disposition["repairRequired"]
+    if not disposition["allowed"]:
+        guard_id = {
+            "ENVIRONMENT_BLOCKED": "HC-AUTOMATION-ENVIRONMENT-BLOCKED",
+            "HUMAN_DECISION": "HC-AUTOMATION-HUMAN-DECISION",
+        }.get(disposition["effect"], "HC-AUTOMATION-ACTION-GUARD")
+        raise ControlError(guard_id, "the observed guard requires repair, authorization or human review before this action", status="BLOCKED", details={"effect": disposition["effect"]})
     if action in {"dispatch", "continue"} and state["phase"] in {"VERIFIED", "AUDITED", "ACCEPTED", "RELEASE_READY"}:
         raise ControlError("HC-AUTOMATION-REVIEW-POINT", "candidate reached the fixed human review point", status="BLOCKED")
     checks = [check("HC-AUTOMATION-POLICY", "PASS", "automation action is authorized by the current task-bound policy", action=action, mode=policy["mode"])]
+    if repair_mode:
+        checks.append(check("HC-AUTOMATION-CLAIM-GUARD", "PASS", "failed execution remains repairable while all claims stay ineligible", effect=disposition["effect"]))
     if action == "commit":
         commit_subject = _milestone_commit_subject(task_id, message)
         dirty = _status_paths(p["root"])
@@ -496,10 +725,20 @@ def automation_action(project: Path, action: str, message: str | None = None) ->
         if pushed.returncode != 0:
             raise ControlError("HC-AUTOMATION-PUSH-CONFLICT", "non-force milestone push failed; remote history and credentials were not modified", status="BLOCKED", details={"returnCode": pushed.returncode})
         checks.append(check("HC-AUTOMATION-PUSH", "PASS", "milestone was pushed without force to the bound upstream", commit=git(p["root"], "rev-parse", "HEAD")))
-    data = {"action": action, "mode": policy["mode"], "policyId": policy["policyId"], "authorized": True}
+    data = {"action": action, "mode": policy["mode"], "policyId": policy["policyId"], "authorized": True, "coordination": policy["coordination"], "repairRequired": repair_mode, "claimEligible": False if repair_mode else None}
     if action == "commit":
         data["milestoneCommit"] = git(p["root"], "rev-parse", "HEAD")
         data["commitSubject"] = commit_subject
     if action == "push":
         data["pushedCommit"] = git(p["root"], "rev-parse", "HEAD")
-    return envelope(status="PASS", checks=checks, data=data)
+    return envelope(
+        status="PASS", checks=checks, data=data,
+        plain_language={
+            "whatWasDone": "已按当前授权检查并推进了一个安全的自动化动作。" if not repair_mode else "已保留失败事实，并允许在原合同范围内继续修复。",
+            "whatWorksNow": "自动推进仍受任务、候选和副作用边界约束。",
+            "whatStillDoesNotWork": "失败的验证尚未通过，因此不能形成任何新的验收或发行结论。" if repair_mode else "尚未执行或尚未验证的里程碑仍不算完成。",
+            "userImpact": "无需因一次可修复失败立即重做流程；修复完成并重新验证前不会获得声明资格。" if repair_mode else "流程会继续到预设人工复核点，边界变化仍会停止。",
+            "canContinue": "可以在原合同范围内继续修复和验证。",
+            "canRelease": "验证失败尚未闭合，现在不能作为最终版本交付。",
+        },
+    )

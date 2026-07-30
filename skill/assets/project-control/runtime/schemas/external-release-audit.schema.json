@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": false,
   "required": ["schemaVersion", "reportId", "taskId", "candidateId", "candidateCommit", "candidateTree", "candidate", "keyObjectives", "positioning", "resolvedRuleSet", "review", "evidenceRefs", "auditor", "findings", "transcript", "result", "packageManifestSha256", "runtimeManifestSha256", "assuranceMatrixSha256", "auditedAt", "keyId", "signature"],
   "properties": {
-    "schemaVersion": {"const": "3.2"}, "reportId": {"type": "string"}, "taskId": {"type": "string"}, "candidateId": {"type": "string"},
+    "schemaVersion": {"const": "4.0"}, "reportId": {"type": "string"}, "taskId": {"type": "string"}, "candidateId": {"type": "string"},
     "candidateCommit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "candidateTree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "candidate": {"$ref": "#/$defs/ref"}, "keyObjectives": {"$ref": "#/$defs/ref"}, "positioning": {"$ref": "#/$defs/ref"}, "resolvedRuleSet": {"$ref": "#/$defs/ref"}, "review": {"$ref": "#/$defs/ref"},
     "evidenceRefs": {"type": "array", "items": {"$ref": "#/$defs/ref"}},

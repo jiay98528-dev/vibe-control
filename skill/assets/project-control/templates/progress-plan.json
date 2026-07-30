@@ -1,0 +1,30 @@
+{
+  "projectId": "PROJECT-001",
+  "taskId": null,
+  "projectPurpose": "说明这个项目为用户解决什么问题。",
+  "currentGoal": "说明当前这次工作要达成的结果。",
+  "nodes": [
+    {
+      "id": "NODE-001",
+      "title": "建立任务计划与可观察页面",
+      "kind": "PLAN",
+      "objectiveRefs": [],
+      "checkpointRefs": ["CP-001", "CP-002", "CP-003", "CP-004"],
+      "dependsOn": []
+    }
+  ],
+  "scorecardPlan": {
+    "weights": {
+      "FUNCTIONALITY": 40,
+      "ROBUSTNESS_SECURITY": 25,
+      "AUDIT": 20,
+      "PROCESS": 15
+    },
+    "items": [
+      {"id": "SCORE-FUNCTION", "category": "FUNCTIONALITY", "statement": "核心功能达到约定结果", "checkpointIds": ["CP-001"], "factSources": [{"kind": "CHECKPOINT", "refs": ["CP-001"]}]},
+      {"id": "SCORE-ROBUSTNESS", "category": "ROBUSTNESS_SECURITY", "statement": "已处理约定的故障与安全边界", "checkpointIds": ["CP-002"], "factSources": [{"kind": "CASE", "refs": ["CASE-ROBUSTNESS"]}]},
+      {"id": "SCORE-AUDIT", "category": "AUDIT", "statement": "要求的结果已有独立核对", "checkpointIds": ["CP-003"], "factSources": [{"kind": "REVIEW", "refs": ["FRESH-INDEPENDENT-REVIEW"]}]},
+      {"id": "SCORE-PROCESS", "category": "PROCESS", "statement": "最低工作边界与范围约束已满足", "checkpointIds": ["CP-004"], "factSources": [{"kind": "CORE_CONTROL", "refs": ["RULE-CORE-OBSERVABLE-CANDIDATE"]}]}
+    ]
+  }
+}

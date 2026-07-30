@@ -5,6 +5,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -13,6 +14,31 @@ from typing import Any
 from . import VERSION
 
 STATUSES = ("PASS", "BLOCKED", "FAIL", "INVALIDATED")
+SCHEMA_VERSION = "4.0"
+_PLAIN_LANGUAGE_ENGLISH_TERMS = re.compile(r"\b(?:schema|claim|commit|tree|hash)\b", re.IGNORECASE)
+_PLAIN_LANGUAGE_ID_PREFIXES = re.compile(r"\b(?:HC|VC|CTRL|KO|KF|CP|CASE)-[A-Za-z0-9]", re.IGNORECASE)
+_PLAIN_LANGUAGE_CHINESE_TERMS = (
+    "哈希", "控制面", "声明等级", "候选提交", "目录树", "门禁", "审计",
+    "运行时", "工作树", "执行器", "证据链", "架构",
+)
+
+
+def _plain_language_default(status: str) -> dict[str, str]:
+    """Return a conservative, user-facing summary for every controller result.
+
+    This projection deliberately avoids controller enums and check identifiers.
+    Callers may replace individual fields when they can say something more
+    specific without widening the proven scope.
+    """
+    return {
+        "projectPurpose": "帮助用户让项目按已确认的目标持续推进，并随时看清当前结果。",
+        "whatWasDone": "已完成当前步骤中能够安全完成的工作，并记录了结果。",
+        "whatWorksNow": "目前只能确认这次实际查看和运行过的部分。",
+        "whatStillDoesNotWork": "没有实际运行或仍有问题的部分，还不能算作完成。",
+        "userImpact": "你可以根据这些结果决定继续、修正问题或亲自查看，但不要把它扩大到未覆盖的部分。",
+        "canContinue": "可以继续原范围内的工作。" if status == "PASS" else "需要先处理当前问题，再继续推进。",
+        "canRelease": "现在不能作为最终版本交付。",
+    }
 
 
 class ControlError(Exception):
@@ -77,10 +103,31 @@ def check(check_id: str, status: str, message: str, **details: Any) -> dict[str,
 
 def envelope(*, status: str, checks: list[dict[str, Any]] | None = None,
              formal: dict[str, Any] | None = None, state: Any = None,
-             data: Any = None, error: Any = None) -> dict[str, Any]:
+             data: Any = None, error: Any = None,
+             plain_language: dict[str, Any] | None = None) -> dict[str, Any]:
     checks = checks or []
+    plain = _plain_language_default(status)
+    if plain_language is not None:
+        if not isinstance(plain_language, dict):
+            raise ControlError("HC-PLAIN-LANGUAGE", "plainLanguage override must be an object")
+        unknown = sorted(set(plain_language) - set(plain))
+        if unknown:
+            raise ControlError("HC-PLAIN-LANGUAGE", "plainLanguage override contains unknown fields", details=unknown)
+        plain.update(plain_language)
+    if any(not isinstance(value, str) or not value.strip() for value in plain.values()):
+        raise ControlError("HC-PLAIN-LANGUAGE", "all seven plainLanguage fields must be nonempty text")
+    leaked = sorted({
+        term
+        for value in plain.values()
+        for term in _PLAIN_LANGUAGE_CHINESE_TERMS
+        if term in value
+    })
+    english_leak = next((_PLAIN_LANGUAGE_ENGLISH_TERMS.search(value) for value in plain.values() if _PLAIN_LANGUAGE_ENGLISH_TERMS.search(value)), None)
+    id_leak = next((_PLAIN_LANGUAGE_ID_PREFIXES.search(value) for value in plain.values() if _PLAIN_LANGUAGE_ID_PREFIXES.search(value)), None)
+    if leaked or english_leak or id_leak:
+        raise ControlError("HC-PLAIN-LANGUAGE", "plainLanguage must describe user-visible function and consequence without internal control terminology", details={"chineseTerms": leaked, "englishTerm": english_leak.group(0) if english_leak else None, "idPrefix": id_leak.group(0) if id_leak else None})
     result: dict[str, Any] = {
-        "schemaVersion": "3.2",
+        "schemaVersion": SCHEMA_VERSION,
         "runtimeVersion": VERSION,
         "status": status,
         "checkedAt": now_iso(),
@@ -96,6 +143,10 @@ def envelope(*, status: str, checks: list[dict[str, Any]] | None = None,
         result["data"] = data
     if error is not None:
         result["error"] = error
+    # Keep the zero-context projection last so streaming and simple readers can
+    # reliably finish on the user-facing consequence rather than an internal
+    # object or diagnostic identifier.
+    result["plainLanguage"] = plain
     return result
 
 

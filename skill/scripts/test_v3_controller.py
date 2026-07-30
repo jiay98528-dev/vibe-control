@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Black-box and controller-boundary tests for the Schema 3.2 control plane."""
+"""Black-box and controller-boundary tests for the Schema 4.0 control plane."""
 from __future__ import annotations
 
 import hashlib
@@ -22,6 +22,7 @@ from vibe_runtime.common import ControlError  # noqa: E402
 from vibe_runtime.controller import initial_state  # noqa: E402
 from vibe_runtime.positioning_control import positioning_summary  # noqa: E402
 from vibe_runtime.schema import validate_object  # noqa: E402
+from vibe_runtime.upgrade_control import upgrade_actions, upgrade_automation_policy_spec  # noqa: E402
 
 
 def _run(*args: str, expect: int | None = None) -> tuple[subprocess.CompletedProcess[str], dict]:
@@ -67,8 +68,8 @@ def _automation_policy(project_id: str) -> dict:
     ])
     semantic = {
         "projectId": project_id,
-        "mode": "MANUAL_STAGE_CONFIRMATION",
-        "commitPolicy": "MANUAL",
+        "mode": "AUTO_LOCAL_TO_REVIEW",
+        "commitPolicy": "MILESTONE_COMMITS",
         "pushPolicy": "NONE",
         "stopConditions": stop_conditions,
     }
@@ -101,16 +102,30 @@ def _task_contract(*, task_id: str = "TASK-001", risk: str = "R2", max_claim: st
             "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"},
             "notProven": ["subjective owner judgment"],
         })
-    policy = {"mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"}
+    policy = {"strategy": "PROJECT_DERIVED", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED", "requiredReviewRoles": ["INDEPENDENT_AUDITOR"], "triggerReasons": ["MILESTONE_CANDIDATE_READY"]}
     digest = hashlib.sha256(json.dumps({"acceptanceCheckpoints": checkpoints, "auditPolicy": policy}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    checkpoint_ids = [item["id"] for item in checkpoints]
+    planning = {
+        "milestones": [{"id": "MS-001", "outcome": "close the observable fixture outcome", "objectiveRefs": ["KO-001"], "dependsOn": [], "workNodes": [{"id": "WN-001", "title": "implement fixture behavior", "kind": "IMPLEMENTATION", "allowedPaths": ["fixture.py"], "minimumChecks": ["QC-001", "CASE-001"], "ownerRole": "IMPLEMENTER"}], "checkpointIds": checkpoint_ids, "expectedPassConditions": ["all fixture checkpoints report PASS"]}],
+        "scorecardPlan": {"weights": {"FUNCTIONALITY": 40, "ROBUSTNESS_SECURITY": 25, "AUDIT": 20, "PROCESS": 15}, "items": [
+            {"id": "SC-001", "category": "FUNCTIONALITY", "statement": "fixture behavior works", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "CHECKPOINT", "refs": checkpoint_ids}]},
+            {"id": "SC-002", "category": "ROBUSTNESS_SECURITY", "statement": "fixture failure is conserved", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "CASE", "refs": ["CASE-001"]}]},
+            {"id": "SC-003", "category": "AUDIT", "statement": "fixture evidence receives fresh review", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "REVIEW", "refs": ["FRESH_INDEPENDENT_REVIEW"]}]},
+            {"id": "SC-004", "category": "PROCESS", "statement": "fixture keeps the minimum proof boundary", "checkpointIds": checkpoint_ids, "factSources": [{"kind": "CORE_CONTROL", "refs": ["RULE-CORE-OBSERVABLE-CANDIDATE"]}]},
+        ]},
+        "verificationStrategy": {"mode": "CANDIDATE_BOUND", "failureDisposition": "REPAIR_WITHIN_CONTRACT", "eligibleObservations": ["runtime-observed"], "requireZeroSkipped": True, "checkpointCases": [{"checkpointId": "CP-001", "caseIds": ["CASE-001"]}], "implementer": {"quickChecks": [{"id": "QC-001", "command": [sys.executable, "-m", "py_compile", "fixture.py"], "requiredBeforeMilestone": True}]}, "executor": {"caseIds": ["CASE-001"], "evidenceRequirements": ["candidate-bound transcript", "nonzero counters", "zero skipped cases"]}, "auditor": {"required": True, "form": "FRESH_INDEPENDENT_REVIEW", "inputs": ["candidate", "case evidence", "checkpoint expectations"], "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"}, "notProven": ["external distribution"]},
+        "guardPolicy": {"defaultEffect": "ADVISORY", "guards": [{"id": "GUARD-ACTION", "scope": "MUTATION", "effect": "ACTION_GUARD"}, {"id": "GUARD-CLAIM", "scope": "CLAIM", "effect": "CLAIM_GUARD"}, {"id": "GUARD-PROCESS", "scope": "PROCESS", "effect": "ADVISORY"}, {"id": "GUARD-HUMAN", "scope": "HUMAN", "effect": "HUMAN_DECISION"}, {"id": "GUARD-ENVIRONMENT", "scope": "ENVIRONMENT", "effect": "ENVIRONMENT_BLOCKED"}]},
+        "reportingPolicy": {"orientation": "ZERO_CONTEXT_ORIENTATION", "progressMode": "NON_BLOCKING", "reviewPoint": "OWNER_REVIEW", "plainLanguageFields": ["projectPurpose", "whatWasDone", "whatWorksNow", "whatStillDoesNotWork", "userImpact", "canContinue", "canRelease"], "nextActions": {"continue": ["continue the locked fixture work"], "repair": ["repair the failed fixture check"], "humanReview": ["review the fixture candidate"]}},
+    }
+    execution_digest = hashlib.sha256(json.dumps(planning, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return {
-        "schemaVersion": "3.2", "taskId": task_id, "goal": "prove case coverage",
+        "schemaVersion": "4.0", "taskId": task_id, "goal": "prove case coverage",
         "objectiveRefs": ["KO-001"], "allowedPaths": ["fixture.py"], "forbiddenPaths": [],
         "requiredCaseIds": ["CASE-001"], "risk": risk, "maxClaimLevel": max_claim,
         "authorityRefs": ["PROJECT_BRIEF.md"], "nonGoals": [], "humanDecisionPoints": ["acceptance"] if max_claim in {"ACCEPTED", "RELEASE_READY"} else [],
         "acceptanceCheckpoints": checkpoints,
-        "checkpointConfirmation": {"actorId": "owner", "summary": "fixture checkpoints confirmed", "checkpointSetSha256": digest, "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-28T00:00:00+08:00"},
-        "auditPolicy": policy,
+        "checkpointConfirmation": {"actorId": "owner", "summary": "fixture checkpoints confirmed", "checkpointSetSha256": digest, "executionPlanSha256": execution_digest, "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-28T00:00:00+08:00"},
+        "auditPolicy": policy, **planning,
     }
 
 
@@ -118,7 +133,7 @@ def _spec(*, confirmed: bool = True, incomplete_case_coverage: bool = False) -> 
     summary = "SERVICE|BACKEND_API|VERTICAL_SLICE|PRIVATE_OPERATION|local-python"
     satisfies = ["RULE-CORE-OBSERVABLE-CANDIDATE"] if incomplete_case_coverage else ["RULE-CORE-OBSERVABLE-CANDIDATE", "RULE-CORE-FAILURE-CONSERVATION", "RULE-PROFILE-API-CONTRACT", "RULE-ADAPTER-GENERIC_COMMAND"]
     value = {
-        "schemaVersion": "3.2",
+        "schemaVersion": "4.0",
         "projectId": "fixture-v3",
         "primaryExperience": "SERVICE",
         "capabilityDomains": ["BACKEND_API"],
@@ -194,14 +209,14 @@ def _failing_ids(report: dict) -> set[str]:
     return {item["id"] for item in report.get("integrity", {}).get("checks", []) if item.get("status") != "PASS"}
 
 
-def test_cli_surface_and_envelope_are_schema3() -> None:
+def test_cli_surface_and_envelope_are_schema4() -> None:
     parser = cli.parser()
     subparsers = next(action for action in parser._actions if hasattr(action, "choices") and action.choices)
-    assert {"resolve-rules", "reposition", "revise-objectives", "automation", "dashboard"} <= set(subparsers.choices)
+    assert {"resolve-rules", "reposition", "revise-objectives", "automation", "progress", "dashboard"} <= set(subparsers.choices)
     result, report = _run(sys.executable, str(CONTROL), "risk", "--score", "10", expect=0)
     assert result.stderr == ""
-    assert report["schemaVersion"] == "3.2"
-    assert report["runtimeVersion"] == RUNTIME_VERSION == "0.3.7"
+    assert report["schemaVersion"] == "4.0"
+    assert report["runtimeVersion"] == RUNTIME_VERSION == "0.4.0"
     assert set(report) >= {"status", "integrity", "formal", "state"}
 
 
@@ -218,7 +233,7 @@ def test_inspect_handles_an_unborn_git_repository() -> None:
 
 
 def test_controller_state_and_schemas_reject_v2_objects() -> None:
-    assert initial_state("fixture")["schemaVersion"] == "3.2"
+    assert initial_state("fixture")["schemaVersion"] == "4.0"
     legacy = {
         "schemaVersion": "2.0",
         "taskId": "TASK-OLD",
@@ -235,7 +250,20 @@ def test_controller_state_and_schemas_reject_v2_objects() -> None:
     except ControlError as exc:
         assert exc.check_id == "HC-SCHEMA-CONTRACT"
     else:
-        raise AssertionError("Schema 2.0 task contract was accepted by Schema 3.2 runtime")
+        raise AssertionError("Schema 2.0 task contract was accepted by Schema 4.0 runtime")
+
+
+def test_historical_schema32_upgrade_defaults_to_auto_local() -> None:
+    """Keep the deliberate 3.2 source sample at the migration boundary."""
+    confirmation = {
+        "actorId": "owner", "summary": "upgrade confirmed",
+        "summarySha256": hashlib.sha256(b"upgrade confirmed").hexdigest(),
+        "record": "UPGRADE_CONFIRMATION.json", "confirmedAt": "2026-07-30T00:00:00+08:00",
+    }
+    policy = upgrade_automation_policy_spec("3.2", "legacy-fixture", confirmation, {}, None)
+    assert policy["mode"] == "AUTO_LOCAL_TO_REVIEW"
+    assert policy["commitPolicy"] == "MILESTONE_COMMITS" and policy["pushPolicy"] == "NONE"
+    assert "convert-schema-3.2-to-4.0" in upgrade_actions("3.2")
 
 
 def test_resolve_rules_is_read_only_and_requires_confirmation() -> None:
@@ -247,7 +275,7 @@ def test_resolve_rules_is_read_only_and_requires_confirmation() -> None:
         _write(valid, _spec())
         _write(invalid, _spec(confirmed=False))
         _, preview = _run(sys.executable, str(CONTROL), "resolve-rules", "--project", str(project), "--spec", str(valid), expect=0)
-        assert preview["schemaVersion"] == "3.2" and preview["status"] == "PASS"
+        assert preview["schemaVersion"] == "4.0" and preview["status"] == "PASS"
         assert "positioning" in preview["data"] and "ruleSet" in preview["data"]
         assert not (project / ".vibe-control").exists(), "resolve-rules must not write a control plane"
 
@@ -269,7 +297,7 @@ def test_schema2_control_plane_returns_reinstall_required_without_writes() -> No
         assert result.returncode == 2
         assert "VC-REINSTALL-REQUIRED" in _failing_ids(report)
         assert old.read_bytes() == before
-        assert not (control / "legacy").exists(), "the current Schema 3.2 runtime must not migrate/import Schema 2.0 evidence"
+        assert not (control / "legacy").exists(), "the current Schema 4.0 runtime must not migrate/import Schema 2.0 evidence"
 
 
 def test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules() -> None:
@@ -285,9 +313,9 @@ def test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules() -> None:
             _write(spec_path, _spec(incomplete_case_coverage=True))
             wrapper = sealed / "scripts" / "vibe_control.py"
             _, bootstrap = _run(sys.executable, str(wrapper), "bootstrap", "--project", str(project), "--spec", str(spec_path), expect=2)
-            assert bootstrap["schemaVersion"] == "3.2"
+            assert bootstrap["schemaVersion"] == "4.0"
             _git(project, "add", "-A")
-            _git(project, "commit", "-m", "bootstrap v3")
+            _git(project, "commit", "-m", "bootstrap v4")
             contract = _task_contract()
             contract_path = project / ".vibe-control" / "tasks" / "TASK-001.json"
             _write(contract_path, contract)
@@ -419,9 +447,10 @@ def test_validate_rejects_rebound_evidence_id() -> None:
 
 
 TESTS = [
-    test_cli_surface_and_envelope_are_schema3,
+    test_cli_surface_and_envelope_are_schema4,
     test_inspect_handles_an_unborn_git_repository,
     test_controller_state_and_schemas_reject_v2_objects,
+    test_historical_schema32_upgrade_defaults_to_auto_local,
     test_resolve_rules_is_read_only_and_requires_confirmation,
     test_schema2_control_plane_returns_reinstall_required_without_writes,
     test_lock_task_fails_when_cases_do_not_cover_all_applicable_rules,

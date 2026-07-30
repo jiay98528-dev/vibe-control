@@ -7,13 +7,18 @@
     "projectId",
     "sourceRuntimeVersion",
     "targetRuntimeVersion",
+    "sourceSchemaVersion",
+    "targetSchemaVersion",
     "confirmation"
   ],
   "properties": {
-    "schemaVersion": {"const": "3.2"},
+    "schemaVersion": {"const": "4.0"},
     "projectId": {"type": "string", "minLength": 1},
     "sourceRuntimeVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
     "targetRuntimeVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "sourceSchemaVersion": {"enum": ["3.2", "4.0"]},
+    "targetSchemaVersion": {"const": "4.0"},
+    "automationMode": {"enum": ["AUTO_LOCAL_TO_REVIEW", "MANUAL_STAGE_CONFIRMATION"]},
     "replacementCaseCatalog": {"type": ["string", "null"], "minLength": 1},
     "confirmation": {
       "type": "object",
@@ -26,5 +31,8 @@
         "confirmedAt": {"type": "string", "format": "date-time"}
       }
     }
-  }
+  },
+  "allOf": [
+    {"if": {"properties": {"sourceSchemaVersion": {"const": "4.0"}}}, "then": {"not": {"required": ["automationMode"]}}}
+  ]
 }

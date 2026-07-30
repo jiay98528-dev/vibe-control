@@ -48,6 +48,12 @@ manifest builder 对非法 JSON、顶层非 object 与 section 非 array 不得 
 
 进入修复流程前，主线程必须重新读取当前 `KEY_OBJECTIVES.md`，包括已确认的信任边界与明确排除的威胁模型。外部发现先归类为 `CURRENT_GOAL_DEFECT`、`MINIMUM_CORE_VIOLATION`、`SAFETY_OVERRIDE`、`HUMAN_DECISION`、`PROCESS_WARNING`、`INVESTIGATION`、`FUTURE_PROPOSAL` 或 `OUT_OF_SCOPE`。当前目标缺陷必须引用当前 task checkpoint；最低核心违规必须引用固定 core control；安全越界必须引用 `KF-*`；`HUMAN_DECISION` 只阻断明确受影响声明。所有直接 finding 的 `affectedClaims[]` 必须向上闭合。严重度不能绕过任务/声明映射、扩大威胁模型或扩大当前任务。
 
+### 执行侧与审核侧分离
+
+0.4.0 起，普通 Implementer 只运行与本次改动直接相关的最小开发检查。完整 required case、对抗变异、package seal 和保证矩阵闭包由冻结候选后的 Executor/Auditor 或 maintainer-only 流程承担。不得为了增加测试数把全部正式门禁塞回每个实现任务，也不得用实现者的窄检查替代独立审核。
+
+固定阶段、固定审核频率、风险等级到审核形式的一一映射和一般加固建议属于项目派生启发式。只有候选/哈希/引用/计数/skip/证据/角色/权限/声明上限等最低核心保持强制。审核者必须服从 task 的 `verificationStrategy` 和检查点停止条件；当前目标、最低核心或权限边界之外的发现进入建议，不扩大当前修复。
+
 ### 1. 先做遏制
 
 - 把当前能力降到真实可证明的声明等级。
@@ -99,6 +105,8 @@ manifest builder 对非法 JSON、顶层非 object 与 section 非 array 不得 
 - formal-gate readiness 只能在保证矩阵闭合、变异套件全绿和外部复核完成后声明。
 - 激活采用“内容候选 → 独立审计证据 bundle tree → 两个 annotated tag → seal 复核”协议。候选 tree 完成 manifest 后不得再改；`vibe-control-audit/v<version>` 指向包含 `report.json`、`evidence-manifest.json`、逐 case transcript 与声明 artifact 的 Git tree，`v<version>` 指向候选 commit 且其 JSON message 绑定 bundle/report/evidence 对象、commit/tree 与三项内容哈希。矩阵保持 `formalClaimsAllowed=false`。validator 必须重算当前 package/runtime inventory，并验证 case 命令、时间、退出码、非零守恒 counters、零 skip、blob/哈希和控制覆盖；任何审计后代码、Schema、测试、文档、manifest 或证据变化都自动失效。
 - package validator 必须聚合所有当前可独立检查的前置，如 release tag、audit tag、inventory 和工作树状态；不得因第一个缺失项短路后把它描述为“唯一 blocker”。报告对缺陷范围只能写“本轮覆盖内未发现 P0/P1/P2”，不能外推为系统不存在未知缺陷。
+
+每份执行、门禁和审计报告必须在技术结论之后，以“给没有开发背景的人看的说明”收尾。该段只解释项目功能、完成内容、仍不可用内容、用户后果、能否继续和能否发行，不得使用内部 ID、哈希、Schema、claim 或 commit/tree 术语。真正停止时还必须给出两个具体行动候选与一个开放输入；宿主有结构化提问工具时必须调用。普通 case 或节点完成只更新本机仪表台，不打断自动流程。
 
 ## 测试设计规则
 

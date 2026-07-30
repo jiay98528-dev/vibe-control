@@ -26,6 +26,9 @@ REQUIRED_PACKAGE_CONTROL_IDS = frozenset({
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
     "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
     "CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036",
+    "CTRL-CONFIRMED-037", "CTRL-CONFIRMED-038", "CTRL-CONFIRMED-039",
+    "CTRL-CONFIRMED-040", "CTRL-CONFIRMED-041", "CTRL-CONFIRMED-042",
+    "CTRL-CONFIRMED-043",
 })
 
 
@@ -625,7 +628,7 @@ def validate_package_release(root: Path) -> dict[str, Any]:
         "auditedAt", "result", "findingCounts", "validatedControlIds",
         "enableFormalClaims",
     }
-    receipt_shape = receipt_required.issubset(receipt) and receipt.get("schemaVersion") == "3.2" and receipt.get("receiptType") == "vibe-control-package-audit"
+    receipt_shape = receipt_required.issubset(receipt) and receipt.get("schemaVersion") == "4.0" and receipt.get("receiptType") == "vibe-control-package-audit"
     checks.append(_check("PKG-AUDIT-RECEIPT-SCHEMA", "PASS" if receipt_shape else "FAIL", "package audit receipt has the required shape" if receipt_shape else "package audit receipt is incomplete", missing=sorted(receipt_required - set(receipt))))
     if not receipt_shape:
         return _report(checks)
@@ -682,7 +685,7 @@ def validate_package_release(root: Path) -> dict[str, Any]:
         "result", "findingCounts", "validatedControlIds",
         "evidenceManifestBlob", "evidenceManifestSha256",
     }
-    report_shape = isinstance(report, dict) and report_required.issubset(report) and report.get("schemaVersion") == "3.2" and report.get("reportType") == "vibe-control-package-audit"
+    report_shape = isinstance(report, dict) and report_required.issubset(report) and report.get("schemaVersion") == "4.0" and report.get("reportType") == "vibe-control-package-audit"
     checks.append(_check("PKG-AUDIT-REPORT-SCHEMA", "PASS" if report_shape else "FAIL", "audit report has the required shape" if report_shape else "audit report is incomplete"))
     if not report_shape:
         return _report(checks)
@@ -745,7 +748,7 @@ def validate_materialized_receipt(receipt: Any, *, version: str, package_sha: st
     if not isinstance(receipt, dict):
         return [_check("HC-PACKAGE-AUDIT-RECEIPT-SCHEMA", "FAIL", "materialized package audit receipt must be an object")]
     expected = {
-        "schemaVersion": "3.2",
+        "schemaVersion": "4.0",
         "receiptType": "vibe-control-package-audit",
         "version": version,
         "packageManifestSha256": package_sha,

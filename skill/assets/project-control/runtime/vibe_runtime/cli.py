@@ -14,6 +14,13 @@ from .controller import (
     reposition_plan, resolve_rules, revise_objectives_apply, revise_objectives_plan, validate,
 )
 from .dashboard import generate_dashboard
+from .progress import (
+    progress_clear,
+    progress_init,
+    progress_init_for_bootstrap,
+    progress_stop,
+    progress_update,
+)
 from .upgrade_control import upgrade_apply, upgrade_plan
 
 
@@ -23,7 +30,7 @@ class JsonParser(argparse.ArgumentParser):
 
 
 def parser() -> JsonParser:
-    root = JsonParser(prog="vibe-control", description="vibe-control deterministic runtime 3.2", add_help=True)
+    root = JsonParser(prog="vibe-control", description="vibe-control observable automation runtime 4.0", add_help=True)
     sub = root.add_subparsers(dest="command", required=True, parser_class=JsonParser)
     for name in ("inspect", "validate", "release-check"):
         item = sub.add_parser(name); item.add_argument("--project", default="."); item.add_argument("--output")
@@ -40,6 +47,7 @@ def parser() -> JsonParser:
     item = sub.add_parser("handoff"); item.add_argument("--project", default="."); item.add_argument("--handoff-output"); item.add_argument("--output")
     item = sub.add_parser("automation"); item.add_argument("--project", default="."); item.add_argument("--spec"); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); mode.add_argument("--action", choices=("dispatch", "continue", "commit", "push")); item.add_argument("--message"); item.add_argument("--output")
     item = sub.add_parser("dashboard"); item.add_argument("--project", default="."); item.add_argument("--output-dir"); item.add_argument("--output")
+    item = sub.add_parser("progress"); item.add_argument("--project", default="."); item.add_argument("--action", required=True, choices=("init", "update", "stop", "clear")); item.add_argument("--spec"); item.add_argument("--expected-revision", type=int); item.add_argument("--scope", choices=("current-task", "project")); item.add_argument("--confirm"); item.add_argument("--task"); item.add_argument("--output")
     item = sub.add_parser("migrate"); item.add_argument("--project", default="."); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); item.add_argument("--spec"); item.add_argument("--output")
     item = sub.add_parser("upgrade"); item.add_argument("--project", default="."); mode=item.add_mutually_exclusive_group(required=True); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", metavar="PLAN_HASH"); item.add_argument("--spec"); item.add_argument("--output")
     item = sub.add_parser("risk"); item.add_argument("--score", required=True, type=int); item.add_argument("--forced-r3", action="store_true"); item.add_argument("--output")
@@ -55,7 +63,19 @@ def risk(score: int, forced: bool) -> dict[str, Any]:
 def dispatch(args: argparse.Namespace) -> dict[str, Any]:
     project = Path(getattr(args, "project", "."))
     if args.command == "inspect": return inspect(project)
-    if args.command == "bootstrap": return bootstrap(project, Path(args.spec))
+    if args.command == "bootstrap":
+        local_progress = progress_init_for_bootstrap(project, Path(args.spec))
+        result = bootstrap(project, Path(args.spec))
+        refreshed = generate_dashboard(project, None)
+        plain = result.pop("plainLanguage")
+        data = result.get("data")
+        if not isinstance(data, dict):
+            data = {}
+            result["data"] = data
+        data["localProgress"] = local_progress.get("data")
+        data["dashboard"] = refreshed.get("data")
+        result["plainLanguage"] = plain
+        return result
     if args.command == "resolve-rules": return resolve_rules(project, Path(args.spec))
     if args.command == "reposition": return reposition_plan(project, Path(args.spec)) if args.plan else reposition_apply(project, Path(args.spec), args.apply)
     if args.command == "revise-objectives": return revise_objectives_plan(project, Path(args.spec)) if args.plan else revise_objectives_apply(project, Path(args.spec), args.apply)
@@ -81,6 +101,19 @@ def dispatch(args: argparse.Namespace) -> dict[str, Any]:
             raise ControlError("CLI-INVALID-ARGUMENTS", "automation --plan/--apply requires --spec")
         return automation_plan(project, Path(args.spec)) if args.plan else automation_apply(project, Path(args.spec), args.apply)
     if args.command == "dashboard": return generate_dashboard(project, Path(args.output_dir) if args.output_dir else None)
+    if args.command == "progress":
+        if args.action == "init":
+            if not args.spec or args.expected_revision is not None or args.scope or args.confirm:
+                raise ControlError("CLI-INVALID-ARGUMENTS", "progress init requires only --spec")
+            return progress_init(project, Path(args.spec))
+        if args.action in {"update", "stop"}:
+            if not args.spec or args.expected_revision is None or args.scope or args.confirm:
+                raise ControlError("CLI-INVALID-ARGUMENTS", f"progress {args.action} requires --spec and --expected-revision")
+            operation = progress_update if args.action == "update" else progress_stop
+            return operation(project, Path(args.spec), args.expected_revision)
+        if args.spec or args.expected_revision is not None or not args.scope or not args.confirm:
+            raise ControlError("CLI-INVALID-ARGUMENTS", "progress clear requires --scope and --confirm")
+        return progress_clear(project, args.task, args.scope, args.confirm)
     if args.command == "migrate":
         if args.apply and not args.spec:
             raise ControlError("CLI-INVALID-ARGUMENTS", "migrate --apply requires --spec")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused 0.3.7 regressions for execution, byte identity and case lifecycle."""
+"""Inherited 0.4.0 regressions for execution, byte identity and case lifecycle."""
 from __future__ import annotations
 
 import hashlib

@@ -1,20 +1,22 @@
 {
-  "schemaVersion": "1.0",
-  "policyId": "REQUIRES_USER_SELECTION",
+  "schemaVersion": "4.0",
+  "policyId": "automation-000000000000",
   "projectId": "replace-me",
-  "mode": "REQUIRES_USER_SELECTION",
-  "commitPolicy": "REQUIRES_USER_SELECTION",
-  "pushPolicy": "REQUIRES_USER_SELECTION",
+  "mode": "AUTO_LOCAL_TO_REVIEW",
+  "commitPolicy": "MILESTONE_COMMITS",
+  "pushPolicy": "NONE",
   "stopConditions": [
     "AUTOMATED_CHECKPOINTS_COMPLETE",
     "HUMAN_CHECKPOINT",
     "OWNER_DECISION",
     "BOUNDARY_CHANGE",
     "R3_OR_IRREVERSIBLE_ACTION",
-    "HARD_FAILURE",
+    "ACTION_GUARD",
+    "ENVIRONMENT_BLOCKED",
     "PUSH_CONFLICT",
     "USER_INTERRUPT"
   ],
+  "coordination": {"requestedBackend": "AUTO", "resolvedBackend": "SERIAL", "observedCapabilities": [], "workerLimit": "HOST_CAPACITY_ONLY", "hostRequiresAuthorization": false, "authorizationGranted": false, "authorizationPromptRequired": false},
   "confirmation": {
     "actorId": "product-owner",
     "summary": "replace-with-canonical-policy-summary",

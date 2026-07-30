@@ -1,1 +1,12 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false,"required":["schemaVersion","handoffId","taskId","candidateId","checkpointSetSha256","positioningId","ruleSetId","phase","health","claimLevel","evidenceIds","reviewId","decisionId","blockers","createdAt"],"properties":{"schemaVersion":{"const":"3.2"},"handoffId":{"type":"string"},"taskId":{"type":"string"},"candidateId":{"type":["string","null"]},"checkpointSetSha256":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"automationPolicy":{"$ref":"#/$defs/ref"},"positioningId":{"type":["string","null"]},"ruleSetId":{"type":["string","null"]},"phase":{"type":"string"},"health":{"type":"string"},"claimLevel":{"type":"string"},"evidenceIds":{"type":"array","items":{"type":"string"}},"reviewId":{"type":["string","null"]},"decisionId":{"type":["string","null"]},"blockers":{"type":"array","items":{"type":"string"}},"createdAt":{"type":"string","format":"date-time"}},"$defs":{"ref":{"type":"object","additionalProperties":false,"required":["path","bytes","sha256","tracked"],"properties":{"path":{"type":"string"},"bytes":{"type":"integer","minimum":0},"sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"tracked":{"const":true}}}}}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "handoffId", "taskId", "candidateId", "checkpointSetSha256", "executionPlanSha256", "positioningId", "ruleSetId", "phase", "health", "claimLevel", "evidenceIds", "reviewId", "decisionId", "blockers", "createdAt"],
+  "properties": {
+    "schemaVersion": {"const": "4.0"}, "handoffId": {"type": "string"}, "taskId": {"type": "string"}, "candidateId": {"type": ["string", "null"]},
+    "checkpointSetSha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}, "executionPlanSha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "automationPolicy": {"$ref": "#/$defs/ref"}, "positioningId": {"type": ["string", "null"]}, "ruleSetId": {"type": ["string", "null"]},
+    "phase": {"type": "string"}, "health": {"type": "string"}, "claimLevel": {"type": "string"}, "evidenceIds": {"type": "array", "items": {"type": "string"}},
+    "reviewId": {"type": ["string", "null"]}, "decisionId": {"type": ["string", "null"]}, "blockers": {"type": "array", "items": {"type": "string"}}, "createdAt": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {"ref": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256", "tracked"], "properties": {"path": {"type": "string"}, "bytes": {"type": "integer", "minimum": 0}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "tracked": {"const": true}}}}
+}

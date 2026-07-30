@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "3.2",
+  "schemaVersion": "4.0",
   "reportId": "RELEASE-AUDIT-001",
   "taskId": "TASK-001",
   "candidateId": "replace-with-candidate-id",

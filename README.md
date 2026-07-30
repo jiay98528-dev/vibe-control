@@ -6,15 +6,15 @@
 
 Observable control planes for VibeCoding and multi-agent software development.
 
-![Version](https://img.shields.io/badge/version-0.3.7-2563eb)
+![Version](https://img.shields.io/badge/version-0.4.0-2563eb)
 ![Maturity](https://img.shields.io/badge/maturity-DEVELOPMENT__DIAGNOSTIC-f59e0b)
-![Schema](https://img.shields.io/badge/schema-3.2-7c3aed)
+![Schema](https://img.shields.io/badge/schema-4.0-7c3aed)
 ![Python](https://img.shields.io/badge/python-3.12-3776ab)
 
 </div>
 
 > [!WARNING]
-> 当前公开包是 `0.3.7 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
+> 当前公开包是 `0.4.0 DEVELOPMENT_DIAGNOSTIC`。仓库公开可用不等于已经完成正式封印；`formalClaimsAllowed=false`，不得外推为产品验收或发布通过。
 
 ## 它解决什么问题
 
@@ -27,6 +27,8 @@ VibeCoding 的典型失败往往不是“模型完全不会写代码”，而是
 | 能力 | 作用 |
 | --- | --- |
 | 关键目标缰绳 | 从需求事实源推导并锁定 `KEY_OBJECTIVES.md`，阻止审计和修复逐轮跑偏。 |
+| 启动即有操作台 | 在项目写入前建立本机离线网页，持续显示项目用途、当前任务、四维准备度、已完成事项和下一步。 |
+| 零背景说明 | 每份执行、门禁和审核报告最后都用没有开发术语的文字说明“现在能做什么、还不能做什么、会有什么影响”。 |
 | 检查点契约 | 在实现前固定“什么结果算通过”，绑定 case、oracle、assertion 与声明上限。 |
 | 候选与证据闭包 | 绑定精确 commit/tree、输入哈希、逐 case provenance、transcript、产物与 counters。 |
 | Windows 候选执行 | 保留锁定逻辑命令，显式解析 `pnpm.cmd` 等宿主 executable；参数不经过 shell。 |
@@ -34,8 +36,9 @@ VibeCoding 的典型失败往往不是“模型完全不会写代码”，而是
 | 同 Schema 升级 | 内容绑定地归档旧控制链、原子安装新 runtime，并使旧 PASS 全部失效。 |
 | 有界审核 | 先审核预设检查点；普通探索发现有候选级预算，达到停止条件后结束审核。 |
 | 多智能体边界 | 单一控制面写入者、隔离写入、无答案泄漏审核；Worker 回报不能自行批准。 |
-| 跨宿主兼容 | 按实际能力选择 `CODEX_THREADS → SUBAGENTS → SERIAL`，不伪造宿主不存在的功能。 |
-| 一次授权自动推进 | 启动时显式选择手动、自动本地或自动推送；普通阶段持续推进，只在固定人工复核点停止。 |
+| 跨宿主兼容 | 按实际能力选择 `TEAM → SUBAGENT → SERIAL`，不伪造宿主不存在的功能。 |
+| 默认本地自动推进 | 自动规划、委派、实现、定向检查、冻结候选和独立核对；不在普通阶段反复询问，只在真正需要用户决定时停止。 |
+| 执行侧瘦身 | 实现者只拿轻量任务卡并运行与改动直接相关的检查；完整验收与审核由独立角色在候选冻结后执行。 |
 | 有界 Git 副作用 | 自动 commit/push 绑定任务、完整提交历史、既有 upstream 与非强制 fast-forward；越界历史不能借“工作树干净”绕过。 |
 | 离线复核仪表盘 | 在人工复核点生成同源 `index.html`、`status.json` 和 `summary.md`，明确区分已证明与未证明。 |
 | 发行意图分级 | 区分本地实验、私有运行和外部发行，避免把同一套高强度门禁施加给所有项目。 |
@@ -44,12 +47,12 @@ VibeCoding 的典型失败往往不是“模型完全不会写代码”，而是
 
 ```mermaid
 flowchart LR
-    A["需求事实源"] --> B["关键目标"]
-    B --> C["任务与检查点"]
-    C --> D["候选冻结"]
-    D --> E["真实执行证据"]
+    A["启动操作台"] --> B["需求与关键目标"]
+    B --> C["行动地图与预期结果"]
+    C --> D["Team / SubAgent 实现"]
+    D --> E["候选冻结与独立验收"]
     E --> F["独立审核"]
-    F --> G["人工决定 / 交接"]
+    F --> G["操作台复核 / 人工决定"]
 ```
 
 ## 快速开始
@@ -86,40 +89,36 @@ python "$env:USERPROFILE\.codex\skills\vibe-control\scripts\validate_installatio
 使用 $vibe-control 启动这个项目。先建立关键目标、发行意图和验收检查点，再进入实现。
 ```
 
-Skill 会先询问项目的预期发行状态，并在需求、关键目标和项目定位确认后要求选择一种推进模式：
+Skill 会先建立本机操作台，再确认需求、关键目标、项目定位和预期发行状态。随后默认采用 `AUTO_LOCAL_TO_REVIEW / MILESTONE_COMMITS / NONE`：自动规划、委派、实现、定向检查、冻结候选和独立核对，但不推送、不创建远端／PR／tag／release，也不自动批准主观检查点。
 
-- `MANUAL_STAGE_CONFIRMATION`：逐阶段等待确认；
-- `AUTO_LOCAL_TO_REVIEW`：自动推进并创建任务范围内的本地里程碑提交，不推送；
-- `AUTO_PUSH_TO_REVIEW`：在上一模式基础上，只向已存在且精确绑定的 upstream 分支做非强制推送。
-
-新项目未明确选择时不会写入控制面；旧 Schema 3.2 项目缺少策略时保持手动。自动模式仍会在候选闭合、人工检查点、边界变化、R3／不可逆操作、硬失败、推送冲突或用户中断时停止，并生成本地复核仪表盘。它不会仅根据仓库名称、技术栈或项目体量替用户推断发行意图或自动接受候选。
+普通阶段不会逐次等待确认。它只会在候选已准备好、需要主观体验判断、目标／范围／权限要改变、不可逆或高风险操作、环境无法继续、重复失败没有变化、远端冲突或用户中断时停止，并同时给出离线操作台、文字摘要以及两个具体建议和一个自由输入入口。用户仍可明确要求手动模式；推送必须另有精确的上游授权。
 
 ### 3. 非 Codex Agent
 
 将 [`skill/`](skill/) 目录安装到宿主的 Skill 目录。运行时按实际工具能力降级：
 
-1. 有 Codex task/thread 工具：`CODEX_THREADS`；
-2. 没有 Codex 跨会话能力、但有子智能体工具：`SUBAGENTS`；
+1. 有持久任务、独立上下文、消息、等待和工作隔离能力：`TEAM`；
+2. 没有完整 Team、但有子智能体 spawn/message/wait：`SUBAGENT`；
 3. 两者都没有：`SERIAL`。
 
 Skill 不设置固定子智能体数量上限，但仍服从宿主容量、任务可分解性、文件所有权与工作树隔离边界。
 
 ## 当前成熟度
 
-- 版本：`0.3.7`
-- Schema：`3.2`
+- 版本：`0.4.0`
+- Schema：`4.0`
 - 首个真实运行环境：Windows + Python 3.12
-- 包清单：174 个受管条目、runtime 51 个受管条目，SHA-256 内容寻址
+- 包清单：以当前 `package-manifest.json` 与 `runtime-manifest.json` 的逐文件结果为准
 - 姿态：`DEVELOPMENT_DIAGNOSTIC`
 - 正式声明：`formalClaimsAllowed=false`
-- 当前没有 `v0.3.7` release tag 或对应 package audit tag
+- 当前没有 `v0.4.0` release tag 或对应 package audit tag
 
 公开仓库可以用于研究、诊断开发和本地试用；它目前不能作为 `FORMAL_GATE_READY` 的证明。
 
 ## 明确边界
 
 - 控制器判断证据和状态是否闭合，不判断产品“是否好用”。
-- 普通本地实验和私有运行不需要私钥；签名链只属于明确的外部 R3 发行路径。
+- Skill 安装、普通本地实验、私有运行和本地自动推进都不需要或创建私钥。
 - `PASS`、零退出码或 manifest 完整不能单独证明 UI、性能、安全或发布质量。
 - 本项目不是许可、收费、私钥托管或软件分发平台。
 
@@ -145,6 +144,8 @@ Skill 不设置固定子智能体数量上限，但仍服从宿主容量、任�
 - [任务控制](skill/references/task-control.md)
 - [自动推进与 Git 副作用边界](skill/references/automation-advancement.md)
 - [跨宿主多智能体路由](skill/references/multi-session-routing.md)
+- [本地进度账本与仪表台](skill/references/progress-dashboard.md)
+- [实现、执行和审核角色边界](skill/references/execution-routing.md)
 - [证据政策](skill/references/evidence-policy.md)
 - [控制器保证闭包](skill/references/controller-assurance.md)
 

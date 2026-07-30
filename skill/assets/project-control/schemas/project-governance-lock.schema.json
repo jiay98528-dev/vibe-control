@@ -3,7 +3,7 @@
   "type": "object", "additionalProperties": false,
   "required": ["schemaVersion", "lockId", "projectId", "packageMode", "packageBinding", "skill", "runtime", "keyObjectives", "caseCatalog", "authorityFiles", "ruleInputs", "positioning", "resolvedRuleSet", "ruleCompiler", "profileDirectory", "adapterDirectory", "skillBindings", "releaseIntent", "trustedKeys", "lockedAt"],
   "properties": {
-    "schemaVersion": {"const": "3.2"}, "lockId": {"type": "string"}, "projectId": {"type": "string"},
+    "schemaVersion": {"const": "4.0"}, "lockId": {"type": "string"}, "projectId": {"type": "string"},
     "packageMode": {"enum": ["DEVELOPMENT", "SEALED"]},
     "packageBinding": {
       "type": "object", "additionalProperties": false,
@@ -31,13 +31,13 @@
       "if": {
         "properties": {
           "packageMode": {"const": "DEVELOPMENT"},
-          "packageBinding": {"properties": {"version": {"enum": ["0.3.5", "0.3.6", "0.3.7"]}}}
+          "packageBinding": {"properties": {"version": {"enum": ["0.3.5", "0.3.6", "0.3.7", "0.4.0"]}}}
         }
       },
       "then": {"properties": {"packageBinding": {"required": ["sourceKind"]}}}
     },
     {
-      "if": {"properties": {"packageBinding": {"properties": {"version": {"const": "0.3.7"}}}}},
+      "if": {"properties": {"packageBinding": {"properties": {"version": {"enum": ["0.3.7", "0.4.0"]}}}}},
       "then": {"required": ["evidenceBytePolicy"]}
     },
     {

@@ -33,6 +33,9 @@ CONTROL_IDS = sorted({
     "CTRL-CONFIRMED-028", "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
     "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
     "CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036",
+    "CTRL-CONFIRMED-037", "CTRL-CONFIRMED-038", "CTRL-CONFIRMED-039",
+    "CTRL-CONFIRMED-040", "CTRL-CONFIRMED-041", "CTRL-CONFIRMED-042",
+    "CTRL-CONFIRMED-043",
 })
 
 
@@ -94,7 +97,7 @@ def sealed_evidence(root: Path, *, head: str, tree: str, report_id: str,
     artifact = b'{"status":"PASS","source":"fixture"}\n'
     artifact_blob, artifact_sha = blob(root, "audit-result.json", artifact)
     value = {
-        "schemaVersion": "3.2",
+        "schemaVersion": "4.0",
         "manifestType": "vibe-control-package-audit-evidence",
         "manifestId": f"EVIDENCE-{report_id}",
         "reportId": report_id,
@@ -162,6 +165,9 @@ def package_copy() -> tuple[tempfile.TemporaryDirectory, Path]:
             "CTRL-CONFIRMED-029", "CTRL-CONFIRMED-030",
             "CTRL-CONFIRMED-031", "CTRL-CONFIRMED-032", "CTRL-CONFIRMED-033",
             "CTRL-CONFIRMED-034", "CTRL-CONFIRMED-035", "CTRL-CONFIRMED-036",
+            "CTRL-CONFIRMED-037", "CTRL-CONFIRMED-038", "CTRL-CONFIRMED-039",
+            "CTRL-CONFIRMED-040", "CTRL-CONFIRMED-041", "CTRL-CONFIRMED-042",
+            "CTRL-CONFIRMED-043",
         }:
             item["independentValidation"] = "PASS"
     write_json(matrix_path, matrix)
@@ -192,7 +198,7 @@ def seal(root: Path, *, result: str = "PASS", counts: dict | None = None, same_i
         root, head=head, tree=candidate_tree, report_id=report_id, mutation=evidence_mutation,
     )
     report = {
-        "schemaVersion": "3.2", "reportType": "vibe-control-package-audit", "reportId": report_id,
+        "schemaVersion": "4.0", "reportType": "vibe-control-package-audit", "reportId": report_id,
         "version": version, "candidateCommit": head, "candidateTree": candidate_tree,
         "packageManifestSha256": sha(root / "package-manifest.json"),
         "runtimeManifestSha256": sha(root / "assets" / "project-control" / "runtime" / "runtime-manifest.json"),
@@ -227,7 +233,7 @@ def seal(root: Path, *, result: str = "PASS", counts: dict | None = None, same_i
     git(root, "tag", "-a", audit_tag, audit_bundle_tree, "-m", json.dumps({"reportId": report["reportId"], "result": report["result"]}, separators=(",", ":")))
     audit_tag_object = git(root, "rev-parse", f"refs/tags/{audit_tag}")
     receipt = {
-        "schemaVersion": "3.2", "receiptType": "vibe-control-package-audit", "releaseTag": f"v{version}",
+        "schemaVersion": "4.0", "receiptType": "vibe-control-package-audit", "releaseTag": f"v{version}",
         "auditTag": audit_tag, "version": version, "candidateCommit": head, "candidateTree": candidate_tree,
         "packageManifestSha256": sha(root / "package-manifest.json"),
         "runtimeManifestSha256": sha(root / "assets" / "project-control" / "runtime" / "runtime-manifest.json"),

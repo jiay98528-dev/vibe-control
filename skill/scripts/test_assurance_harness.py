@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import subprocess
 import sys
 import tempfile
 import time
@@ -32,6 +34,68 @@ def test_assurance_runner_protocol() -> None:
         if malformed.get("checkId") != "ASSURANCE-CASE-PROTOCOL" or malformed.get("status") != "FAIL":
             raise AssertionError(f"malformed worker did not fail closed: {malformed}")
 
+        shared = suite.run_supervised_command(
+            "synthetic-shared-input",
+            root,
+            [
+                sys.executable,
+                "-c",
+                "import json,os; print(json.dumps({'test':'synthetic-shared-input','status':'PASS' if os.environ.get('VC_SHARED')=='bound' else 'FAIL'}))",
+            ],
+            10,
+            env_overrides={"VC_SHARED": "bound"},
+        )
+        if shared.get("status") != "PASS":
+            raise AssertionError(f"bounded worker did not receive its read-only shared input binding: {shared}")
+
+        try:
+            suite.run_supervised_command(
+                "synthetic-reserved-env",
+                root,
+                [sys.executable, "-c", "print('should not run')"],
+                10,
+                env_overrides={"TEMP": "escape"},
+            )
+        except ValueError as exc:
+            if "runner isolation variables" not in str(exc):
+                raise
+        else:
+            raise AssertionError("bounded worker allowed its isolated TEMP root to be replaced")
+
+        invalid_descriptor = root / "invalid-shared-package.json"
+        invalid_descriptor.write_text("{}\n", encoding="utf-8")
+        invalid_result = subprocess.run(
+            [
+                sys.executable, str(Path(suite.__file__).resolve()), "--case", "test_cli_error_surface_is_stable",
+                suite.fx.SHARED_TEST_PACKAGE_DESCRIPTOR_ARG, str(invalid_descriptor),
+                suite.fx.SHARED_TEST_PACKAGE_DESCRIPTOR_SHA_ARG,
+                hashlib.sha256(invalid_descriptor.read_bytes()).hexdigest(),
+            ],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
+        )
+        invalid_lines = [line for line in invalid_result.stdout.splitlines() if line.strip()]
+        invalid_report = json.loads(invalid_lines[0]) if len(invalid_lines) == 1 else {}
+        if (
+            invalid_result.returncode != 1
+            or invalid_report.get("checkId") != "ASSURANCE-SHARED-FIXTURE-SETUP"
+            or invalid_result.stderr
+        ):
+            raise AssertionError(f"invalid shared descriptor did not produce stable JSON: {invalid_result}")
+
+        post_results: list[dict] = []
+        accepted = suite.append_shared_fixture_postcheck(
+            post_results, invalid_descriptor, "0" * 64,
+            verifier=lambda *_: (_ for _ in ()).throw(AssertionError("post-run drift")),
+        )
+        if accepted or post_results != [{
+            "test": "shared-package-post-verify",
+            "status": "FAIL",
+            "checkId": "ASSURANCE-SHARED-FIXTURE-POST-VERIFY",
+            "errorType": "AssertionError",
+            "error": "post-run drift",
+        }]:
+            raise AssertionError(f"post-run shared fixture drift lacked a stable result: {post_results}")
+
         timed_out = suite.run_supervised_command(
             "synthetic-timeout",
             root,
@@ -41,8 +105,8 @@ def test_assurance_runner_protocol() -> None:
         if timed_out.get("checkId") != "ASSURANCE-CASE-TIMEOUT" or timed_out.get("status") != "TIMEOUT":
             raise AssertionError(f"timeout did not fail closed: {timed_out}")
 
-        report = suite.build_report([passed, malformed, timed_out], 1.0)
-        expected = {"total": 3, "passed": 1, "failed": 1, "timedOut": 1, "skipped": 0}
+        report = suite.build_report([passed, shared, malformed, timed_out], 1.0)
+        expected = {"total": 4, "passed": 2, "failed": 1, "timedOut": 1, "skipped": 0}
         if report["status"] != "FAIL" or report["formalClaimsAllowed"] is not False or report["counters"] != expected:
             raise AssertionError(f"aggregate counters do not conserve results: {report}")
         all_pass = suite.build_report([passed], 1.0)

@@ -4,7 +4,7 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "receiptType", "releaseTag", "auditTag", "version", "candidateCommit", "candidateTree", "packageManifestSha256", "runtimeManifestSha256", "assuranceMatrixSha256", "auditTagObject", "auditBundleTree", "auditReportBlob", "auditReportSha256", "evidenceManifestBlob", "evidenceManifestSha256", "auditor", "implementer", "auditedAt", "result", "findingCounts", "validatedControlIds", "enableFormalClaims"],
   "properties": {
-    "schemaVersion": {"const": "3.2"},
+    "schemaVersion": {"const": "4.0"},
     "receiptType": {"const": "vibe-control-package-audit"},
     "releaseTag": {"type": "string", "minLength": 1},
     "auditTag": {"type": "string", "minLength": 1},

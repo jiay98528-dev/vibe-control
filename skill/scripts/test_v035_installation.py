@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""0.3.5 portable-installation and bounded-suite acceptance cases."""
+"""Inherited portable-installation and bounded-suite cases for vibe-control 0.4.0."""
 
 from __future__ import annotations
 
@@ -268,7 +268,7 @@ def main() -> int:
             results.append({"case": case_id, "status": "FAIL", "durationSeconds": round(time.monotonic() - started, 3), "errorType": type(exc).__name__, "error": str(exc)})
     passed = sum(item["status"] == "PASS" for item in results)
     counters = {"total": len(results), "passed": passed, "failed": len(results) - passed, "timedOut": 0, "skipped": 0}
-    value = {"test": "vibe-control-0.3.5-installation", "status": "PASS" if passed == len(results) else "FAIL", "counters": counters, "cases": results}
+    value = {"test": "vibe-control-0.4.0-installation-inherited", "status": "PASS" if passed == len(results) else "FAIL", "counters": counters, "cases": results}
     print(json.dumps(value, ensure_ascii=False))
     return 0 if value["status"] == "PASS" else 1
 

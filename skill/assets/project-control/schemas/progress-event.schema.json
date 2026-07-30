@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "progress-event.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["taskId", "nodeId", "status", "summary", "actorId", "sessionId"],
+  "properties": {
+    "taskId": {"type": ["string", "null"]},
+    "nodeId": {"type": "string", "minLength": 1},
+    "status": {"enum": ["PENDING", "ACTIVE", "COMPLETED", "BLOCKED", "FAILED", "SUPERSEDED"]},
+    "summary": {"type": "string", "minLength": 1},
+    "actorId": {"type": "string", "minLength": 1},
+    "sessionId": {"type": "string", "minLength": 1},
+    "failureFingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contentIdentity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "resumeAcknowledgement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "action", "summary", "acknowledgedAt", "reportRevision", "reportSha256"],
+      "properties": {
+        "actorId": {"const": "owner"},
+        "action": {"const": "CONTINUE"},
+        "summary": {"type": "string", "minLength": 1},
+        "acknowledgedAt": {"type": "string", "format": "date-time"},
+        "reportRevision": {"type": "integer", "minimum": 1},
+        "reportSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  },
+  "allOf": [{"if": {"properties": {"status": {"const": "FAILED"}}}, "then": {"required": ["failureFingerprint", "contentIdentity"]}}]
+}

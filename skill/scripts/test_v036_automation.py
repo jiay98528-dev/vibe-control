@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Locked black-box acceptance cases for vibe-control 0.3.6 automation and dashboard."""
+"""Inherited black-box acceptance cases for vibe-control 0.4.0 automation."""
 
 from __future__ import annotations
 
@@ -10,19 +10,28 @@ import subprocess
 import sys
 import tempfile
 import time
+import copy
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTROL = ROOT / "assets" / "project-control" / "runtime" / "control.py"
 RUNTIME_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+sys.path.insert(0, str(ROOT / "assets" / "project-control" / "runtime"))
+
+from vibe_runtime.checkpoint_control import (  # noqa: E402
+    DEFAULT_AUDIT_POLICY,
+    checkpoint_set_sha256,
+    execution_plan_sha256,
+)
 STOP_CONDITIONS = [
     "AUTOMATED_CHECKPOINTS_COMPLETE",
     "HUMAN_CHECKPOINT",
     "OWNER_DECISION",
     "BOUNDARY_CHANGE",
     "R3_OR_IRREVERSIBLE_ACTION",
-    "HARD_FAILURE",
+    "ACTION_GUARD",
+    "ENVIRONMENT_BLOCKED",
     "PUSH_CONFLICT",
     "USER_INTERRUPT",
 ]
@@ -88,13 +97,22 @@ def automation_policy(project_id: str, mode: str, *, remote_binding: dict | None
         "commitPolicy": commit_policy,
         "pushPolicy": push_policy,
         "stopConditions": sorted(STOP_CONDITIONS),
+        "coordination": {
+            "requestedBackend": "AUTO",
+            "resolvedBackend": "SERIAL",
+            "observedCapabilities": [],
+            "workerLimit": "HOST_CAPACITY_ONLY",
+            "hostRequiresAuthorization": False,
+            "authorizationGranted": False,
+            "authorizationPromptRequired": False,
+        },
     }
     if remote_binding is not None:
         semantic["remoteBinding"] = remote_binding
     summary = canonical(semantic)
     digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
     return {
-        "schemaVersion": "1.0",
+        "schemaVersion": "4.0",
         "policyId": f"automation-{digest[:12]}",
         **semantic,
         "confirmation": {
@@ -130,7 +148,7 @@ def bootstrap_spec(project_id: str, policy: dict | None) -> dict:
     position_hash = hashlib.sha256(canonical(positioning).encode("utf-8")).hexdigest()
     objective_summary = "fixture objectives confirmed"
     value = {
-        "schemaVersion": "3.2",
+        "schemaVersion": "4.0",
         "projectId": project_id,
         **positioning,
         "confirmation": {"actorId": "owner", "summary": "fixture positioning", "summarySha256": position_hash, "record": "POSITIONING_CONFIRMATION.json"},
@@ -162,17 +180,63 @@ def task_contract(*, risk: str = "R2", goal: str = "<script>alert(1)</script> is
         "caseIds": ["CASE-001"], "assertions": [{"id": "ASRT-001", "statement": "fixture emits OK", "caseIds": ["CASE-001"]}],
         "expected": {"status": "PASS", "minExecuted": 1, "maxFailed": 0, "maxSkipped": 0, "artifacts": "AS_DECLARED"}, "notProven": [],
     }]
-    audit_policy = {"mode": "CONFORMANCE_PLUS_BOUNDED_EXPLORATION", "maxExploratoryFindings": 3, "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"}
-    checkpoint_hash = hashlib.sha256(canonical({"acceptanceCheckpoints": checkpoints, "auditPolicy": audit_policy}).encode()).hexdigest()
-    return {
-        "schemaVersion": "3.2", "taskId": "TASK-001", "goal": goal,
+    audit_policy = copy.deepcopy(DEFAULT_AUDIT_POLICY)
+    contract = {
+        "schemaVersion": "4.0", "taskId": "TASK-001", "goal": goal,
         "objectiveRefs": ["KO-001", "KF-001"], "allowedPaths": ["fixture.py"], "forbiddenPaths": ["forbidden.txt"],
         "requiredCaseIds": ["CASE-001"], "risk": risk, "maxClaimLevel": "DEVELOPMENT_CHECKED",
         "authorityRefs": ["PROJECT_BRIEF.md"], "nonGoals": [], "humanDecisionPoints": [],
         "acceptanceCheckpoints": checkpoints,
-        "checkpointConfirmation": {"actorId": "owner", "summary": "fixture checkpoint confirmed", "checkpointSetSha256": checkpoint_hash, "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-29T00:00:00+08:00"},
+        "checkpointConfirmation": {
+            "actorId": "owner", "summary": "fixture checkpoint confirmed",
+            "checkpointSetSha256": "0" * 64, "executionPlanSha256": "0" * 64,
+            "record": "CHECKPOINT_CONFIRMATION.json", "confirmedAt": "2026-07-29T00:00:00+08:00",
+        },
         "auditPolicy": audit_policy,
+        "milestones": [{
+            "id": "MS-001", "outcome": "close the fixture slice", "objectiveRefs": ["KO-001"],
+            "dependsOn": [],
+            "workNodes": [{
+                "id": "WN-001", "title": "implement the fixture", "kind": "IMPLEMENTATION",
+                "allowedPaths": ["fixture.py"], "minimumChecks": ["QC-001", "CASE-001"],
+                "ownerRole": "IMPLEMENTER",
+            }],
+            "checkpointIds": ["CP-001"], "expectedPassConditions": ["CP-001 reports PASS"],
+        }],
+        "scorecardPlan": {
+            "weights": {"FUNCTIONALITY": 40, "ROBUSTNESS_SECURITY": 25, "AUDIT": 20, "PROCESS": 15},
+            "items": [
+                {"id": "SC-001", "category": "FUNCTIONALITY", "statement": "fixture outcome works", "checkpointIds": ["CP-001"], "factSources": [{"kind": "CHECKPOINT", "refs": ["CP-001"]}]},
+                {"id": "SC-002", "category": "ROBUSTNESS_SECURITY", "statement": "fixture failure stays visible", "checkpointIds": ["CP-001"], "factSources": [{"kind": "CASE", "refs": ["CASE-001"]}]},
+                {"id": "SC-003", "category": "AUDIT", "statement": "fixture receives fresh review", "checkpointIds": ["CP-001"], "factSources": [{"kind": "REVIEW", "refs": ["FRESH-INDEPENDENT-REVIEW"]}]},
+                {"id": "SC-004", "category": "PROCESS", "statement": "fixture stays in scope", "checkpointIds": ["CP-001"], "factSources": [{"kind": "CORE_CONTROL", "refs": ["RULE-CORE-OBSERVABLE-CANDIDATE"]}]},
+            ],
+        },
+        "verificationStrategy": {
+            "mode": "CANDIDATE_BOUND", "failureDisposition": "REPAIR_WITHIN_CONTRACT",
+            "eligibleObservations": ["runtime-observed"], "requireZeroSkipped": True,
+            "checkpointCases": [{"checkpointId": "CP-001", "caseIds": ["CASE-001"]}],
+            "implementer": {"quickChecks": [{"id": "QC-001", "command": [sys.executable, "-m", "py_compile", "fixture.py"], "requiredBeforeMilestone": True}]},
+            "executor": {"caseIds": ["CASE-001"], "evidenceRequirements": ["candidate-bound transcript", "nonzero counters", "zero skipped cases"]},
+            "auditor": {"required": True, "form": "FRESH_INDEPENDENT_REVIEW", "inputs": ["candidate", "case evidence", "checkpoint expectations"], "stopCondition": "ALL_REQUIRED_CHECKPOINTS_REPORTED"},
+            "notProven": ["external release"],
+        },
+        "guardPolicy": {"defaultEffect": "ADVISORY", "guards": [
+            {"id": "GUARD-ACTION", "scope": "MUTATION", "effect": "ACTION_GUARD"},
+            {"id": "GUARD-CLAIM", "scope": "CLAIM", "effect": "CLAIM_GUARD"},
+            {"id": "GUARD-PROCESS", "scope": "PROCESS", "effect": "ADVISORY"},
+            {"id": "GUARD-HUMAN", "scope": "HUMAN", "effect": "HUMAN_DECISION"},
+            {"id": "GUARD-ENVIRONMENT", "scope": "ENVIRONMENT", "effect": "ENVIRONMENT_BLOCKED"},
+        ]},
+        "reportingPolicy": {
+            "orientation": "ZERO_CONTEXT_ORIENTATION", "progressMode": "NON_BLOCKING", "reviewPoint": "OWNER_REVIEW",
+            "plainLanguageFields": ["projectPurpose", "whatWasDone", "whatWorksNow", "whatStillDoesNotWork", "userImpact", "canContinue", "canRelease"],
+            "nextActions": {"continue": ["continue the next work node"], "repair": ["repair within the task"], "humanReview": ["review the candidate"]},
+        },
     }
+    contract["checkpointConfirmation"]["checkpointSetSha256"] = checkpoint_set_sha256(contract)
+    contract["checkpointConfirmation"]["executionPlanSha256"] = execution_plan_sha256(contract)
+    return contract
 
 
 class Fixture:
@@ -229,7 +293,7 @@ class Fixture:
         self.temp.cleanup()
 
 
-def test_bootstrap_requires_explicit_policy_without_writes() -> None:
+def test_bootstrap_defaults_to_local_automation() -> None:
     with tempfile.TemporaryDirectory(prefix="vc036-missing-", ignore_cleanup_errors=True) as name:
         root = Path(name) / "project"; root.mkdir(); git(root, "init"); git(root, "config", "user.email", "fixture@example.invalid"); git(root, "config", "user.name", "Fixture")
         for file, text in {"PROJECT_BRIEF.md": "# Fixture\n", "KEY_OBJECTIVES.md": "# O\n- `KO-001`: x\n- `KF-001`: y\n- `NG-001`: z\n", "OBJECTIVES_CONFIRMATION.json": '{}\n', "POSITIONING_CONFIRMATION.json": '{}\n'}.items():
@@ -238,8 +302,11 @@ def test_bootstrap_requires_explicit_policy_without_writes() -> None:
         spec = bootstrap_spec("missing", None); spec_path = Path(name) / "spec.json"; write_json(spec_path, spec)
         result = run(sys.executable, str(CONTROL), "bootstrap", "--project", str(root), "--spec", str(spec_path))
         value = report(result)
-        assert result.returncode != 0 and value["error"]["id"] == "HC-AUTOMATION-POLICY-REQUIRED", value
-        assert not (root / ".vibe-control").exists()
+        assert result.returncode == 2 and value["status"] == "BLOCKED", value
+        policy = json.loads((root / ".vibe-control/automation-policy.json").read_text(encoding="utf-8"))
+        assert policy["mode"] == "AUTO_LOCAL_TO_REVIEW"
+        assert policy["commitPolicy"] == "MILESTONE_COMMITS" and policy["pushPolicy"] == "NONE"
+        assert policy["coordination"]["resolvedBackend"] == "SERIAL"
 
 
 def test_modes_and_task_binding() -> None:
@@ -335,7 +402,7 @@ def test_dashboard_is_offline_escaped_and_non_authoritative() -> None:
 
 def main() -> int:
     tests = [
-        ("bootstrap-explicit-policy", test_bootstrap_requires_explicit_policy_without_writes),
+        ("bootstrap-default-local-automation", test_bootstrap_defaults_to_local_automation),
         ("modes-and-task-binding", test_modes_and_task_binding),
         ("legacy-opt-in-plan-hash", test_legacy_opt_in_and_plan_hash),
         ("action-guards-r3-stop", test_action_guards_and_r3_stop),
@@ -351,7 +418,7 @@ def main() -> int:
             results.append({"case": case_id, "status": "FAIL", "durationSeconds": round(time.monotonic() - started, 3), "errorType": type(exc).__name__, "error": str(exc)})
     passed = sum(item["status"] == "PASS" for item in results)
     counters = {"total": len(results), "passed": passed, "failed": len(results) - passed, "timedOut": 0, "skipped": 0}
-    value = {"test": "vibe-control-0.3.6-automation", "status": "PASS" if passed == len(results) else "FAIL", "counters": counters, "cases": results}
+    value = {"test": "vibe-control-0.4.0-automation-inherited", "status": "PASS" if passed == len(results) else "FAIL", "counters": counters, "cases": results}
     print(json.dumps(value, ensure_ascii=False))
     return 0 if value["status"] == "PASS" else 1
 

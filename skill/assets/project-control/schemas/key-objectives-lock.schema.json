@@ -4,7 +4,7 @@
   "additionalProperties": false,
   "required": ["schemaVersion", "lockId", "documentId", "revision", "status", "document", "sourceDocuments", "confirmation", "objectiveIds", "failureModeIds", "nonGoalIds", "lockedAt"],
   "properties": {
-    "schemaVersion": {"const": "3.2"},
+    "schemaVersion": {"const": "4.0"},
     "lockId": {"type": "string", "minLength": 1},
     "documentId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "revision": {"type": "integer", "minimum": 1},

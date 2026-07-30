@@ -37,9 +37,10 @@ def private_managed_decision_case_alias_path() -> None:
         fx.commit(root, "private audit")
         candidate = fx.load(next((root / ".vibe-control" / "candidates").glob("*.json")))
         decision = {
-            "schemaVersion": "3.2", "decisionId": "DECISION-CASE", "taskId": "TASK-001",
+            "schemaVersion": "4.0", "decisionId": "DECISION-CASE", "taskId": "TASK-001",
             "candidateId": candidate["candidateId"], "candidateCommit": candidate["commit"],
             "checkpointSetSha256": candidate["checkpointSetSha256"],
+            "executionPlanSha256": candidate["executionPlanSha256"],
             "checkpointDecisions": [{"checkpointId": "CP-002", "decision": "PASS"}],
             "positioning": candidate["positioning"], "resolvedRuleSet": candidate["resolvedRuleSet"],
             "scope": candidate["changedPaths"], "owner": {"actorId": "owner"}, "decision": "APPROVE",

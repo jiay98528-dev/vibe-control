@@ -1,72 +1,102 @@
-# 机器接口指南（Schema 3.2）
+# 机器接口指南（Schema 4.0）
 
-Schema 位于 `assets/project-control/schemas/`，模板位于 `assets/project-control/templates/`。Bootstrap 后，适用 Schema、规则目录与校验器固定复制到 `.vibe-control/runtime/0.3.7/`。所有 0.3.7 项目机器对象使用 `schemaVersion="3.2"`；不得把旧对象改字段后冒充 3.2。
+Schema 位于 `assets/project-control/schemas/`，模板位于 `assets/project-control/templates/`。Bootstrap 后，适用 Schema、规则目录和校验器固定复制到 `.vibe-control/runtime/0.4.0/`。不得通过只改 `schemaVersion` 冒充 4.0。
 
-## 对象与所有权
+## 权威闭包
 
-主要闭包为：
+主要链路为：
 
-`package-audit-receipt/package-development-binding → key-objectives-lock + project-positioning + automation-policy + resolved-rule-set → project-governance-lock → task-contract(checkpoints + confirmation) → task-lock → candidate-manifest → execution-evidence/external-evidence-attestation → review-attestation(checkpoint results)/audit-closure → approval-signature(checkpoint decisions) → external-release-audit/release-receipt → stage-state/handoff`
-
-连接必须使用稳定 ID、项目根相对路径和 SHA-256，不能凭文件名、聊天描述或状态自报猜测。
-
-- `key-objectives-lock.json` 绑定根级 `KEY_OBJECTIVES.md`、需求来源、修订、确认记录、ID 集合与 SHA-256；机器不判断目标文本质量。
-- `project-positioning.json` 保存用户确认的项目定位轴、确认记录与规范化摘要哈希；发现事实不能自证用户确认。
-- `automation-policy.json` 保存一次性确认的 `MANUAL_STAGE_CONFIRMATION | AUTO_LOCAL_TO_REVIEW | AUTO_PUSH_TO_REVIEW`、固定 commit/push 权限、停止条件，以及当前关键目标与定位对象哈希。新项目必须显式选择；旧 3.2 项目缺失时只按手动兼容。策略、目标或定位漂移会阻断自动副作用并要求重新 plan/apply。
-- `resolved-rule-set.json` 只能由控制器从六层输入确定性编译：`CORE → EXPERIENCE → CAPABILITY_PROFILE → RUNTIME_ADAPTER → SKILL_BINDING → PROJECT_OVERLAY`。它是 Profile、adapter、Skill routing 和 overlay 的唯一机器结果，不得另建第二份规则状态。
-- `project-governance-lock.json` 内容绑定关键目标、positioning、resolved rule set、case catalog、权威文件、规则编译器/目录、Skill package、固定 runtime 和 package mode。新 `DEVELOPMENT` 锁必须登记 `sourceKind`：`GIT_ROOT` 绑定当前 commit/tree 并检查完整 Skill 根，`GIT_SUBDIRECTORY` 绑定父仓库 commit 与精确 subtree tree 且只检查 Skill 子树污染，`PORTABLE_COPY` 只绑定重算后的 package/runtime manifest 与 matrix 哈希并禁止伪造 commit/tree。旧 0.3.4 开发锁仍可按原 commit/tree 结构读取。所有开发来源均限制在 `DEVELOPMENT_CHECKED`；`SEALED` 仍强制 Git commit/tree 与包级审计收据。
-- `task-lock` 从当前规则集派生 `applicableRuleIds[]` 和 `requiredCaseCapabilities[]`；任务合同必须用 `objectiveRefs[]` 引用当前 `KO/KF`，包含已确认 checkpoint set，且不能删除或降低派生要求。
-- `case-catalog` 的 required case 通过 `satisfiesRuleIds[]` 显式覆盖适用规则。Oracle 固定 `exitCode`、`stdoutContainsAll[]`、`stderrContainsNone[]`，artifact 固定安全相对路径与 `minBytes`。总 case 数或一项万能执行不能替代逐规则/逐 case 覆盖。
-- `candidate-manifest` 直接绑定关键目标、需求来源、positioning、resolved rule set、task lock、`checkpointSetSha256`、commit/tree 和全部输入；evidence、review、decision 与 handoff 必须携带同一 checkpoint hash。
-- `review-attestation.checkpointResults[]` 对每个自动 checkpoint 恰好一项，observed status 由控制器从原始 evidence 重算。`approval-signature.checkpointDecisions[]` 对适用 HUMAN checkpoint 恰好一项，只接受显式 `PASS`。
-- `audit-closure` 在探索预算超限时绑定候选、checkpoint hash、失败 review hash 和 finding IDs，阻止同一候选跨会话重置预算。
-- `stage-state.json` 由控制器重新派生并原子写入。手改 phase、health 或 claimLevel 不会产生资格。
-- Dashboard 的 `status.json`、`summary.md` 与 `index.html` 是同一只读快照的外部缓存投影，不属于控制面对象，不能授予 claim 或覆盖 evidence。
-
-## 定位、发行意图与声明上限
-
-`releaseIntent` 枚举为 `LOCAL_EXPERIMENT | PRIVATE_OPERATION | EXTERNAL_RELEASE`，既存在于已确认 positioning，也由治理锁重复绑定以便机械核对；两者不一致必须失败。它与 `deliveryObjective`、任务 `risk` 分轴。
-
-声明上限取 phase、任务合同、全部 required cases、规则集和 release intent 各自上限的最小值。任务只能缩小定位范围，不能改写定位或削弱规则。任何 positioning、Profile、adapter、Skill binding、overlay 或规则目录变化都会失效 task lock 及全部下游对象。
-
-`review-attestation` 与 `approval-signature` 的 `keyId/signature` 在结构上可选：本地实验和私有运行使用受版本管理、候选绑定的人工记录；只有 `EXTERNAL_RELEASE + R3 + RELEASE_READY` 项目路径要求 Ed25519 验签。`external-release-audit` 与 `release-receipt` 只属于这条项目发行路径。
-
-`package-audit-report`、`package-audit-evidence-manifest` 与 `package-audit-receipt` 属于 Skill 包级最终候选审计闭包，不是项目 release receipt。annotated audit tag 指向一个 Git tree，其中固定包含报告、执行证据 manifest、逐 case 原始 transcript 与声明 artifact；annotated release tag 的 JSON message 再绑定该 tree、报告/evidence blob、精确候选与三项内容哈希。它们不使用私钥，也不构成安装、授权或收费机制。Bootstrap 只在包级 validator 重新验证当前 package/runtime inventory、全部证据 blob 与固定控制覆盖后，把规范化收据复制到项目治理目录并由治理锁内容绑定。
-
-## Adapter 与 Skill binding
-
-Adapter descriptor 绑定 ID、版本、内容哈希、runtime family、发现来源、执行模式、机器可接受的 `provesCaseCapabilities[]`、明确非证明事项及环境限制。Case 自报能力必须是该集合的子集；超界声明不能形成规则覆盖。`adapter-invocation` 另外绑定 evidence ID、候选、Case、descriptor、requested/resolved executable、宿主平台、工具版本、产物声明和可选运行观察。0.3.7 实现 `generic-command`、`browser-runtime`、`browser-webgl-game-runtime`、`godot-runtime`；WebGL 游戏 Adapter 还要求 `GAMEPLAY`、显式 WebGL target、直接 `playwright test`、执行前产物清理和同一 evidence ID 命名空间。Tauri、Electron、Unreal 与 Capacitor 只能产生 investigation。
-
-Skill binding 固定 Skill ID、`required | advisory`、`producer | heuristic-reviewer`、触发条件、写权限、`canApprove=false`、路径、版本和确定性 tree hash。required 缺失或漂移阻断任务；advisory 缺失只告警；无法内容寻址的 Skill 只能 advisory。安装需要单独人工批准，完成后必须重新发现和解析。任何 Skill 安装均不需要私钥。
-
-## 文件引用
-
-正式引用统一包含：
-
-```json
-{"path":"project/root/relative/path","bytes":123,"sha256":"64-lowercase-hex","tracked":true}
+```text
+package binding
+→ key-objectives-lock + project-positioning + automation-policy + resolved-rule-set
+→ project-governance-lock
+→ task-contract(action map + checkpoints + scorecard + verification/guard/reporting policies)
+→ task-lock → candidate-manifest
+→ execution-evidence → review-attestation → owner decision
+→ stage-state / release objects / handoff
 ```
 
-禁止绝对路径、反斜杠、`..`、符号链接逃逸和项目外文件。正式控制对象、transcript 与产物必须受 Git 跟踪；无 Git 时只允许诊断。
+对象以稳定 ID、项目根相对路径、字节数和 SHA-256 连接。状态文件不能同时定义 required case、证据覆盖和最终 PASS。
 
-## CLI envelope 与状态三轴
+## Schema 4.0 新对象和字段
 
-CLI 统一输出 Schema 3.2 JSON envelope，`status` 只能是 `PASS | BLOCKED | FAIL | INVALIDATED`，并分离 `integrity`、`formal`、`state`、warning、investigation 和 human decision。退出码固定为 `0/2/3/4`；错误参数、畸形 JSON、Schema 失败和内部异常也必须输出稳定 JSON，不能泄漏 argparse 文本或 traceback。
+`task-contract` 除 3.2 检查点字段外，必须包含：
 
-- `phase`：生命周期位置；
-- `health`：`CLEAR | BLOCKED | FAILED`；
-- `claimLevel`：当前完整证据能支持的最高声明。
+- `milestones[]`：稳定 ID、外部可见结果、依赖、节点、checkpoint refs 和预期通过条件；
+- `scorecardPlan[]`：计分项 ID、四域之一、事实来源和权重；每个领域至少一项；
+- `verificationStrategy`：Implementer 最小开发检查、候选后 case、Executor/Auditor 分工、未证明边界和审核停止条件；
+- `guardPolicy`：`ACTION_GUARD | CLAIM_GUARD | HUMAN_DECISION | ENVIRONMENT_BLOCKED | ADVISORY` 的项目适用规则；
+- `reportingPolicy`：固定 `ZERO_CONTEXT_ORIENTATION`、普通话字段、下一步三入口和进度更新策略。
 
-不得创建 `PARTIAL_PASS`、`ALMOST_DONE` 等替代状态。失败和阻断不伪装成阶段。
+控制器为行动地图、计分计划和三项策略分别生成规范化哈希，并合成为 task lock 的 task-plan identity。Candidate、evidence、review、decision 和 handoff 必须携带相同身份；任何里程碑、计分项、检查点、case/oracle、策略或确认记录变化都会失效全部下游对象。
 
-## 兼容、迁移与重装
+`automation-policy` 的 4.0 默认值为：
 
-Schema 3.1 使用 `migrate --plan [--spec]` 与 `--apply <plan-hash> --spec`。无 spec 的计划只读生成内容 ID 和待补映射；确认 spec 后，apply 在 staging 中验证完整 3.2 控制面和逐文件 archive manifest，再原子替换。旧 task、candidate、evidence、review、decision、receipt 和 handoff 只归档、不重绑定，状态回到 `DRAFT / BLOCKED / DIAGNOSTIC`。
+```text
+AUTO_LOCAL_TO_REVIEW / MILESTONE_COMMITS / NONE
+```
 
-0.3.7 不迁移 Schema 2.0 数据。检测到 Schema 2.0 控制面时返回 `VC-REINSTALL-REQUIRED`，不得写入；该项目可继续使用固定 0.2.2 runtime，或经批准后全新 bootstrap。
+默认值无需用户确认，但必须绑定项目、目标和定位身份。手动模式或 push 模式仍通过内容绑定 plan/apply 改变；push 记录精确 remote、branch、upstream 和去凭据 URL 哈希。
 
-Schema 3.2 项目改变里程碑、目标环境或发行边界时使用 `reposition --plan` 计算精确变化和失效集合；只有批准并匹配 plan hash 后才能 apply，随后状态回到 `DRAFT/DIAGNOSTIC`。
+## 本机 progress ledger
 
-关键目标变化使用 `revise-objectives --plan/--apply <plan-hash>`。计划必须列出目标/需求来源差异和 task、candidate、evidence、review、decision、handoff 失效集合；普通任务、worker 或审核者不得直接改写目标锁。
+`progress-ledger.json`、`status.json`、`summary.md` 和 `index.html` 位于用户缓存，不是项目 Schema 对象，不进入 governance lock、candidate、evidence 或 package manifest。它们可以在 `.vibe-control` 出现前存在。
 
-JSON Schema Draft 2020-12 由固定依赖执行。Git、哈希、跨文件闭包、规则编译、计数、candidate、签名和失效关系由固定 runtime 机械重算；依赖缺失或版本不符时不自动安装并返回 `DEPENDENCY_BLOCKED`。
+Ledger 使用 `projectInstanceId`、`taskId`、单调 `revision`、节点状态与 append-only event。Coordinator 是唯一写入者；Team/SubAgent 回报不能直接成为 ledger 事件。写入时比较 `expectedRevision` 并原子替换，冲突不得覆盖。Ledger 丢失后不得从 narrative 重建历史。
+
+Dashboard 从 ledger、机器对象、Git 实况和共享只读 validation projection 派生。它不能写 stage-state/evidence、关闭 blocker 或提高 claim。详细接口见 [progress-dashboard.md](progress-dashboard.md)。
+
+## 四域计分
+
+域枚举为：
+
+```text
+FUNCTIONALITY | ROBUSTNESS_SECURITY | AUDIT | PROCESS
+```
+
+每项状态从引用事实派生；未知、待处理、无候选绑定证据或自报结果不计入完成。Dashboard 同时输出完成项、总项、比率和证据覆盖。综合准备度固定为 `40/25/20/15` 加权并保留一位小数；没有锁定分母时输出 `N/A`。计分不覆盖硬 blocker 或声明上限。
+
+## 报告 envelope
+
+CLI 保持 `status = PASS | BLOCKED | FAIL | INVALIDATED` 及 `integrity/formal/state/data/error` 分离，并在执行、门禁和审计报告中增加：
+
+```json
+{
+  "plainLanguage": {
+    "projectPurpose": "...",
+    "whatWasDone": "...",
+    "whatWorksNow": "...",
+    "whatStillDoesNotWork": "...",
+    "userImpact": "...",
+    "canContinue": "...",
+    "canRelease": "..."
+  }
+}
+```
+
+文本报告中该对象必须投影到最后一节“给没有开发背景的人看的说明”。字段不得包含内部 ID、哈希、Schema、claim、commit/tree 等控制面术语。机器检查字段齐全、位置和已知术语泄漏，不假装判断文字质量。
+
+停止报告还包含三个建议：`RECOMMENDED`、`ALTERNATIVE`、`OPEN`。建议是 UI/模型路由输入，不是事实、授权或状态跃迁。
+
+## 既有闭包保持不变
+
+- `key-objectives-lock` 绑定受跟踪目标文档、来源、确认、修订、ID 集合和哈希；机器不评价目标文字。
+- Positioning 分离 `deliveryObjective`、`releaseIntent`、runtime、环境与渠道；任务不能改写项目定位。
+- `resolved-rule-set` 由规则层确定性编译，任务只能增加或缩小约束。
+- Required case 必须为 `CANDIDATE_EXECUTION` 并逐规则覆盖；`BOOTSTRAP_DIAGNOSTIC` 不能进入候选任务。
+- Candidate 绑定 commit/tree、task plan、case/oracle、目标、定位、规则和全部输入。
+- 每个 required case 有候选绑定的真实 execution、非零守恒 counters、零 skip、transcript/artifact；总计数不能替代逐 case provenance。
+- Review 逐检查点闭合，Owner 逐项决定 HUMAN checkpoint；实现者、执行者和审核者不能自批。
+- Stage state 由控制器重新派生并原子写入，手改不产生资格。
+
+## 发行意图和证据
+
+`LOCAL_EXPERIMENT | PRIVATE_OPERATION | EXTERNAL_RELEASE` 继续分离。声明上限取 phase、task、case、rule set、release intent 和 package posture 的最小值。R2/私有 R3 的 review/decision 是候选绑定人工记录；仅外部 R3 `RELEASE_READY` 使用项目级签名链。Skill 安装和本地版本不需要私钥。
+
+正式文件引用继续禁止绝对路径、反斜杠、`..`、符号链接逃逸、未跟踪文件和哈希漂移。CLI 退出码保持 `0/2/3/4`，坏参数、畸形 JSON、Schema 错误和内部异常必须输出稳定 JSON。
+
+## 迁移与兼容
+
+首次用 0.4.0 `adopt/resume` 处理 Schema 3.2 时，生成内容绑定升级计划，完整归档旧控制对象和逐文件 manifest，不继承 task、candidate、evidence、review、decision、receipt 或 handoff。Apply 在 staging 完整验证后原子替换，失败回滚；成功后使用默认本地自动策略并回到 `DRAFT / BLOCKED / DIAGNOSTIC`。脏工作树或不可无损解析时只输出计划/阻断，不修改产品。
+
+Schema 3.1 仍先按既有路径迁移；Schema 2.0 返回 `VC-REINSTALL-REQUIRED`。关键目标变化使用 `revise-objectives`，定位变化使用 `reposition`，自动化副作用权限变化使用 `automation`；均不得藏在普通 task 中。

@@ -3,7 +3,20 @@
 from __future__ import annotations
 import argparse, json, os, subprocess, sys, tempfile, time
 from pathlib import Path
-import test_v2_support as fx
+try:
+    import test_v2_support as fx
+except Exception as exc:
+    case_id = "shared-package-setup"
+    if "--case" in sys.argv and sys.argv.index("--case") + 1 < len(sys.argv):
+        case_id = sys.argv[sys.argv.index("--case") + 1]
+    print(json.dumps({
+        "test": case_id,
+        "status": "FAIL",
+        "checkId": "ASSURANCE-SHARED-FIXTURE-SETUP",
+        "errorType": type(exc).__name__,
+        "error": str(exc),
+    }, ensure_ascii=False), flush=True)
+    raise SystemExit(1)
 import bounded_test_runner as bounded
 
 DEFAULT_CASE_TIMEOUT_SECONDS = int(os.environ.get("VIBE_CONTROL_ASSURANCE_CASE_TIMEOUT", "180"))
@@ -124,7 +137,10 @@ def test_managed_identifier_cannot_escape_control_directory():
         path=next((root/".vibe-control"/"candidates").glob("*.json")); value=fx.load(path); value["candidateId"]="../../outside"; fx.write(path,value); fx.commit(root,"unsafe candidate identifier"); reject(root,{"HC-IDENTIFIER-SAFETY"})
     finally: temp.cleanup()
 
-TESTS=[test_release_ready_without_review_or_decision_is_blocked,test_task_claim_ceiling_is_enforced,test_bootstrap_requires_explicit_release_intent,test_release_intent_paths_are_enforced,test_local_experiment_caps_and_blocks_release,test_private_r3_does_not_require_keys_or_receipt,test_schema_is_executed,test_bad_top_level_returns_stable_json,test_candidate_task_identity_closes,test_freeze_rejects_forbidden_diff,test_declared_observation_cannot_cover_required_case,test_failed_health_is_not_eligible,test_phase_history_closes,test_cli_error_surface_is_stable,test_candidate_manifest_diff_recomputed,test_r2_attestations_do_not_require_keys,test_signed_failed_review_cannot_advance_or_qualify,test_candidate_input_bindings_cannot_be_substituted,test_managed_identifier_cannot_escape_control_directory]
+# Longest-first ordering minimizes the bounded four-worker makespan without
+# increasing concurrency or omitting any case. Durations are only scheduling
+# hints; every case keeps its own hard timeout and result identity.
+TESTS=[test_private_r3_does_not_require_keys_or_receipt,test_local_experiment_caps_and_blocks_release,test_r2_attestations_do_not_require_keys,test_signed_failed_review_cannot_advance_or_qualify,test_release_ready_without_review_or_decision_is_blocked,test_task_claim_ceiling_is_enforced,test_declared_observation_cannot_cover_required_case,test_release_intent_paths_are_enforced,test_failed_health_is_not_eligible,test_phase_history_closes,test_candidate_manifest_diff_recomputed,test_candidate_input_bindings_cannot_be_substituted,test_schema_is_executed,test_candidate_task_identity_closes,test_managed_identifier_cannot_escape_control_directory,test_bootstrap_requires_explicit_release_intent,test_freeze_rejects_forbidden_diff,test_bad_top_level_returns_stable_json,test_cli_error_surface_is_stable]
 
 
 def run_worker(test_name: str) -> int:
@@ -157,12 +173,15 @@ def run_supervised_command(
     temp_root: Path,
     command: list[str],
     timeout_seconds: int,
+    *,
+    env_overrides: dict[str, str] | None = None,
 ) -> dict:
     return bounded.run_supervised_command(
         test_name, temp_root, command, timeout_seconds,
         identity_field="test",
         protocol_id="ASSURANCE-CASE-PROTOCOL",
         timeout_id="ASSURANCE-CASE-TIMEOUT",
+        env_overrides=env_overrides,
     )
 
 
@@ -189,6 +208,24 @@ def build_report(out: list[dict], duration_seconds: float) -> dict:
     }
 
 
+def append_shared_fixture_postcheck(
+    out: list[dict], descriptor_path: Path, descriptor_sha: str, *, verifier=None
+) -> bool:
+    verifier = verifier or fx.verify_shared_test_package_unchanged
+    try:
+        verifier(descriptor_path, descriptor_sha)
+    except Exception as exc:
+        out.append({
+            "test": "shared-package-post-verify",
+            "status": "FAIL",
+            "checkId": "ASSURANCE-SHARED-FIXTURE-POST-VERIFY",
+            "errorType": type(exc).__name__,
+            "error": str(exc),
+        })
+        return False
+    return True
+
+
 class JsonArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         raise ValueError(message)
@@ -198,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = JsonArgumentParser(add_help=True)
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--case")
+    parser.add_argument(fx.SHARED_TEST_PACKAGE_DESCRIPTOR_ARG, help=argparse.SUPPRESS)
+    parser.add_argument(fx.SHARED_TEST_PACKAGE_DESCRIPTOR_SHA_ARG, help=argparse.SUPPRESS)
     parser.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
     parser.add_argument("--case-timeout", type=int, default=DEFAULT_CASE_TIMEOUT_SECONDS)
     parser.add_argument("--suite-timeout", type=int, default=DEFAULT_SUITE_TIMEOUT_SECONDS)
@@ -216,19 +255,40 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(json.dumps({"status": "FAIL", "checkId": "ASSURANCE-INVALID-ARGUMENTS", "error": str(exc)}, ensure_ascii=False))
         return 1
-    with tempfile.TemporaryDirectory(prefix="vibe-control-assurance-suite-", ignore_cleanup_errors=True) as temp:
-        out, duration = bounded.run_suite(
-            names,
-            command_for=lambda name: [sys.executable, str(Path(__file__).resolve()), "--case", name],
-            temp_root=Path(temp),
-            jobs=args.jobs,
-            case_timeout=args.case_timeout,
-            suite_timeout=args.suite_timeout,
-            identity_field="test",
-            protocol_id="ASSURANCE-CASE-PROTOCOL",
-            timeout_id="ASSURANCE-CASE-TIMEOUT",
-            suite_timeout_id="ASSURANCE-SUITE-TIMEOUT",
-        )
+    out: list[dict] = []
+    suite_started = time.monotonic()
+    try:
+        with tempfile.TemporaryDirectory(prefix="vibe-control-assurance-suite-", ignore_cleanup_errors=True) as temp:
+            fx.enable_inprocess_assurance_commands()
+            descriptor_path, descriptor_sha = fx.write_shared_test_package_descriptor(
+                Path(temp) / "shared-package-descriptor.json"
+            )
+            out, duration = bounded.run_suite(
+                names,
+                command_for=lambda name: [
+                    sys.executable, str(Path(__file__).resolve()), "--case", name,
+                    fx.SHARED_TEST_PACKAGE_DESCRIPTOR_ARG, str(descriptor_path),
+                    fx.SHARED_TEST_PACKAGE_DESCRIPTOR_SHA_ARG, descriptor_sha,
+                ],
+                temp_root=Path(temp),
+                jobs=args.jobs,
+                case_timeout=args.case_timeout,
+                suite_timeout=args.suite_timeout,
+                identity_field="test",
+                protocol_id="ASSURANCE-CASE-PROTOCOL",
+                timeout_id="ASSURANCE-CASE-TIMEOUT",
+                suite_timeout_id="ASSURANCE-SUITE-TIMEOUT",
+            )
+            append_shared_fixture_postcheck(out, descriptor_path, descriptor_sha)
+    except Exception as exc:
+        duration = time.monotonic() - suite_started
+        out.append({
+            "test": "shared-package-setup",
+            "status": "FAIL",
+            "checkId": "ASSURANCE-SHARED-FIXTURE-SETUP",
+            "errorType": type(exc).__name__,
+            "error": str(exc),
+        })
     report = build_report(out, duration)
     report.update({
         "jobs": args.jobs, "caseTimeoutSeconds": args.case_timeout,
